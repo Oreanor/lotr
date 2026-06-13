@@ -4,6 +4,7 @@ import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
 } from "react";
 import {
   CalendarDays,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import locationDataJson from "@/data/locations.json";
 import recruitmentDataJson from "@/data/recruitment.json";
+import heroProgressDataJson from "@/data/hero-progress.json";
 
 // Static assets live in public/ and are served from the site root by URL.
 const mapImage = "/map.jpg";
@@ -92,9 +94,9 @@ interface Character {
   // characters. Innate trait — not reduced by hunger.
   luck: number;
   // Days carrying the Ring before succumbing to it ("срыв"), starting from
-  // their current exposure. Corruption% = ringExposure×100 + day/resilience×100.
+  // accumulated exposure. Corruption% = ringExposure×100 + bearerDays/resilience×100.
   resilience: number;
-  // Pre-existing corruption (0..1) before the journey. Bilbo is already far gone.
+  // Accumulated Ring corruption (0..1) from past possession — Bilbo, Gollum.
   ringExposure?: number;
 }
 
@@ -109,6 +111,8 @@ interface CharacterStats {
   corruption: number;
   dead: boolean;
 }
+
+type DeathCause = "hunger" | "battle";
 
 const locationData = locationDataJson as unknown as LocationData;
 
@@ -125,9 +129,38 @@ const DEFAULT_VISIBLE_FRACTION = 0.25;
 const DEFAULT_ZOOM_BOOST = 1.5;
 const SPEED_PX_PER_SECOND = 10;
 const ANIMATION_SPEEDS = [1, 2, 4];
+const SPEED_STORAGE_KEY = "lotr-speed";
+
+type SavedSpeeds = { travel?: number; battle?: number };
+
+function readSavedSpeed(kind: keyof SavedSpeeds): number {
+  try {
+    const raw = localStorage.getItem(SPEED_STORAGE_KEY);
+    if (!raw) {
+      return 1;
+    }
+    const value = (JSON.parse(raw) as SavedSpeeds)[kind];
+    return typeof value === "number" && ANIMATION_SPEEDS.includes(value) ? value : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function writeSavedSpeed(kind: keyof SavedSpeeds, value: number) {
+  try {
+    const raw = localStorage.getItem(SPEED_STORAGE_KEY);
+    const prev: SavedSpeeds = raw ? (JSON.parse(raw) as SavedSpeeds) : {};
+    localStorage.setItem(SPEED_STORAGE_KEY, JSON.stringify({ ...prev, [kind]: value }));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 const MILES_PER_DAY = 30;
 const PATH_SAMPLE_DISTANCE = 12;
 const MOVE_SUBSTEPS = 4;
+// Ring bearer picks up a left-behind companion within this map distance.
+const MEMBER_PICKUP_RANGE = 24;
 const TERRAIN_OVERLAY_OPACITY = 0.2;
 // Narrow water (rivers) up to this many terrain cells can be forded; wider
 // water (seas, lakes) still blocks the route. Mountains are always impassable.
@@ -255,21 +288,21 @@ function iconVariant(icon: string, kind: "pain" | "joy" | "refuse" | "dark"): st
 // Iconic foes from the gazetteer, spread across tiers (stats are flavor 1-10).
 // `regions` roughly pins each to its homeland; undefined = roams widely.
 const MONSTERS: Monster[] = [
-  { name: "Лисы-вредители", icon: "/enemies/fox.png", tier: 0, strength: 1, defense: 1, intelligence: 1, luck: 3, regions: ["NW", "NE", "MW"] },
-  { name: "Крысы-переростки", icon: "/enemies/rat.png", tier: 0, strength: 2, defense: 1, intelligence: 1, luck: 2 },
-  { name: "Волчья стая", icon: "/enemies/wolf.png", tier: 1, strength: 3, defense: 2, intelligence: 2, luck: 4, regions: ["NW", "NE", "MW"] },
-  { name: "Бандиты", icon: "/enemies/bandit.png", tier: 1, strength: 3, defense: 3, intelligence: 3, luck: 3 },
-  { name: "Гигантские пауки", icon: "/enemies/spider.png", tier: 1, strength: 4, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
-  { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 5, defense: 5, intelligence: 6, luck: 2, regions: ["NW"] },
-  { name: "Гоблины-разведчики", icon: "/enemies/goblin.png", tier: 2, strength: 3, defense: 3, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
-  { name: "Орки-разведчики", icon: "/enemies/orc_scout.png", tier: 2, strength: 4, defense: 4, intelligence: 3, luck: 3 },
-  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 8, defense: 8, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
-  { name: "Орочий отряд", icon: "/enemies/orc.png", tier: 3, strength: 5, defense: 4, intelligence: 3, luck: 3 },
-  { name: "Варги", icon: "/enemies/varg.png", tier: 3, strength: 5, defense: 4, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
-  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 7, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
-  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 6, defense: 6, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
-  { name: "Мумак (олифант)", icon: "/enemies/mumak.png", tier: 4, strength: 10, defense: 9, intelligence: 1, luck: 2, regions: ["SW", "SE"] },
-  { name: "Тролли Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 9, defense: 9, intelligence: 2, luck: 2, regions: ["ME"] },
+  { name: "Лис", icon: "/enemies/fox.png", tier: 0, strength: 1, defense: 1, intelligence: 1, luck: 3, regions: ["NW", "NE", "MW"] },
+  { name: "Крыса-переросток", icon: "/enemies/rat.png", tier: 0, strength: 2, defense: 1, intelligence: 1, luck: 2 },
+  { name: "Волк", icon: "/enemies/wolf.png", tier: 1, strength: 4, defense: 2, intelligence: 2, luck: 4, regions: ["NW", "NE", "MW"] },
+  { name: "Бандит", icon: "/enemies/bandit.png", tier: 1, strength: 4, defense: 3, intelligence: 3, luck: 3 },
+  { name: "Гигантский паук", icon: "/enemies/spider.png", tier: 1, strength: 5, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
+  { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 6, defense: 5, intelligence: 6, luck: 2, regions: ["NW"] },
+  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 4, defense: 3, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
+  { name: "Орк-разведчик", icon: "/enemies/orc_scout.png", tier: 2, strength: 5, defense: 4, intelligence: 3, luck: 3 },
+  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 9, defense: 8, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 6, defense: 5, intelligence: 3, luck: 3 },
+  { name: "Варг", icon: "/enemies/varg.png", tier: 3, strength: 6, defense: 4, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 8, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
+  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 8, defense: 6, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
+  { name: "Мумак", icon: "/enemies/mumak.png", tier: 4, strength: 10, defense: 9, intelligence: 1, luck: 2, regions: ["SW", "SE"] },
+  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 10, defense: 9, intelligence: 2, luck: 2, regions: ["ME"] },
 ];
 
 // Tier 0-5 at a map point: closer to Mordor → higher.
@@ -297,13 +330,13 @@ function pickMonster(localTier: number, point: Point): { monster: Monster; dange
 
 // Named bosses fixed to their lairs — engageable when you reach the location.
 const BOSSES_BY_LOCATION: Record<number, Monster> = {
-  [WEATHERTOP_ID]: { name: "Назгул-засада", icon: "/enemies/nazgul.png", tier: 4, strength: 8, defense: 7, intelligence: 8, luck: 4 },
-  [MORIA_GATE_ID]: { name: "Балрог, Погибель Дурина", icon: "/enemies/balrog.png", tier: 5, strength: 10, defense: 10, intelligence: 8, luck: 5 },
-  [ISENGARD_ID]: { name: "Саруман и урук-хай", icon: "/icons/saruman.png", tier: 4, strength: 8, defense: 7, intelligence: 9, luck: 5 },
-  [BARAD_DUR_ID]: { name: "Гарнизон Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 10, defense: 10, intelligence: 10, luck: 6 },
-  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 9, defense: 8, intelligence: 5, luck: 4 },
-  [MINAS_MORGUL_ID]: { name: "Король-чародей Ангмара", icon: "/enemies/witchking.png", tier: 5, strength: 9, defense: 8, intelligence: 9, luck: 5 },
-  [UMBAR_ID]: { name: "Корсары Умбара", icon: "/enemies/corsair.png", tier: 4, strength: 7, defense: 6, intelligence: 5, luck: 5 },
+  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 4, strength: 9, defense: 7, intelligence: 8, luck: 4 },
+  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 10, defense: 10, intelligence: 8, luck: 5 },
+  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 9, defense: 7, intelligence: 9, luck: 5 },
+  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 10, defense: 10, intelligence: 10, luck: 6 },
+  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 10, defense: 8, intelligence: 5, luck: 4 },
+  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 10, defense: 8, intelligence: 9, luck: 5 },
+  [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 8, defense: 6, intelligence: 5, luck: 5 },
 };
 // Unique boss names — a defeated boss never returns to its location.
 const BOSS_NAMES = new Set(Object.values(BOSSES_BY_LOCATION).map((boss) => boss.name));
@@ -412,17 +445,17 @@ const ABILITIES: Record<string, string> = {
   galadriel: "Защита эльфов в отряде +1",
 };
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
-const WRAITH_FOES = new Set(["Умертвие", "Назгул-засада", "Король-чародей Ангмара"]);
+const WRAITH_FOES = new Set(["Умертвие", "Назгул", "Король-чародей"]);
 // Only these beings can wound the Balrog.
 const BALROG_DAMAGERS = new Set(["gandalf", "bombadil", "saruman"]);
 // Beast-type foes (Grimbeorn hits them harder).
 const BEAST_MONSTERS = new Set([
-  "Лисы-вредители",
-  "Крысы-переростки",
-  "Волчья стая",
-  "Гигантские пауки",
-  "Варги",
-  "Мумак (олифант)",
+  "Лис",
+  "Крыса-переросток",
+  "Волк",
+  "Гигантский паук",
+  "Варг",
+  "Мумак",
 ]);
 const GANDALF_HEAL_MULTIPLIER = 1.5;
 const ARAGORN_ENCOUNTER_MULTIPLIER = 0.5;
@@ -458,7 +491,7 @@ function addBonus(a: StatBonus, b: StatBonus): StatBonus {
 
 // Roaming foes who join on defeat. Eomer only in Rohan; Gollum anywhere, rare.
 const EOMER_ENEMY: Monster = {
-  name: "Эомер, маршал Марки",
+  name: "Эомер",
   icon: "/icons/eomer.png",
   tier: 3,
   strength: 8,
@@ -483,6 +516,7 @@ const ROHAN_RADIUS = 280;
 // Gollum ≈ once a month anywhere, Eomer ≈ once every couple weeks but only in Rohan.
 const GOLLUM_ENCOUNTER_CHANCE = 0.1;
 const EOMER_ENCOUNTER_CHANCE = 0.2;
+const ROAMING_RECRUIT_IDS = new Set(["gollum", "eomer"]);
 // Tom Bombadil drifts home eventually — per-day chance (~weeks to a couple months).
 const BOMBADIL_LEAVE_CHANCE = 1 / 40;
 // Companions tempted by the Ring who may turn on the bearer. A traitor must
@@ -494,19 +528,89 @@ const BETRAYAL_GRACE_DAYS = 30;
 const BETRAYAL_CHANCE = 0.06;
 
 // Choose what a triggered encounter is. Specials (Gollum/Eomer) come alone;
-// ordinary foes arrive as a pack (handled at battle start).
+// ordinary foes arrive as a mixed pack (rolled once, shown before the fight).
+function roamingRecruitBlocked(
+  id: string,
+  party: string[],
+  leftBehind: { id: string }[],
+  slain: ReadonlySet<string>,
+): boolean {
+  return party.includes(id) || leftBehind.some((member) => member.id === id) || slain.has(id);
+}
+
+function slainRoamingRecruitIds(ids: string[]): string[] {
+  return ids.filter((id) => ROAMING_RECRUIT_IDS.has(id));
+}
+
 function rollEncounter(
   point: Point,
   party: string[],
+  leftBehind: { id: string }[],
+  slainRoamingRecruits: ReadonlySet<string>,
 ): { monster: Monster; dangerous: boolean; solo: boolean } {
-  if (!party.includes("gollum") && Math.random() < GOLLUM_ENCOUNTER_CHANCE) {
+  if (
+    !roamingRecruitBlocked("gollum", party, leftBehind, slainRoamingRecruits) &&
+    Math.random() < GOLLUM_ENCOUNTER_CHANCE
+  ) {
     return { monster: GOLLUM_ENEMY, dangerous: false, solo: true };
   }
   const inRohan = Math.hypot(point.x - EDORAS_POINT.x, point.y - EDORAS_POINT.y) < ROHAN_RADIUS;
-  if (inRohan && !party.includes("eomer") && Math.random() < EOMER_ENCOUNTER_CHANCE) {
+  if (
+    inRohan &&
+    !roamingRecruitBlocked("eomer", party, leftBehind, slainRoamingRecruits) &&
+    Math.random() < EOMER_ENCOUNTER_CHANCE
+  ) {
     return { monster: EOMER_ENEMY, dangerous: false, solo: true };
   }
   return { ...pickMonster(tierAt(point), point), solo: false };
+}
+
+interface EncounterState {
+  monster: Monster;
+  dangerous: boolean;
+  solo: boolean;
+  pack: Monster[];
+}
+
+function uniquePackTypes(pack: Monster[]): Monster[] {
+  const seen = new Set<string>();
+  return pack.filter((mm) => {
+    if (seen.has(mm.icon)) return false;
+    seen.add(mm.icon);
+    return true;
+  });
+}
+
+function buildEncounterPack(
+  lead: Monster,
+  solo: boolean,
+  partySize: number,
+  point: Point,
+): Monster[] {
+  const count = solo ? 1 : Math.max(1, partySize + Math.floor(Math.random() * 5) - 2);
+  const region = regionAt(point);
+  const packPool = MONSTERS.filter(
+    (mm) =>
+      (!mm.regions || mm.regions.includes(region)) &&
+      mm.tier <= lead.tier &&
+      mm.tier >= lead.tier - 1,
+  );
+  return Array.from({ length: count }, (_, i) =>
+    i === 0 || solo || packPool.length === 0
+      ? lead
+      : packPool[Math.floor(Math.random() * packPool.length)],
+  );
+}
+
+function createEncounter(
+  rolled: { monster: Monster; dangerous: boolean; solo: boolean },
+  partySize: number,
+  point: Point,
+): EncounterState {
+  return {
+    ...rolled,
+    pack: buildEncounterPack(rolled.monster, rolled.solo, partySize, point),
+  };
 }
 
 // Leveling: each level-up grants +1 to a chosen stat. Level costs grow, so a
@@ -524,6 +628,13 @@ interface StatBonus {
 }
 const ZERO_BONUS: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
 
+interface HeroInitialProgress {
+  exp: number;
+  bonus: StatBonus;
+}
+
+const INITIAL_HERO_PROGRESS = heroProgressDataJson as Record<string, HeroInitialProgress>;
+
 // Level (everyone starts at 1) plus progress within the current level.
 function levelForExp(exp: number): { level: number; intoLevel: number; nextLevelXp: number } {
   let level = 1;
@@ -537,6 +648,16 @@ function levelForExp(exp: number): { level: number; intoLevel: number; nextLevel
   return { level, intoLevel: exp - acc, nextLevelXp: need };
 }
 
+function bonusPoints(bonus: StatBonus): number {
+  return bonus.strength + bonus.defense + bonus.intelligence + bonus.luck;
+}
+
+function unspentPointsFor(id: string, exp: number, bonus: StatBonus): number {
+  const spent = bonusPoints(bonus);
+  const creationOffset = id === RING_BEARER_ID ? CREATION_POINTS : 0;
+  return Math.max(0, levelForExp(exp).level - 1 - (spent - creationOffset));
+}
+
 function effectiveStats(character: Character, bonus: StatBonus) {
   return {
     strength: character.strength + bonus.strength,
@@ -546,8 +667,8 @@ function effectiveStats(character: Character, bonus: StatBonus) {
   };
 }
 
-// Auto-battle: allies strike one by one, then the enemy. Damage = attacker
-// strength minus target defense (min 1). HP = 10×strength. Paced by a timer.
+// Auto-battle: allies strike one by one, then the enemy. Ally damage = strength
+// − defense (min 1). Enemy damage partly pierces defense (min 2). HP = 10×strength.
 const BATTLE_TICK_MS = 550;
 
 interface Combatant {
@@ -579,7 +700,11 @@ interface BattleState {
   gandalfOnly: boolean; // only Gandalf can wound this foe (the Balrog)
 }
 
-function hitDamage(attacker: Combatant, target: Combatant): number {
+function hitDamage(attacker: Combatant, target: Combatant, side: "ally" | "enemy" = "ally"): number {
+  if (side === "enemy") {
+    // Defense only partly blocks; equal stats still deal 2+.
+    return Math.max(2, attacker.strength - Math.floor(target.defense * 0.5));
+  }
   return Math.max(1, attacker.strength - target.defense);
 }
 // Four sweep directions for the hit-stripe, indexed by BattleState.hitDir.
@@ -1001,7 +1126,7 @@ function nearestTerrainId(r: number, g: number, b: number): number {
 // Derive current stats from a character and how many days have been travelled.
 function computeCharacterStats(
   character: Character,
-  journeyDay: number,
+  bearerRingDays: number,
   bearerId: string,
   damage: number,
   bonus: StatBonus,
@@ -1011,9 +1136,8 @@ function computeCharacterStats(
   const maxHealth = s.strength * HEALTH_PER_STR;
   const health = Math.max(0, maxHealth - damage);
 
-  // Baseline exposure everyone carries; the bearer also accrues it day by day.
-  const baseCorruption = (character.ringExposure ?? 0) * 100;
-  const journeyCorruption = isBearer ? (journeyDay / character.resilience) * 100 : 0;
+  const accumulated = (character.ringExposure ?? 0) * 100;
+  const journeyCorruption = isBearer ? (bearerRingDays / character.resilience) * 100 : 0;
 
   return {
     strength: s.strength,
@@ -1023,7 +1147,7 @@ function computeCharacterStats(
     maxHealth,
     luck: s.luck,
     isBearer,
-    corruption: Math.min(100, Math.round(baseCorruption + journeyCorruption)),
+    corruption: Math.min(100, Math.floor(accumulated + journeyCorruption)),
     dead: health <= 0,
   };
 }
@@ -1050,6 +1174,27 @@ function StatBar({
         <div className={`h-full rounded ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
+  );
+}
+
+// Hover/focus popup explaining a HUD icon (food, mount, cloaks, …). The bubble
+// drops below the icon so it never clips off the top edge of the screen.
+function HoverHint({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={`group relative inline-flex ${className}`} aria-label={label}>
+      {children}
+      <span className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-max max-w-[60vw] whitespace-normal rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs font-normal leading-snug text-neutral-200 shadow-lg group-hover:block">
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -1115,6 +1260,9 @@ export default function MiddleEarthMap() {
   // Current transport, mirrored into a ref so the rAF loop reads it live.
   const transportRef = useRef<TransportId | null>(null);
   const partyRef = useRef<string[]>(DEFAULT_PARTY);
+  // Party members present when the current location was entered; used to hide
+  // already-recruited companions on repeat visits.
+  const entryPartyRef = useRef<Set<string>>(new Set(DEFAULT_PARTY));
 
   const mapSize = useMemo<Size>(
     () => ({
@@ -1133,7 +1281,8 @@ export default function MiddleEarthMap() {
 
   const [view, setView] = useState<Size>({ width: DEFAULT_VIEW_SIZE, height: DEFAULT_VIEW_SIZE });
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-  const [animationSpeed, setAnimationSpeed] = useState(1);
+  const [animationSpeed, setAnimationSpeed] = useState(() => readSavedSpeed("travel"));
+  const [battleSpeed, setBattleSpeed] = useState(() => readSavedSpeed("battle"));
   const [offset, setOffset] = useState<Point>(() => {
     const start = getStartPosition(hobbiton.point);
     return {
@@ -1162,7 +1311,10 @@ export default function MiddleEarthMap() {
   const [terrainReady, setTerrainReady] = useState(false);
   const [showTerrain, setShowTerrain] = useState(false);
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
-  const [ending, setEnding] = useState<"victory" | "lord" | "starved" | null>(null);
+  // Whether the open details panel can page through the party (arrows). True
+  // only when opened from the party HUD or by clicking the hero on the map.
+  const [openCharacterPaging, setOpenCharacterPaging] = useState(false);
+  const [ending, setEnding] = useState<"victory" | "lord" | "starved" | "battle" | null>(null);
   const [lordClaimed, setLordClaimed] = useState(false);
   const [party, setParty] = useState<string[]>(DEFAULT_PARTY);
   const [partyOpen, setPartyOpen] = useState(false);
@@ -1174,7 +1326,8 @@ export default function MiddleEarthMap() {
   // rations on, a damaged party heals at the cost of extra food.
   const [food, setFood] = useState(0);
   const [damageById, setDamageById] = useState<Record<string, number>>({});
-  const [deathNotice, setDeathNotice] = useState<string | null>(null);
+  const [deathNotice, setDeathNotice] = useState<{ ids: string; cause: DeathCause } | null>(null);
+  const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>({});
   const [foodFarmed, setFoodFarmed] = useState<number | null>(null);
   const [randomPresence, setRandomPresence] = useState<Record<string, boolean>>({});
   const [recruitRefusal, setRecruitRefusal] = useState<string | null>(null);
@@ -1185,7 +1338,13 @@ export default function MiddleEarthMap() {
   // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
   const [created, setCreated] = useState(false);
   const [creationBonus, setCreationBonus] = useState<StatBonus>(ZERO_BONUS);
+  // Level-up point allocation queue (shown one modal at a time after battle).
+  const [levelUpQueue, setLevelUpQueue] = useState<string[]>([]);
+  const [levelUpCharacterId, setLevelUpCharacterId] = useState<string | null>(null);
+  const [levelUpDraft, setLevelUpDraft] = useState<StatBonus>(ZERO_BONUS);
   const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(new Set());
+  // Roaming recruits never reappear once dead (Gollum slain in betrayal, starved, or fallen).
+  const [slainRoamingRecruits, setSlainRoamingRecruits] = useState<Set<string>>(new Set());
   const [pendingBetrayal, setPendingBetrayal] = useState<string | null>(null);
   // Companions left waiting on the map; can be re-called by clicking their marker.
   const [leftBehind, setLeftBehind] = useState<{ id: string; point: Point }[]>([]);
@@ -1193,22 +1352,22 @@ export default function MiddleEarthMap() {
   const [emote, setEmote] = useState<{ id: string; kind: "refuse" | "joy" } | null>(null);
   const emoteTimerRef = useRef<number | null>(null);
   const [hasCloaks, setHasCloaks] = useState(false);
-  const [encounter, setEncounter] = useState<{
-    monster: Monster;
-    dangerous: boolean;
-    solo: boolean;
-  } | null>(null);
+  const [encounter, setEncounter] = useState<EncounterState | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [expById, setExpById] = useState<Record<string, number>>({});
   const [statBonusById, setStatBonusById] = useState<Record<string, StatBonus>>({});
   // Extra days of Ring decay bought by putting it on in battle.
   const [ringWear, setRingWear] = useState(0);
+  // Days the current bearer has carried the Ring (resets on transfer).
+  const [bearerRingDays, setBearerRingDays] = useState(0);
+  const prevJourneyDayForRingRef = useRef(0);
+  const prevRingWearForRingRef = useRef(0);
   const battleAppliedRef = useRef(false);
   const foodRef = useRef(0);
   const damageRef = useRef<Record<string, number>>({});
   const processedDayRef = useRef(0);
-  // Movement halts while an encounter is unresolved; the rAF loop reads this.
-  const encounterRef = useRef(false);
+  // Movement halts while any modal is open; the rAF loop reads this.
+  const animationPausedRef = useRef(false);
 
   const flashEmote = useCallback((id: string, kind: "refuse" | "joy") => {
     if (emoteTimerRef.current) {
@@ -1229,6 +1388,15 @@ export default function MiddleEarthMap() {
         joinDayRef.current[id] = journeyDayRef.current;
         return [...prev, id];
       });
+
+      const progress = INITIAL_HERO_PROGRESS[id];
+      if (progress) {
+        setExpById((prev) => (id in prev ? prev : { ...prev, [id]: progress.exp }));
+        setStatBonusById((prev) =>
+          id in prev ? prev : { ...prev, [id]: { ...progress.bonus } },
+        );
+      }
+
       flashEmote(id, "joy");
     },
     [flashEmote],
@@ -1358,7 +1526,7 @@ export default function MiddleEarthMap() {
     setParty((prev) => prev.filter((p) => p !== id));
   }, []);
 
-  // Walk to a companion left on the map; the invite opens once you arrive.
+  // Walk to a companion left on the map; they rejoin on arrival.
   const walkToMember = useCallback((member: { id: string; point: Point }) => {
     setTarget({ x: member.point.x, y: member.point.y });
     setTargetMemberId(member.id);
@@ -1368,6 +1536,27 @@ export default function MiddleEarthMap() {
     lastTimeRef.current = null;
     followDisabledRef.current = false;
   }, []);
+
+  const callLeftBehindMember = useCallback(
+    (member: { id: string; point: Point }) => {
+      if (battle || encounter) {
+        return;
+      }
+      const current = playerRef.current;
+      if (
+        current &&
+        Math.hypot(member.point.x - current.x, member.point.y - current.y) <= MEMBER_PICKUP_RANGE
+      ) {
+        setLeftBehind((prev) => prev.filter((m) => m.id !== member.id));
+        recruitCharacter(member.id);
+        setOpenCharacterId(null);
+        return;
+      }
+      walkToMember(member);
+      setOpenCharacterId(null);
+    },
+    [battle, encounter, recruitCharacter, walkToMember],
+  );
 
   // "Принять бой" → snapshot party + enemy into a paced auto-battle.
   const startBattle = useCallback(() => {
@@ -1397,26 +1586,25 @@ export default function MiddleEarthMap() {
       })
       .filter((c): c is Combatant => c !== null && c.hp > 0);
     const m = encounter.monster;
-    const enemyHp = m.strength * HEALTH_PER_STR;
-    // Ordinary foes come in a pack ~equal to the party (±2); specials come alone.
-    const count = encounter.solo
-      ? 1
-      : Math.max(1, party.length + Math.floor(Math.random() * 5) - 2);
-    const enemies: Combatant[] = Array.from({ length: count }, (_, i) => ({
-      key: `enemy-${i}`,
-      name: m.name,
-      icon: m.icon,
-      hp: enemyHp,
-      maxHp: enemyHp,
-      strength: m.strength,
-      defense: m.defense,
-    }));
+    const pack = encounter.pack;
+    const enemies: Combatant[] = pack.map((mm, i) => {
+      const hp = mm.strength * HEALTH_PER_STR;
+      return {
+        key: `enemy-${i}`,
+        name: mm.name,
+        icon: mm.icon,
+        hp,
+        maxHp: hp,
+        strength: mm.strength,
+        defense: mm.defense,
+      };
+    });
     battleAppliedRef.current = false;
     setEncounter(null);
     setBattle({
       allies,
       enemies,
-      exp: monsterExp(m) * count,
+      exp: pack.reduce((sum, mm) => sum + monsterExp(mm), 0),
       turn: "allies",
       index: 0,
       outcome: allies.length === 0 ? "lose" : null,
@@ -1427,19 +1615,71 @@ export default function MiddleEarthMap() {
       bearerKey: allies.some((a) => a.key === bearerId) ? bearerId : null,
       ringOn: false,
       recruitId: m.recruitId ?? null,
-      enemyBeast: BEAST_MONSTERS.has(m.name),
-      ringIneffective: WRAITH_FOES.has(m.name),
+      enemyBeast: pack.some((mm) => BEAST_MONSTERS.has(mm.name)),
+      ringIneffective: pack.some((mm) => WRAITH_FOES.has(mm.name)),
       betrayalBy: null,
-      gandalfOnly: m.name.startsWith("Балрог"),
+      gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
     });
-  }, [encounter, party, statBonusById, damageById]);
+  }, [encounter, party, statBonusById, damageById, bearerId]);
 
-  const spendStatPoint = useCallback((id: string, stat: keyof StatBonus) => {
+  const adjustLevelUpDraft = useCallback(
+    (stat: keyof StatBonus, delta: number) => {
+      if (!levelUpCharacterId) {
+        return;
+      }
+      setLevelUpDraft((prev) => {
+        const spent = bonusPoints(prev);
+        const total = unspentPointsFor(
+          levelUpCharacterId,
+          expById[levelUpCharacterId] ?? 0,
+          statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
+        );
+        const nextValue = prev[stat] + delta;
+        if (nextValue < 0 || (delta > 0 && spent >= total)) {
+          return prev;
+        }
+        return { ...prev, [stat]: nextValue };
+      });
+    },
+    [levelUpCharacterId, expById, statBonusById],
+  );
+
+  const randomizeLevelUpDraft = useCallback(() => {
+    if (!levelUpCharacterId) {
+      return;
+    }
+    const total = unspentPointsFor(
+      levelUpCharacterId,
+      expById[levelUpCharacterId] ?? 0,
+      statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
+    );
+    const stats: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
+    const rolled: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
+    for (let i = 0; i < total; i += 1) {
+      rolled[stats[Math.floor(Math.random() * stats.length)]] += 1;
+    }
+    setLevelUpDraft(rolled);
+  }, [levelUpCharacterId, expById, statBonusById]);
+
+  const confirmLevelUp = useCallback(() => {
+    if (!levelUpCharacterId) {
+      return;
+    }
+    const total = unspentPointsFor(
+      levelUpCharacterId,
+      expById[levelUpCharacterId] ?? 0,
+      statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
+    );
+    if (bonusPoints(levelUpDraft) !== total) {
+      return;
+    }
     setStatBonusById((prev) => {
-      const current = prev[id] ?? ZERO_BONUS;
-      return { ...prev, [id]: { ...current, [stat]: current[stat] + 1 } };
+      const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
+      return { ...prev, [levelUpCharacterId]: addBonus(current, levelUpDraft) };
     });
-  }, []);
+    setLevelUpCharacterId(null);
+    setLevelUpDraft(ZERO_BONUS);
+  }, [levelUpCharacterId, levelUpDraft, expById, statBonusById]);
 
   // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
   const adjustCreation = useCallback((stat: keyof StatBonus, delta: number) => {
@@ -1468,6 +1708,42 @@ export default function MiddleEarthMap() {
     setCreated(true);
   }, [creationBonus]);
 
+  const applyBattleCasualties = useCallback(
+    (allies: { key: string; hp: number }[]) => {
+      const dead = allies.filter((ally) => ally.hp <= 0).map((ally) => ally.key);
+      if (dead.length === 0) {
+        return;
+      }
+      const slainRoaming = slainRoamingRecruitIds(dead);
+      if (slainRoaming.length > 0) {
+        setSlainRoamingRecruits((prev) => {
+          const next = new Set(prev);
+          for (const id of slainRoaming) {
+            next.add(id);
+          }
+          return next;
+        });
+      }
+      setDeathCauseById((prev) => {
+        const next = { ...prev };
+        for (const id of dead) {
+          next[id] = "battle";
+        }
+        return next;
+      });
+      const nonBearer = dead.filter((id) => id !== bearerId);
+      if (nonBearer.length > 0) {
+        setParty((prev) => prev.filter((id) => !nonBearer.includes(id)));
+        setDeathNotice({ ids: nonBearer.join(","), cause: "battle" });
+      }
+      if (dead.includes(bearerId)) {
+        setEnding((prev) => prev ?? "battle");
+        setBattle(null);
+      }
+    },
+    [bearerId],
+  );
+
   // Flee: keep the wounds taken so far, no XP, leave the fight.
   const fleeBattle = useCallback(() => {
     if (!battle) {
@@ -1479,12 +1755,13 @@ export default function MiddleEarthMap() {
     }
     damageRef.current = nextDamage;
     setDamageById(nextDamage);
+    applyBattleCasualties(battle.allies);
     // Fleeing means dropping the packs: all but a single day of food is lost.
     const nextFood = Math.min(foodRef.current, 1);
     foodRef.current = nextFood;
     setFood(nextFood);
     setBattle(null);
-  }, [battle]);
+  }, [battle, applyBattleCasualties]);
 
   // Put on the Ring: the bearer turns invisible/untargetable for this fight,
   // at the cost of one extra day of Ring corruption.
@@ -1501,6 +1778,11 @@ export default function MiddleEarthMap() {
     setOpenCharacterId(null);
     setLordClaimed(true);
     setEnding("lord");
+  }, []);
+
+  const makeBearer = useCallback((id: string) => {
+    setBearerId(id);
+    setBearerRingDays(0);
   }, []);
 
   const waitOneDay = useCallback(() => {
@@ -1558,6 +1840,12 @@ export default function MiddleEarthMap() {
     [party],
   );
 
+  // Open the details panel; `paging` enables the party prev/next arrows.
+  const openCharacterPanel = useCallback((id: string, paging: boolean) => {
+    setOpenCharacterId(id);
+    setOpenCharacterPaging(paging);
+  }, []);
+
   // Mirror view state into refs so the rAF loop reads current values without
   // being a dependency (which would restart the animation on every pan/zoom).
   useEffect(() => {
@@ -1575,9 +1863,59 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     partyRef.current = party;
   }, [party]);
+  const animationPaused = useMemo(
+    () =>
+      !created ||
+      ending !== null ||
+      visitedLocation !== null ||
+      calendarOpen ||
+      splitOpen ||
+      openCharacterId !== null ||
+      recruitOffer !== null ||
+      recruitRefusal !== null ||
+      (deathNotice !== null && ending === null) ||
+      helpOpen ||
+      levelUpCharacterId !== null ||
+      encounter !== null ||
+      battle !== null ||
+      foodFarmed !== null,
+    [
+      created,
+      ending,
+      visitedLocation,
+      calendarOpen,
+      splitOpen,
+      openCharacterId,
+      recruitOffer,
+      recruitRefusal,
+      deathNotice,
+      helpOpen,
+      levelUpCharacterId,
+      encounter,
+      battle,
+      foodFarmed,
+    ],
+  );
+
   useEffect(() => {
-    encounterRef.current = encounter !== null || battle !== null;
-  }, [encounter, battle]);
+    animationPausedRef.current = animationPaused;
+  }, [animationPaused]);
+
+  // Ring corruption days accrue only for whoever currently carries it.
+  useEffect(() => {
+    const delta = journeyDay - prevJourneyDayForRingRef.current;
+    if (delta > 0) {
+      setBearerRingDays((days) => days + delta);
+    }
+    prevJourneyDayForRingRef.current = journeyDay;
+  }, [journeyDay]);
+  useEffect(() => {
+    const delta = ringWear - prevRingWearForRingRef.current;
+    if (delta > 0) {
+      setBearerRingDays((days) => days + delta);
+    }
+    prevRingWearForRingRef.current = ringWear;
+  }, [ringWear]);
 
   const clampOffset = useCallback(
     (nextOffset: Point, nextZoom: number): Point => {
@@ -1624,7 +1962,18 @@ export default function MiddleEarthMap() {
   const cycleSpeed = useCallback(() => {
     setAnimationSpeed((prev) => {
       const index = ANIMATION_SPEEDS.indexOf(prev);
-      return ANIMATION_SPEEDS[(index + 1) % ANIMATION_SPEEDS.length];
+      const next = ANIMATION_SPEEDS[(index + 1) % ANIMATION_SPEEDS.length];
+      writeSavedSpeed("travel", next);
+      return next;
+    });
+  }, []);
+
+  const cycleBattleSpeed = useCallback(() => {
+    setBattleSpeed((prev) => {
+      const index = ANIMATION_SPEEDS.indexOf(prev);
+      const next = ANIMATION_SPEEDS[(index + 1) % ANIMATION_SPEEDS.length];
+      writeSavedSpeed("battle", next);
+      return next;
     });
   }, []);
 
@@ -1934,9 +2283,9 @@ export default function MiddleEarthMap() {
       setTargetMemberId(null);
       setIsMoving(false);
       frameRef.current = null;
-      // Reached a companion we left behind → offer to invite them back.
       if (arrivalMemberId) {
-        setRecruitOffer(arrivalMemberId);
+        setLeftBehind((prev) => prev.filter((m) => m.id !== arrivalMemberId));
+        recruitCharacter(arrivalMemberId);
       }
     }
 
@@ -1945,9 +2294,9 @@ export default function MiddleEarthMap() {
         lastTimeRef.current = time;
       }
 
-      // Freeze movement while an encounter is on screen; keep the clock fresh so
-      // there is no time jump when the player resolves it.
-      if (encounterRef.current) {
+      // Freeze movement while a modal is open; keep the clock fresh so there is
+      // no time jump when the player closes it.
+      if (animationPausedRef.current) {
         lastTimeRef.current = time;
         frameRef.current = requestAnimationFrame(step);
         return;
@@ -2145,7 +2494,7 @@ export default function MiddleEarthMap() {
     // playerRef/mapSize are stable refs/memo; player is only the initial seed,
     // so it stays out of deps to avoid restarting the animation every frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animationSpeed, getTerrainAtPoint, target, targetLocation, targetMemberId]);
+  }, [animationSpeed, getTerrainAtPoint, recruitCharacter, target, targetLocation, targetMemberId]);
 
   const playerScreen = mapToScreen(player);
   const targetScreen = target ? mapToScreen(target) : null;
@@ -2185,7 +2534,10 @@ export default function MiddleEarthMap() {
         (character) =>
           isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
           (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
-          (character.id !== "saruman" || sarumanFriendly),
+          (character.id !== "saruman" || sarumanFriendly) &&
+          // Hide companions already aboard when we arrived (recruited on an
+          // earlier visit); the one just recruited this visit still shows.
+          !entryPartyRef.current.has(character.id),
       )
     : [];
   const recruitmentCalendar = useMemo(
@@ -2204,12 +2556,10 @@ export default function MiddleEarthMap() {
   const openCharacter = openCharacterId
     ? (CHARACTERS.find((character) => character.id === openCharacterId) ?? null)
     : null;
-  // Corruption clock = days travelled plus extra days bought by wearing the Ring.
-  const ringDay = journeyDay + ringWear;
   const openStats = openCharacter
     ? computeCharacterStats(
         openCharacter,
-        ringDay,
+        bearerRingDays,
         bearerId,
         damageById[openCharacter.id] ?? 0,
         totalBonusFor(openCharacter),
@@ -2217,35 +2567,35 @@ export default function MiddleEarthMap() {
     : null;
   const openExp = openCharacter ? (expById[openCharacter.id] ?? 0) : 0;
   const openLevel = levelForExp(openExp);
-  const openSpent = openCharacter
-    ? bonusFor(openCharacter.id).strength +
-      bonusFor(openCharacter.id).defense +
-      bonusFor(openCharacter.id).intelligence +
-      bonusFor(openCharacter.id).luck
-    : 0;
   // Frodo's creation points are baked into his bonus; don't count them as
   // level-up spending.
-  const creationOffset = openCharacter?.id === RING_BEARER_ID ? CREATION_POINTS : 0;
-  const openPoints = openLevel.level - 1 - (openSpent - creationOffset);
+  const creationHero = CHARACTERS.find((character) => character.id === RING_BEARER_ID)!;
   const creationSpent =
     creationBonus.strength + creationBonus.defense + creationBonus.intelligence + creationBonus.luck;
-  const creationHero = CHARACTERS.find((character) => character.id === RING_BEARER_ID)!;
+  const levelUpHero = levelUpCharacterId
+    ? (CHARACTERS.find((character) => character.id === levelUpCharacterId) ?? null)
+    : null;
+  const levelUpExistingBonus = levelUpCharacterId
+    ? (statBonusById[levelUpCharacterId] ?? ZERO_BONUS)
+    : ZERO_BONUS;
+  const levelUpTotalPoints = levelUpCharacterId
+    ? unspentPointsFor(levelUpCharacterId, expById[levelUpCharacterId] ?? 0, levelUpExistingBonus)
+    : 0;
+  const levelUpDraftSpent = bonusPoints(levelUpDraft);
+  const levelUpLevel = levelUpCharacterId
+    ? levelForExp(expById[levelUpCharacterId] ?? 0).level
+    : 1;
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
   const bearerCorruption = ringBearer
     ? computeCharacterStats(
         ringBearer,
-        ringDay,
+        bearerRingDays,
         bearerId,
         damageById[ringBearer.id] ?? 0,
         totalBonusFor(ringBearer),
       ).corruption
     : 0;
   const hasFallen = bearerCorruption >= 100;
-  const bearerDead = ringBearer
-    ? effectiveStats(ringBearer, totalBonusFor(ringBearer)).strength * HEALTH_PER_STR <=
-      (damageById[ringBearer.id] ?? 0)
-    : false;
-
   // Resilience exhausted before reaching Mount Doom: the bearer breaks and the
   // game ends as the Lord (unless an ending was already reached).
   useEffect(() => {
@@ -2253,31 +2603,6 @@ export default function MiddleEarthMap() {
       setEnding((prev) => prev ?? "lord");
     }
   }, [hasFallen]);
-
-  // The Ring bearer starved to death — game over.
-  useEffect(() => {
-    if (bearerDead) {
-      setEnding((prev) => prev ?? "starved");
-    }
-  }, [bearerDead]);
-
-  // A non-bearer who starved out is dropped from the party with a notice.
-  useEffect(() => {
-    const dead = CHARACTERS.filter(
-      (character) =>
-        party.includes(character.id) &&
-        character.id !== bearerId &&
-        effectiveStats(character, addBonus(statBonusById[character.id] ?? ZERO_BONUS, auraBonus(character, party))).strength *
-          HEALTH_PER_STR <=
-          (damageById[character.id] ?? 0),
-    );
-    if (dead.length === 0) {
-      return;
-    }
-    const deadIds = new Set(dead.map((character) => character.id));
-    setParty((prev) => prev.filter((id) => !deadIds.has(id)));
-    setDeathNotice(dead.map((character) => character.id).join(","));
-  }, [damageById, party, bearerId, statBonusById]);
 
   // Re-check compatibility whenever the party changes: someone who can't abide
   // the new company (e.g. Gollum once a non-hobbit joins) walks off. One per
@@ -2334,15 +2659,29 @@ export default function MiddleEarthMap() {
               ? 0
               : hitDamage(allies[i], enemies[target]) + beastBonus;
           enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
-          // Recruitable foes and betrayers are subdued at half health, not slain.
-          const subdued = (e: Combatant) =>
-            b.recruitId || b.betrayalBy ? e.hp <= e.maxHp / 2 : e.hp <= 0;
+          // Wild recruits are only subdued (never slain); Gollum can die only in betrayal.
+          if (b.recruitId) {
+            const minHp = Math.max(1, Math.ceil(enemies[target].maxHp / 2));
+            enemies[target].hp = Math.max(minHp, enemies[target].hp);
+          }
+          const enemyBeaten = (e: Combatant) => {
+            if (b.recruitId) {
+              return e.hp <= e.maxHp / 2;
+            }
+            if (b.betrayalBy === "gollum") {
+              return e.hp <= 0;
+            }
+            if (b.betrayalBy) {
+              return e.hp <= e.maxHp / 2;
+            }
+            return e.hp <= 0;
+          };
           return {
             ...b,
             allies,
             enemies,
             index: i + 1,
-            outcome: enemies.every(subdued) ? "win" : null,
+            outcome: enemies.every(enemyBeaten) ? "win" : null,
             lastHit: enemies[target].key,
             attacker: allies[i].key,
             tick: b.tick + 1,
@@ -2368,7 +2707,7 @@ export default function MiddleEarthMap() {
           return { ...b, allies, enemies, outcome: "lose" };
         }
         const target = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
-        allies[target].hp = Math.max(0, allies[target].hp - hitDamage(enemies[j], allies[target]));
+        allies[target].hp = Math.max(0, allies[target].hp - hitDamage(enemies[j], allies[target], "enemy"));
         return {
           ...b,
           allies,
@@ -2381,9 +2720,9 @@ export default function MiddleEarthMap() {
           hitDir: Math.floor(Math.random() * 4),
         };
       });
-    }, BATTLE_TICK_MS);
+    }, BATTLE_TICK_MS / battleSpeed);
     return () => clearTimeout(timer);
-  }, [battle]);
+  }, [battle, battleSpeed]);
 
   // When a battle resolves: apply taken damage (once) and award XP on a win.
   useEffect(() => {
@@ -2395,6 +2734,7 @@ export default function MiddleEarthMap() {
     // Betrayal lost: the traitor beats the bearer, takes the Ring, crowns himself.
     if (battle.outcome === "lose" && battle.betrayalBy) {
       setBearerId(battle.betrayalBy);
+      setBearerRingDays(0);
       setLordClaimed(false);
       setEnding("lord");
       setBattle(null);
@@ -2407,26 +2747,53 @@ export default function MiddleEarthMap() {
     }
     damageRef.current = nextDamage;
     setDamageById(nextDamage);
+    applyBattleCasualties(battle.allies);
     if (battle.outcome === "win") {
+      const toLevel: string[] = [];
+      for (const ally of battle.allies) {
+        const oldExp = expById[ally.key] ?? 0;
+        const newExp = oldExp + battle.exp;
+        const bonus = statBonusById[ally.key] ?? ZERO_BONUS;
+        if (unspentPointsFor(ally.key, newExp, bonus) > unspentPointsFor(ally.key, oldExp, bonus)) {
+          toLevel.push(ally.key);
+        }
+      }
       setExpById((prev) => {
         const next = { ...prev };
         for (const ally of battle.allies) {
-          next[ally.key] = (next[ally.key] ?? 0) + battle.exp;
+          next[ally.key] = (prev[ally.key] ?? 0) + battle.exp;
         }
         return next;
       });
+      if (toLevel.length > 0) {
+        setLevelUpQueue((queue) => {
+          const merged = [...queue];
+          for (const id of toLevel) {
+            if (!merged.includes(id)) {
+              merged.push(id);
+            }
+          }
+          return merged;
+        });
+      }
 
-      // Betrayal repelled: the traitor is driven off and leaves the party.
+      // Betrayal repelled: subdued traitors flee; a slain Gollum never returns.
       if (battle.betrayalBy) {
         const traitorId = battle.betrayalBy;
+        const traitor = battle.enemies[0];
         setParty((prev) => prev.filter((id) => id !== traitorId));
-        setRecruitRefusal(
-          traitorId === "gollum"
-            ? t("refuse.gollumFled")
-            : t("refuse.traitorReturns", { name: charName(traitorId) }),
-        );
+        if (traitorId === "gollum" && traitor.hp <= 0) {
+          setSlainRoamingRecruits((prev) => new Set(prev).add("gollum"));
+          setDeathCauseById((prev) => ({ ...prev, gollum: "battle" }));
+          setDeathNotice({ ids: "gollum", cause: "battle" });
+        } else {
+          setRecruitRefusal(
+            traitorId === "gollum"
+              ? t("refuse.gollumFled")
+              : t("refuse.traitorReturns", { name: charName(traitorId) }),
+          );
+        }
       }
-      // A defeated roaming foe: offer to invite them.
       if (battle.recruitId) {
         setRecruitOffer(battle.recruitId);
       }
@@ -2436,18 +2803,35 @@ export default function MiddleEarthMap() {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
       }
     }
-  }, [battle, t, charName]);
+  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties]);
 
-  // Roll "is he home?" once per visit for sometimes-present characters.
+  // Show the next level-up allocation modal when the queue advances.
+  useEffect(() => {
+    if (levelUpCharacterId || levelUpQueue.length === 0) {
+      return;
+    }
+    const [next, ...rest] = levelUpQueue;
+    setLevelUpCharacterId(next);
+    setLevelUpDraft(ZERO_BONUS);
+    setLevelUpQueue(rest);
+  }, [levelUpCharacterId, levelUpQueue]);
+
+  // Roll "is he home?" once per visit for sometimes-present characters, and
+  // snapshot who was already in the party on arrival — members recruited here on
+  // a previous visit are then hidden from the list (only the current recruit
+  // shows "in party").
   useEffect(() => {
     if (!visitedLocation) {
       return;
     }
-    const rolled: Record<string, boolean> = {};
-    for (const [id, chance] of Object.entries(RANDOM_PRESENCE)) {
-      rolled[id] = Math.random() < chance;
-    }
-    setRandomPresence(rolled);
+    entryPartyRef.current = new Set(partyRef.current);
+    setRandomPresence(() => {
+      const rolled: Record<string, boolean> = {};
+      for (const [id, chance] of Object.entries(RANDOM_PRESENCE)) {
+        rolled[id] = Math.random() < chance;
+      }
+      return rolled;
+    });
   }, [visitedLocation]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
@@ -2470,6 +2854,7 @@ export default function MiddleEarthMap() {
     }
     let encountered = false;
     let bombadilLeaves = false;
+    const hungerDead: string[] = [];
     for (let day = processedDayRef.current; day < journeyDay; day += 1) {
       const anyHurt = members.some((id) => (nextDamage[id] ?? 0) > 0);
       // Wounded + spare food: auto-spend a 2nd ration to heal each.
@@ -2482,7 +2867,19 @@ export default function MiddleEarthMap() {
         nextFood -= 1;
       } else {
         for (const id of members) {
-          nextDamage[id] = (nextDamage[id] ?? 0) + 1;
+          const prev = nextDamage[id] ?? 0;
+          nextDamage[id] = prev + 1;
+          const character = CHARACTERS.find((c) => c.id === id);
+          if (character) {
+            const maxHp =
+              effectiveStats(
+                character,
+                addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, members)),
+              ).strength * HEALTH_PER_STR;
+            if (nextDamage[id] >= maxHp && prev < maxHp) {
+              hungerDead.push(id);
+            }
+          }
         }
       }
       if (Math.random() < encounterChance) {
@@ -2497,6 +2894,33 @@ export default function MiddleEarthMap() {
     damageRef.current = nextDamage;
     setFood(nextFood);
     setDamageById(nextDamage);
+    if (hungerDead.length > 0) {
+      const starvedRoaming = slainRoamingRecruitIds(hungerDead);
+      if (starvedRoaming.length > 0) {
+        setSlainRoamingRecruits((prev) => {
+          const next = new Set(prev);
+          for (const id of starvedRoaming) {
+            next.add(id);
+          }
+          return next;
+        });
+      }
+      setDeathCauseById((prev) => {
+        const next = { ...prev };
+        for (const id of hungerDead) {
+          next[id] = "hunger";
+        }
+        return next;
+      });
+      const nonBearer = hungerDead.filter((id) => id !== bearerId);
+      if (nonBearer.length > 0) {
+        setParty((prev) => prev.filter((id) => !nonBearer.includes(id)));
+        setDeathNotice({ ids: nonBearer.join(","), cause: "hunger" });
+      }
+      if (hungerDead.includes(bearerId)) {
+        setEnding((prev) => prev ?? "starved");
+      }
+    }
     if (bombadilLeaves) {
       setParty((prev) => prev.filter((id) => id !== "bombadil"));
       setRecruitRefusal(t("refuse.bombadilLeaves"));
@@ -2512,10 +2936,16 @@ export default function MiddleEarthMap() {
         setPendingBetrayal(traitors[Math.floor(Math.random() * traitors.length)]);
       } else {
         const position = playerRef.current ?? hobbiton.point;
-        setEncounter(rollEncounter(position, party));
+        setEncounter(
+          createEncounter(
+            rollEncounter(position, party, leftBehind, slainRoamingRecruits),
+            party.length,
+            position,
+          ),
+        );
       }
     }
-  }, [journeyDay, party, hasCloaks, hobbiton, bearerId, t]);
+  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   useEffect(() => {
@@ -2598,7 +3028,7 @@ export default function MiddleEarthMap() {
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
-                walkToMember(member);
+                openCharacterPanel(member.id, false);
               }}
             >
               <img src={character.icon} alt="" className="size-full object-cover" />
@@ -2634,14 +3064,26 @@ export default function MiddleEarthMap() {
           </svg>
         )}
 
-        <img
-          src={ringBearer?.icon ?? PLAYER_ICON}
-          alt={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
+        <button
+          type="button"
+          aria-label={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
           title={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
-          draggable="false"
-          className="pointer-events-none absolute z-30 size-10 -translate-x-1/2 -translate-y-1/2 select-none object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+          className="absolute z-30 size-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
           style={{ left: playerScreen.x, top: playerScreen.y }}
-        />
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            openCharacterPanel(bearerId, true);
+          }}
+        >
+          <img
+            src={ringBearer?.icon ?? PLAYER_ICON}
+            alt=""
+            draggable="false"
+            className="size-full select-none object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+          />
+        </button>
 
         <div
           className="absolute right-4 top-4 z-40 flex items-center gap-2"
@@ -2760,36 +3202,38 @@ export default function MiddleEarthMap() {
           </div>
 
           <div
-            className={`flex w-fit items-center gap-2 rounded border px-2 py-1 text-sm ${
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            className={`pointer-events-auto flex w-fit items-center gap-2 rounded border px-2 py-1 text-sm ${
               food === 0
                 ? "animate-pulse border-red-700 bg-red-950/80 text-red-300"
                 : "border-neutral-700 bg-neutral-900/90 text-neutral-200"
             }`}
           >
-            <span title={t("ui.foodTitle")}>🍞 {food}</span>
+            <HoverHint label={t("ui.foodTitle")}>🍞 {food}</HoverHint>
             {food === 0 && (
-              <span className="text-xs font-semibold" title={t("ui.hungryTitle")}>
+              <HoverHint label={t("ui.hungryTitle")} className="text-xs font-semibold">
                 {t("ui.hungry")}
-              </span>
+              </HoverHint>
             )}
             {anyHurt && food >= 2 && (
-              <span
+              <HoverHint
+                label={t("ui.healingTitle")}
                 className="text-xs font-semibold text-emerald-300"
-                title={t("ui.healingTitle")}
               >
                 {t("ui.healing")}
-              </span>
+              </HoverHint>
             )}
-            <span
+            <HoverHint
+              label={transport ? t(`transport.${transport}`) : t("ui.onFoot")}
               className="text-base leading-none"
-              title={transport ? t(`transport.${transport}`) : t("ui.onFoot")}
             >
               {transportEmoji}
-            </span>
+            </HoverHint>
             {hasCloaks && (
-              <span className="text-base leading-none" title={t("ui.cloaksTitle")}>
+              <HoverHint label={t("ui.cloaksTitle")} className="text-base leading-none">
                 🧥
-              </span>
+              </HoverHint>
             )}
           </div>
 
@@ -2814,10 +3258,9 @@ export default function MiddleEarthMap() {
                   <button
                     key={character.id}
                     type="button"
-                    onClick={() => setOpenCharacterId(character.id)}
-                    title={charName(character.id)}
+                    onClick={() => openCharacterPanel(character.id, true)}
                     aria-label={t("recruit.statsAria", { name: charName(character.id) })}
-                    className="relative size-11 border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-14"
+                    className="group relative size-11 border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-14"
                   >
                     <img
                       src={iconFor(character)}
@@ -2825,6 +3268,9 @@ export default function MiddleEarthMap() {
                       draggable="false"
                       className="size-full select-none object-cover"
                     />
+                    <span className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-max max-w-[60vw] whitespace-nowrap rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs font-normal text-neutral-200 shadow-lg group-hover:block">
+                      {charName(character.id)}
+                    </span>
                     {character.id === bearerId && (
                       <span
                         className="pointer-events-none absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border border-amber-700 bg-neutral-900"
@@ -2881,13 +3327,15 @@ export default function MiddleEarthMap() {
                 (visitedLocation.id !== ISENGARD_ID || !sarumanFriendly) && (
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    const boss = BOSSES_BY_LOCATION[visitedLocation.id];
                     setEncounter({
-                      monster: BOSSES_BY_LOCATION[visitedLocation.id],
+                      monster: boss,
                       dangerous: true,
                       solo: true,
-                    })
-                  }
+                      pack: [boss],
+                    });
+                  }}
                   className="mt-4 w-full rounded border border-red-800 bg-red-900/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/70"
                 >
                   {t("location.fight", {
@@ -2904,7 +3352,7 @@ export default function MiddleEarthMap() {
                       <li key={character.id} className="flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => setOpenCharacterId(character.id)}
+                          onClick={() => openCharacterPanel(character.id, false)}
                           title={t("recruit.statsAria", { name: charName(character.id) })}
                           aria-label={t("recruit.statsAria", { name: charName(character.id) })}
                           className="size-12 shrink-0 border border-neutral-700 bg-parchment transition hover:brightness-95"
@@ -3112,96 +3560,87 @@ export default function MiddleEarthMap() {
 
         {openCharacter && openStats && (
           <div
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+            className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-4"
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
           >
             <div
               role="dialog"
               aria-modal="true"
-              className="w-full max-w-xs rounded border border-neutral-700 bg-neutral-900 p-5 shadow-2xl"
+              className="flex h-fit w-full max-w-xs shrink-0 flex-col gap-3 rounded border border-neutral-700 bg-neutral-900 p-4 shadow-2xl"
             >
-              <div className="mb-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => showAdjacentCharacter(-1)}
-                  aria-label={t("character.prev")}
-                  className="rounded p-1 text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-100"
-                >
-                  <ChevronLeft className="size-5" />
-                </button>
+              <div className="flex h-14 items-center gap-2">
+                {openCharacterPaging ? (
+                  <button
+                    type="button"
+                    onClick={() => showAdjacentCharacter(-1)}
+                    aria-label={t("character.prev")}
+                    className="flex size-7 shrink-0 items-center justify-center rounded text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-100"
+                  >
+                    <ChevronLeft className="size-5" />
+                  </button>
+                ) : (
+                  <span className="size-7 shrink-0" aria-hidden="true" />
+                )}
                 <img
                   src={iconFor(openCharacter)}
                   alt=""
-                  className="size-14 border border-neutral-700 bg-parchment object-cover"
+                  className="size-12 shrink-0 border border-neutral-700 bg-parchment object-cover"
                 />
-                <div className="flex-1">
-                  <h2 className="font-serif text-2xl text-neutral-100">{charName(openCharacter.id)}</h2>
-                  {openStats.isBearer && (
-                    <p className="flex items-center gap-1 text-xs text-amber-400">
-                      <img
-                        src={ringImage}
-                        alt=""
-                        draggable="false"
-                        className="size-3.5 select-none object-contain"
-                      />
-                      {t("character.bearer")}
-                    </p>
-                  )}
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate font-serif text-xl text-neutral-100">
+                    {charName(openCharacter.id)}
+                  </h2>
+                  <p className="flex h-4 items-center gap-1 text-xs text-amber-400">
+                    {openStats.isBearer && (
+                      <>
+                        <img
+                          src={ringImage}
+                          alt=""
+                          draggable="false"
+                          className="size-3.5 select-none object-contain"
+                        />
+                        {t("character.bearer")}
+                      </>
+                    )}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => showAdjacentCharacter(1)}
-                  aria-label={t("character.next")}
-                  className="rounded p-1 text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-100"
-                >
-                  <ChevronRight className="size-5" />
-                </button>
+                {openCharacterPaging ? (
+                  <button
+                    type="button"
+                    onClick={() => showAdjacentCharacter(1)}
+                    aria-label={t("character.next")}
+                    className="flex size-7 shrink-0 items-center justify-center rounded text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-100"
+                  >
+                    <ChevronRight className="size-5" />
+                  </button>
+                ) : (
+                  <span className="size-7 shrink-0" aria-hidden="true" />
+                )}
               </div>
 
               {openStats.dead && (
-                <p className="mb-3 text-center text-sm font-semibold text-red-400">
-                  {t("character.deadHunger")}
+                <p className="text-center text-sm font-semibold text-red-400">
+                  {t(deathCauseById[openCharacter.id] === "battle" ? "character.deadBattle" : "character.deadHunger")}
                 </p>
               )}
 
-              <div className="mb-4 rounded border border-neutral-800 bg-neutral-950/60 p-3">
+              <div className="rounded border border-neutral-800 bg-neutral-950/60 p-2.5">
                 <div className="mb-1 flex justify-between text-xs text-neutral-400">
                   <span>{t("character.level", { n: openLevel.level })}</span>
                   <span className="text-neutral-200">
                     {t("character.xp", { into: openLevel.intoLevel, next: openLevel.nextLevelXp })}
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded bg-neutral-800">
+                <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
                   <div
                     className="h-full bg-amber-400"
                     style={{ width: `${(openLevel.intoLevel / openLevel.nextLevelXp) * 100}%` }}
                   />
                 </div>
-                {openCharacter && openPoints > 0 && (
-                  <div className="mt-3">
-                    <p className="mb-1 text-xs text-amber-300">
-                      {t("character.points", { n: openPoints })}
-                    </p>
-                    <div className="grid grid-cols-2 gap-1">
-                      {(["strength", "defense", "intelligence", "luck"] as (keyof StatBonus)[]).map(
-                        (stat) => (
-                          <button
-                            key={stat}
-                            type="button"
-                            onClick={() => spendStatPoint(openCharacter.id, stat)}
-                            className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs font-semibold text-neutral-100 transition hover:bg-neutral-700"
-                          >
-                            +{t(`character.${stat}`)}
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              <div className="mb-3 text-left">
+              <div>
                 <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
                   <span className="flex items-center gap-1">
                     <Heart className="size-3.5 text-emerald-500" />
@@ -3211,7 +3650,7 @@ export default function MiddleEarthMap() {
                     {openStats.health}/{openStats.maxHealth}
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded bg-neutral-800">
+                <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
                   <div
                     className="h-full bg-green-500"
                     style={{
@@ -3221,19 +3660,17 @@ export default function MiddleEarthMap() {
                 </div>
               </div>
 
-              {(openStats.isBearer || openStats.corruption > 0) && (
-                <div className="mb-4 flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-1 text-yellow-500">
-                    <Flame className="size-4" />
-                    {t("character.ringPower")}
-                  </span>
-                  <span className="font-semibold tabular-nums text-yellow-400">
-                    {openStats.corruption}%
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1 text-yellow-500">
+                  <Flame className="size-4" />
+                  {t("character.ringPower")}
+                </span>
+                <span className="font-semibold tabular-nums text-yellow-400">
+                  {openStats.corruption}%
+                </span>
+              </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <StatBar label={t("character.strength")} value={openStats.strength} max={10} color="bg-red-500" />
                 <StatBar label={t("character.defense")} value={openStats.defense} max={10} color="bg-sky-500" />
                 <StatBar
@@ -3245,16 +3682,18 @@ export default function MiddleEarthMap() {
                 <StatBar label={t("character.luck")} value={openStats.luck} max={10} color="bg-lime-500" />
               </div>
 
-              {ABILITIES[openCharacter.id] && (
-                <div className="mt-3 rounded border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-left">
-                  <p className="text-[10px] uppercase tracking-wide text-amber-500/80">
-                    {t("character.ability")}
-                  </p>
-                  <p className="text-sm text-amber-200">{t(`ability.${openCharacter.id}`)}</p>
-                </div>
-              )}
+              <div className="rounded border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-left">
+                <p className="text-[10px] uppercase tracking-wide text-amber-500/80">
+                  {t("character.ability")}
+                </p>
+                <p className="text-sm text-amber-200">
+                  {ABILITIES[openCharacter.id]
+                    ? t(`ability.${openCharacter.id}`)
+                    : t("character.noAbility")}
+                </p>
+              </div>
 
-              <div className="mt-5 flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
                 {openStats.isBearer && (
                   <button
                     type="button"
@@ -3271,7 +3710,7 @@ export default function MiddleEarthMap() {
                   <button
                     type="button"
                     className="flex w-full items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
-                    onClick={() => setBearerId(openCharacter.id)}
+                    onClick={() => makeBearer(openCharacter.id)}
                   >
                     <img
                       src={ringImage}
@@ -3280,6 +3719,15 @@ export default function MiddleEarthMap() {
                       className="size-4 select-none object-contain"
                     />
                     {t("character.makeBearer")}
+                  </button>
+                )}
+                {leftBehind.some((member) => member.id === openCharacter.id) && (
+                  <button
+                    type="button"
+                    className="w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
+                    onClick={() => callLeftBehindMember(leftBehind.find((m) => m.id === openCharacter.id)!)}
+                  >
+                    {t("recruit.call")}
                   </button>
                 )}
                 <button
@@ -3367,9 +3815,23 @@ export default function MiddleEarthMap() {
               aria-modal="true"
               className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded border border-red-800 bg-neutral-900 p-5 shadow-2xl"
             >
-              <h2 className="mb-4 text-center font-serif text-xl text-red-300">
-                {battle.betrayalBy ? t("battle.betrayalTitle") : t("battle.title")}
-              </h2>
+              <div className="relative mb-4">
+                <h2 className="text-center font-serif text-xl text-red-300">
+                  {battle.betrayalBy ? t("battle.betrayalTitle") : t("battle.title")}
+                </h2>
+                {!battle.outcome && (
+                  <button
+                    type="button"
+                    onClick={cycleBattleSpeed}
+                    aria-label={t("ui.speedValue", { n: battleSpeed })}
+                    title={t("ui.speed")}
+                    className="absolute right-0 top-0 flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-sm text-neutral-200 transition hover:bg-neutral-700"
+                  >
+                    <Gauge className="size-4" />
+                    {battleSpeed}×
+                  </button>
+                )}
+              </div>
               <div className="flex items-start justify-center gap-3">
                 <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
                   {battle.allies.map((ally) => {
@@ -3545,17 +4007,35 @@ export default function MiddleEarthMap() {
             <div
               role="dialog"
               aria-modal="true"
-              className="w-full max-w-xs rounded border border-red-800 bg-neutral-900 p-6 text-center shadow-2xl"
+              className="w-full max-w-sm rounded border border-red-800 bg-neutral-900 p-6 text-center shadow-2xl"
             >
-              <div className="text-4xl">⚔️</div>
-              <h2 className="mt-2 font-serif text-2xl text-red-300">{t("encounter.title")}</h2>
-              <p className="mt-1 text-base text-neutral-100">{monsterName(encounter.monster.icon)}</p>
-              <p className="mt-1 text-xs text-neutral-400">
-                {t("encounter.stats", {
-                  str: encounter.monster.strength,
-                  def: encounter.monster.defense,
-                })}
-              </p>
+              <h2 className="font-serif text-2xl text-red-300">{t("encounter.title")}</h2>
+              <div className="mt-3 flex flex-wrap justify-center gap-3">
+                {uniquePackTypes(encounter.pack).map((mm) => (
+                  <div
+                    key={mm.icon}
+                    className="flex w-20 flex-col items-center gap-1"
+                  >
+                    <img
+                      src={mm.icon}
+                      alt=""
+                      draggable="false"
+                      className="size-16 select-none border border-neutral-700 bg-parchment object-cover"
+                    />
+                    <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
+                      {monsterName(mm.icon)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {encounter.pack.length === 1 && (
+                <p className="mt-2 text-xs text-neutral-400">
+                  {t("encounter.stats", {
+                    str: encounter.pack[0].strength,
+                    def: encounter.pack[0].defense,
+                  })}
+                </p>
+              )}
               {encounter.dangerous && (
                 <p className="mt-2 text-sm font-semibold text-amber-400">{t("encounter.dangerous")}</p>
               )}
@@ -3668,15 +4148,16 @@ export default function MiddleEarthMap() {
             >
               <h2 className="font-serif text-2xl text-red-400">
                 {t("death.title", {
-                  names: deathNotice
+                  names: deathNotice.ids
                     .split(",")
                     .map((id) => charName(id))
                     .join(", "),
                 })}
               </h2>
               <p className="mt-3 text-sm text-neutral-300">
-                {t("death.text", {
-                  names: deathNotice
+                {t(deathNotice.cause === "battle" ? "death.battleText" : "death.text", {
+                  count: deathNotice.ids.split(",").length,
+                  names: deathNotice.ids
                     .split(",")
                     .map((id) => charName(id))
                     .join(", "),
@@ -3716,6 +4197,94 @@ export default function MiddleEarthMap() {
                 onClick={() => setHelpOpen(false)}
               >
                 {t("help.ok")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {levelUpHero && (
+          <div
+            className="absolute inset-0 z-[65] flex items-center justify-center bg-black/85 p-6"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="w-full max-w-xs rounded border border-amber-800 bg-neutral-900 p-6 text-center shadow-2xl"
+            >
+              <img
+                src={levelUpHero.icon}
+                alt=""
+                draggable="false"
+                className="mx-auto size-20 select-none border border-neutral-700 bg-parchment object-cover"
+              />
+              <h2 className="mt-3 font-serif text-2xl text-neutral-100">{t("levelUp.title")}</h2>
+              <p className="mt-1 text-sm text-neutral-300">
+                {charName(levelUpHero.id)} · {t("character.level", { n: levelUpLevel })}
+              </p>
+              <p className="mt-3 text-xs text-amber-300">
+                {t("levelUp.pointsLeft", { n: levelUpTotalPoints - levelUpDraftSpent })}
+              </p>
+
+              <div className="mt-3 space-y-2">
+                {(["strength", "defense", "intelligence", "luck"] as (keyof StatBonus)[]).map(
+                  (stat) => {
+                    const value =
+                      levelUpHero[stat] + levelUpExistingBonus[stat] + levelUpDraft[stat];
+                    return (
+                      <div key={stat} className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-neutral-300">{t(`character.${stat}`)}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => adjustLevelUpDraft(stat, -1)}
+                            disabled={levelUpDraft[stat] === 0}
+                            aria-label={`-${t(`character.${stat}`)}`}
+                            className="flex size-7 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-base font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-800"
+                          >
+                            −
+                          </button>
+                          <span className="w-6 text-center text-base font-semibold tabular-nums text-neutral-100">
+                            {value}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => adjustLevelUpDraft(stat, 1)}
+                            disabled={levelUpDraftSpent >= levelUpTotalPoints}
+                            aria-label={`+${t(`character.${stat}`)}`}
+                            className="flex size-7 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-base font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-800"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+
+              <p className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-400">
+                <Heart className="size-3 text-emerald-500" />
+                {(levelUpHero.strength + levelUpExistingBonus.strength + levelUpDraft.strength) *
+                  HEALTH_PER_STR}
+              </p>
+
+              <button
+                type="button"
+                onClick={randomizeLevelUpDraft}
+                className="mt-4 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+              >
+                🎲 {t("levelUp.random")}
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmLevelUp}
+                disabled={levelUpDraftSpent < levelUpTotalPoints}
+                className="mt-2 w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
+              >
+                {t("levelUp.confirm")}
               </button>
             </div>
           </div>
@@ -3817,7 +4386,7 @@ export default function MiddleEarthMap() {
               className={`w-full max-w-sm rounded border bg-neutral-900 p-6 text-center shadow-2xl ${
                 ending === "victory"
                   ? "border-emerald-700"
-                  : ending === "starved"
+                  : ending === "starved" || ending === "battle"
                     ? "border-red-800"
                     : "border-amber-700"
               }`}
@@ -3827,6 +4396,15 @@ export default function MiddleEarthMap() {
                   <h2 className="font-serif text-2xl text-red-400">{t("ending.starvedTitle")}</h2>
                   <p className="mt-3 text-sm text-neutral-300">
                     {t("ending.starvedText", {
+                      name: ringBearer ? charName(ringBearer.id) : t("character.bearer"),
+                    })}
+                  </p>
+                </>
+              ) : ending === "battle" ? (
+                <>
+                  <h2 className="font-serif text-2xl text-red-400">{t("ending.battleTitle")}</h2>
+                  <p className="mt-3 text-sm text-neutral-300">
+                    {t("ending.battleText", {
                       name: ringBearer ? charName(ringBearer.id) : t("character.bearer"),
                     })}
                   </p>

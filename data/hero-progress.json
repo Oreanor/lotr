@@ -1,0 +1,23 @@
+{
+  "bilbo": { "exp": 720, "bonus": { "strength": 0, "defense": 0, "intelligence": 1, "luck": 1 } },
+  "haldir": { "exp": 720, "bonus": { "strength": 1, "defense": 1, "intelligence": 0, "luck": 0 } },
+  "galdor": { "exp": 850, "bonus": { "strength": 0, "defense": 0, "intelligence": 1, "luck": 1 } },
+  "arwen": { "exp": 1260, "bonus": { "strength": 0, "defense": 1, "intelligence": 1, "luck": 1 } },
+  "eowyn": { "exp": 1350, "bonus": { "strength": 1, "defense": 1, "intelligence": 0, "luck": 1 } },
+  "boromir": { "exp": 1260, "bonus": { "strength": 2, "defense": 1, "intelligence": 0, "luck": 0 } },
+  "gimli": { "exp": 1400, "bonus": { "strength": 2, "defense": 1, "intelligence": 0, "luck": 0 } },
+  "legolas": { "exp": 1500, "bonus": { "strength": 1, "defense": 1, "intelligence": 0, "luck": 1 } },
+  "grimbeorn": { "exp": 1300, "bonus": { "strength": 2, "defense": 1, "intelligence": 0, "luck": 0 } },
+  "theoden": { "exp": 1260, "bonus": { "strength": 1, "defense": 1, "intelligence": 1, "luck": 0 } },
+  "saruman": { "exp": 1600, "bonus": { "strength": 0, "defense": 1, "intelligence": 2, "luck": 0 } },
+  "thranduil": { "exp": 2000, "bonus": { "strength": 1, "defense": 1, "intelligence": 1, "luck": 1 } },
+  "celeborn": { "exp": 1920, "bonus": { "strength": 1, "defense": 2, "intelligence": 1, "luck": 0 } },
+  "faramir": { "exp": 1920, "bonus": { "strength": 1, "defense": 1, "intelligence": 1, "luck": 1 } },
+  "eomer": { "exp": 2100, "bonus": { "strength": 2, "defense": 1, "intelligence": 0, "luck": 1 } },
+  "aragorn": { "exp": 2850, "bonus": { "strength": 2, "defense": 1, "intelligence": 1, "luck": 1 } },
+  "cirdan": { "exp": 2700, "bonus": { "strength": 1, "defense": 2, "intelligence": 1, "luck": 1 } },
+  "gandalf": { "exp": 3600, "bonus": { "strength": 1, "defense": 2, "intelligence": 2, "luck": 1 } },
+  "elrond": { "exp": 3750, "bonus": { "strength": 1, "defense": 1, "intelligence": 2, "luck": 2 } },
+  "galadriel": { "exp": 3900, "bonus": { "strength": 1, "defense": 2, "intelligence": 2, "luck": 1 } },
+  "bombadil": { "exp": 4620, "bonus": { "strength": 0, "defense": 0, "intelligence": 0, "luck": 0 } }
+}
