@@ -2,17 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Short translucent white stripe sweeping diagonally across a struck unit. */
+/* Short translucent white stripe sweeping across a struck unit. The sweep
+   angle is set per hit via --sweep-angle so it runs from one of four sides. */
 @keyframes hit-sweep {
   0% {
-    transform: rotate(-45deg) translateX(-120%);
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(-120%);
     opacity: 0;
   }
   25% {
     opacity: 0.85;
   }
   100% {
-    transform: rotate(-45deg) translateX(120%);
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(120%);
     opacity: 0;
   }
 }

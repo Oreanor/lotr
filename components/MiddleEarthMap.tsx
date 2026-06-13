@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
+  CSSProperties,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
-  ReactNode,
 } from "react";
 import {
   CalendarDays,
@@ -165,7 +165,7 @@ const RING_BEARER_ID = "frodo";
 // Base stats are flavor estimates (easy to tweak); resilience is from the
 // "дни до срыва" table. Only PARTY_IDS are shown in the HUD column.
 const CHARACTERS: Character[] = [
-  { id: "frodo", name: "Фродо", icon: "/icons/frodo.png", strength: 4, defense: 4, intelligence: 6, luck: 5, resilience: 180 },
+  { id: "frodo", name: "Фродо", icon: "/icons/frodo.png", strength: 4, defense: 4, intelligence: 4, luck: 4, resilience: 180 },
   { id: "sam", name: "Сэм", icon: "/icons/sam.png", strength: 6, defense: 6, intelligence: 4, luck: 4, resilience: 210 },
   { id: "merry", name: "Мерри", icon: "/icons/merry.png", strength: 5, defense: 5, intelligence: 5, luck: 6, resilience: 180 },
   { id: "pippin", name: "Пиппин", icon: "/icons/pippin.png", strength: 5, defense: 4, intelligence: 4, luck: 8, resilience: 180 },
@@ -211,8 +211,26 @@ const MORDOR_POINT = { x: 1332, y: 1130 };
 const ENCOUNTER_TIER_SPAN = 1100; // px over which the tier falls from 5 to 0
 // Chance an encounter is above the local tier — a foe you'd better flee for now.
 const DANGEROUS_ENCOUNTER_CHANCE = 0.15;
-// South-only foes (mumakil) appear only at/below this latitude on the map.
-const SOUTH_ENCOUNTER_Y = 1100;
+
+// The map is split into six rough habitats (west/east of REGION_X; north / mid
+// / south by the Y bands). Difficulty still rises with nearness to Mordor (SE),
+// but these gate WHICH foes appear where (Harad in the south, Uruk-hai around
+// Isengard, etc.). Codes: NW Eriador · NE Wilderland/Mirkwood · MW Rohan/Isengard
+// · ME Mordor/Gondor · SW/SE the far south (Harad & Umbar).
+type RegionCode = "NW" | "NE" | "MW" | "ME" | "SW" | "SE";
+const REGION_X = 1080;
+const REGION_Y_NORTH = 870;
+const REGION_Y_SOUTH = 1290;
+function regionAt(point: Point): RegionCode {
+  const west = point.x < REGION_X;
+  if (point.y < REGION_Y_NORTH) {
+    return west ? "NW" : "NE";
+  }
+  if (point.y < REGION_Y_SOUTH) {
+    return west ? "MW" : "ME";
+  }
+  return west ? "SW" : "SE";
+}
 
 interface Monster {
   name: string;
@@ -224,8 +242,8 @@ interface Monster {
   luck: number;
   // If set, defeating this foe may recruit the given character.
   recruitId?: string;
-  // Only appears in the south (e.g. mumakil of Harad).
-  southOnly?: boolean;
+  // Habitats this foe roams; undefined = anywhere (still tier-gated).
+  regions?: RegionCode[];
 }
 
 // Emotion variants live in a subfolder mirroring the base path, e.g.
@@ -235,22 +253,23 @@ function iconVariant(icon: string, kind: "pain" | "joy" | "refuse" | "dark"): st
   return `${icon.slice(0, slash)}/${kind}${icon.slice(slash)}`;
 }
 // Iconic foes from the gazetteer, spread across tiers (stats are flavor 1-10).
+// `regions` roughly pins each to its homeland; undefined = roams widely.
 const MONSTERS: Monster[] = [
-  { name: "Лисы-вредители", icon: "/enemies/fox.png", tier: 0, strength: 1, defense: 1, intelligence: 1, luck: 3 },
+  { name: "Лисы-вредители", icon: "/enemies/fox.png", tier: 0, strength: 1, defense: 1, intelligence: 1, luck: 3, regions: ["NW", "NE", "MW"] },
   { name: "Крысы-переростки", icon: "/enemies/rat.png", tier: 0, strength: 2, defense: 1, intelligence: 1, luck: 2 },
-  { name: "Волчья стая", icon: "/enemies/wolf.png", tier: 1, strength: 3, defense: 2, intelligence: 2, luck: 4 },
+  { name: "Волчья стая", icon: "/enemies/wolf.png", tier: 1, strength: 3, defense: 2, intelligence: 2, luck: 4, regions: ["NW", "NE", "MW"] },
   { name: "Бандиты", icon: "/enemies/bandit.png", tier: 1, strength: 3, defense: 3, intelligence: 3, luck: 3 },
-  { name: "Гигантские пауки", icon: "/enemies/spider.png", tier: 1, strength: 4, defense: 3, intelligence: 2, luck: 3 },
-  { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 5, defense: 5, intelligence: 6, luck: 2 },
-  { name: "Гоблины-разведчики", icon: "/enemies/goblin.png", tier: 2, strength: 3, defense: 3, intelligence: 3, luck: 3 },
+  { name: "Гигантские пауки", icon: "/enemies/spider.png", tier: 1, strength: 4, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
+  { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 5, defense: 5, intelligence: 6, luck: 2, regions: ["NW"] },
+  { name: "Гоблины-разведчики", icon: "/enemies/goblin.png", tier: 2, strength: 3, defense: 3, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
   { name: "Орки-разведчики", icon: "/enemies/orc_scout.png", tier: 2, strength: 4, defense: 4, intelligence: 3, luck: 3 },
-  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 8, defense: 8, intelligence: 2, luck: 2 },
+  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 8, defense: 8, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
   { name: "Орочий отряд", icon: "/enemies/orc.png", tier: 3, strength: 5, defense: 4, intelligence: 3, luck: 3 },
-  { name: "Варги", icon: "/enemies/varg.png", tier: 3, strength: 5, defense: 4, intelligence: 3, luck: 4 },
-  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 7, defense: 6, intelligence: 4, luck: 3 },
-  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 6, defense: 6, intelligence: 4, luck: 4 },
-  { name: "Мумак (олифант)", icon: "/enemies/mumak.png", tier: 4, strength: 10, defense: 9, intelligence: 1, luck: 2, southOnly: true },
-  { name: "Тролли Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 9, defense: 9, intelligence: 2, luck: 2 },
+  { name: "Варги", icon: "/enemies/varg.png", tier: 3, strength: 5, defense: 4, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 7, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
+  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 6, defense: 6, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
+  { name: "Мумак (олифант)", icon: "/enemies/mumak.png", tier: 4, strength: 10, defense: 9, intelligence: 1, luck: 2, regions: ["SW", "SE"] },
+  { name: "Тролли Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 9, defense: 9, intelligence: 2, luck: 2, regions: ["ME"] },
 ];
 
 // Tier 0-5 at a map point: closer to Mordor → higher.
@@ -261,8 +280,8 @@ function tierAt(point: Point): number {
 
 // Pick a foe for the local tier; sometimes a stronger one ("too tough for now").
 function pickMonster(localTier: number, point: Point): { monster: Monster; dangerous: boolean } {
-  const south = point.y >= SOUTH_ENCOUNTER_Y;
-  const allowed = MONSTERS.filter((m) => south || !m.southOnly);
+  const region = regionAt(point);
+  const allowed = MONSTERS.filter((m) => !m.regions || m.regions.includes(region));
   const dangerous = localTier < 5 && Math.random() < DANGEROUS_ENCOUNTER_CHANCE;
   let pool = dangerous
     ? allowed.filter((m) => m.tier > localTier)
@@ -289,6 +308,48 @@ const BOSSES_BY_LOCATION: Record<number, Monster> = {
 // Unique boss names — a defeated boss never returns to its location.
 const BOSS_NAMES = new Set(Object.values(BOSSES_BY_LOCATION).map((boss) => boss.name));
 
+// Artwork filename per location id. Same names live in each season folder; the
+// full path is built from the current season (see locationImage / SEASON_FOLDER).
+const LOCATION_IMAGE_FILE: Record<number, string> = {
+  1: "01_carn_dum.png",
+  2: "02_erebor.png",
+  3: "03_wood_elves.png",
+  4: "04_fornost.png",
+  5: "05_beorn.png",
+  6: "06_forlond.png",
+  7: "07_rivendell.png",
+  8: "08_bree.png",
+  9: "09_weathertop.png",
+  10: "10_hobbiton.png",
+  11: "11_grey_havens.png",
+  12: "12_old%20forest.png",
+  13: "13_harlond.png",
+  14: "14_moria.png",
+  15: "15_lorien.png",
+  16: "16_isengard.png",
+  17: "17_helm_deep.png",
+  18: "18_edoras.png",
+  19: "19_barad_dur.png",
+  20: "20_erech.png",
+  21: "21_orodruin.png",
+  22: "22_kirith_ungol.png",
+  23: "23_minas_morgul.png",
+  24: "24_minas_tirith.png",
+  25: "25_osgiliath.png",
+  26: "26_dol_amroth.png",
+  27: "27_pelargir.png",
+  28: "28_corsairs.png",
+  29: "29_umbar.png",
+  30: "30_buckland.png",
+  31: "31_esgaroth.png",
+};
+
+// Resolve the season-appropriate artwork URL for a location, or null if none.
+function locationImage(id: number, season: Season): string | null {
+  const file = LOCATION_IMAGE_FILE[id];
+  return file ? `/locations/${SEASON_FOLDER[season]}/${file}` : null;
+}
+
 // XP a foe grants the whole party on victory (scales with tier and strength).
 function monsterExp(monster: Monster): number {
   return 5 + monster.tier * 20 + monster.strength * 4;
@@ -309,37 +370,33 @@ const ELF_IDS = new Set([
   "galdor",
 ]);
 
-// Voiced refusal for a deterministic reason given the party (null = no block).
-function recruitRefusalLine(characterId: string, party: string[]): string | null {
+// i18n key for a deterministic refusal given the party (null = no block).
+function recruitRefusalKey(characterId: string, party: string[]): string | null {
   if (characterId === "gollum" && !party.every((id) => HOBBIT_IDS.has(id))) {
-    return "Голлум шипит: «Не-ет! Голлум пойдёт только с хоббитсами, без чужаков, голлм!»";
+    return "refuse.gollumHobbits";
   }
   if (characterId === "arwen" && party.includes("elrond")) {
-    return "Элронд: «Я не отпущу Арвен в эту тьму.»";
+    return "refuse.elrondArwen";
   }
   if (characterId === "eowyn" && (party.includes("eomer") || party.includes("theoden"))) {
-    return "Эовин: «Мои родичи не пускают меня в поход.»";
+    return "refuse.kinEowyn";
   }
   if (characterId === "saruman" && party.includes("gandalf")) {
-    return "Саруман: «Я не пойду рядом с этим серым бродягой.»";
+    return "refuse.sarumanGandalf";
   }
   if (characterId === "gandalf" && party.includes("saruman")) {
-    return "Гэндальф: «Я не встану рядом с предателем Саруманом.»";
+    return "refuse.gandalfSaruman";
   }
-  if (ELF_IDS.has(characterId) && party.some((id) => DWARF_IDS.has(id))) {
-    return "Эльф качает головой: «Я не ступлю и шагу, пока в отряде гном.»";
+  // Arwen (like Legolas) doesn't mind a dwarf along for the road.
+  if (
+    characterId !== "arwen" &&
+    ELF_IDS.has(characterId) &&
+    party.some((id) => DWARF_IDS.has(id))
+  ) {
+    return "refuse.elfDwarf";
   }
   return null;
 }
-
-// Generic "not in the mood" lines for occasional random refusals.
-const RANDOM_REFUSALS = [
-  "«Не сегодня — у меня дела.»",
-  "«Нет настроения для дальних дорог.»",
-  "«Может, в другой раз.»",
-  "«Мне и здесь неплохо, благодарю.»",
-];
-const MOOD_REFUSAL_CHANCE = 0.15;
 
 // One passive ability per hero, active while they are in the party.
 const ABILITIES: Record<string, string> = {
@@ -428,9 +485,13 @@ const GOLLUM_ENCOUNTER_CHANCE = 0.1;
 const EOMER_ENCOUNTER_CHANCE = 0.2;
 // Tom Bombadil drifts home eventually — per-day chance (~weeks to a couple months).
 const BOMBADIL_LEAVE_CHANCE = 1 / 40;
-// Companions tempted by the Ring who may turn on the bearer, and the per-encounter chance.
+// Companions tempted by the Ring who may turn on the bearer. A traitor must
+// have travelled with the party for a while before the Ring works on them
+// (never within the first weeks); after that it's a low per-encounter roll, so
+// betrayal typically lands one to three months after they join.
 const TRAITORS = new Set(["bilbo", "boromir", "gollum", "saruman"]);
-const BETRAYAL_CHANCE = 0.08;
+const BETRAYAL_GRACE_DAYS = 30;
+const BETRAYAL_CHANCE = 0.06;
 
 // Choose what a triggered encounter is. Specials (Gollum/Eomer) come alone;
 // ordinary foes arrive as a pack (handled at battle start).
@@ -452,6 +513,8 @@ function rollEncounter(
 // full game spans roughly 10-50 levels; the first level ~10 easy fights.
 const LEVEL_BASE_XP = 300; // xp from level 1 to 2
 const LEVEL_XP_STEP = 120; // each further level needs this much more
+// Points the player distributes over Frodo's four stats at game start.
+const CREATION_POINTS = 10;
 
 interface StatBonus {
   strength: number;
@@ -506,6 +569,7 @@ interface BattleState {
   lastHit: string | null; // key of the combatant struck this tick (for the flash)
   attacker: string | null; // key of the combatant striking this tick (outlined)
   tick: number; // increments on every strike so the flash re-triggers
+  hitDir: number; // 0–3: which of four directions the hit-sweep stripe runs
   bearerKey: string | null; // the ring bearer among the allies, if present
   ringOn: boolean; // bearer wears the Ring: invisible & untargetable
   recruitId: string | null; // character who may join if this foe is defeated
@@ -518,6 +582,8 @@ interface BattleState {
 function hitDamage(attacker: Combatant, target: Combatant): number {
   return Math.max(1, attacker.strength - target.defense);
 }
+// Four sweep directions for the hit-stripe, indexed by BattleState.hitDir.
+const SWEEP_ANGLES = ["-45deg", "45deg", "135deg", "-135deg"];
 // Towns where provisions can be restocked.
 const FOOD_SUPPLY_LOCATION_IDS = new Set<number>([
   HOBBITON_ID,
@@ -549,12 +615,6 @@ const RANDOM_PRESENCE: Record<string, number> = {
 const NON_BEARERS = new Set<string>(["bombadil"]);
 // Bilbo only relents after much pestering: each attempt has this success chance.
 const BILBO_RECRUIT_CHANCE = 0.05;
-// Some heroes only join if the party is lucky enough (max luck in the party
-// meets this). Pippin's Took-luck (8) is the key that unlocks the elusive ones.
-const RECRUIT_MIN_LUCK: Record<string, number> = {
-  gandalf: 8,
-  legolas: 7,
-};
 
 // Mounts/ships. Only one at a time; taking a new one replaces the old. `sea`
 // transports let the route cross water; `speed` multiplies travel speed.
@@ -685,6 +745,46 @@ function getJourneyDate(dayOffset: number, months: string[] = MONTHS_RU): string
 
   return `${day} ${months[month]} ${year}`;
 }
+
+// 0-based month at a day offset (mirrors getJourneyDate's roll-over).
+function monthAt(dayOffset: number): number {
+  let day = START_DATE.day + dayOffset;
+  let month = START_DATE.month;
+  let year = START_DATE.year;
+  while (day > getMonthLength(month, year)) {
+    day -= getMonthLength(month, year);
+    month += 1;
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+  }
+  return month;
+}
+
+type Season = "spring" | "summer" | "fall" | "winter";
+function seasonAt(dayOffset: number): Season {
+  const month = monthAt(dayOffset); // 0 = January
+  if (month >= 2 && month <= 4) {
+    return "spring";
+  }
+  if (month >= 5 && month <= 7) {
+    return "summer";
+  }
+  if (month >= 8 && month <= 10) {
+    return "fall";
+  }
+  return "winter";
+}
+
+// Folder of location artwork per season. Only the autumn set exists for now —
+// the others fall back to it until their folders are added.
+const SEASON_FOLDER: Record<Season, string> = {
+  spring: "fall",
+  summer: "fall",
+  fall: "fall",
+  winter: "fall",
+};
 
 // Month is 1-based (9 = сентябрь). Day offset 0 = START_DATE.
 function dateToDayOffset(day: number, month1Based: number, year: number): number {
@@ -953,37 +1053,22 @@ function StatBar({
   );
 }
 
-// Vertical gauge with an icon and a numeric readout; fills from the bottom up.
-function VerticalStat({
-  icon,
-  label,
-  value,
-  max,
-  color,
-  unit = "",
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-  max: number;
-  color: string;
-  unit?: string;
-}) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+// Square location artwork shown on entering a town. A pulsing skeleton holds
+// the space until the image loads, then it fades in. Remount (via key) per town.
+function LocationPreview({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
   return (
-    <div
-      className="flex w-12 flex-col items-center gap-1"
-      title={label}
-      aria-label={`${label}: ${value}${unit}`}
-    >
-      <span className="text-xs tabular-nums text-neutral-200">
-        {value}
-        {unit}
-      </span>
-      <div className="relative h-24 w-5 overflow-hidden rounded bg-neutral-800">
-        <div className={`absolute inset-x-0 bottom-0 ${color}`} style={{ height: `${pct}%` }} />
-      </div>
-      <span className="text-neutral-400">{icon}</span>
+    <div className="relative mx-auto my-4 aspect-square w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800 sm:aspect-[4/3]">
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-neutral-800" />}
+      <img
+        src={src}
+        alt={alt}
+        draggable="false"
+        onLoad={() => setLoaded(true)}
+        className={`size-full select-none object-cover transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
     </div>
   );
 }
@@ -993,11 +1078,16 @@ export default function MiddleEarthMap() {
   const lang = i18n.language;
   const months = t("months", { returnObjects: true }) as unknown as string[];
   // Localized display names (logic still keys off ids / canonical names).
-  const charName = (id: string) => t(`char.${id}`);
-  const monsterName = (icon: string) => t(`monster.${icon.split("/").pop()?.replace(".png", "")}`);
+  const charName = useCallback((id: string) => t(`char.${id}`), [t]);
+  const monsterName = useCallback(
+    (icon: string) => t(`monster.${icon.split("/").pop()?.replace(".png", "")}`),
+    [t],
+  );
   const locName = (loc: MapLocation) => getLocationLabel(loc, lang);
   const toggleLang = () => i18n.changeLanguage(lang === "en" ? "ru" : "en");
 
+  // Day each companion joined the party (for the betrayal grace period).
+  const joinDayRef = useRef<Record<string, number>>({});
   const frameRef = useRef<number | null>(null);
   const journeyMilesRef = useRef(0);
   const journeyDayRef = useRef(0);
@@ -1092,6 +1182,9 @@ export default function MiddleEarthMap() {
   const [recruitOffer, setRecruitOffer] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
+  const [created, setCreated] = useState(false);
+  const [creationBonus, setCreationBonus] = useState<StatBonus>(ZERO_BONUS);
   const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(new Set());
   const [pendingBetrayal, setPendingBetrayal] = useState<string | null>(null);
   // Companions left waiting on the map; can be re-called by clicking their marker.
@@ -1127,25 +1220,33 @@ export default function MiddleEarthMap() {
 
   const recruitCharacter = useCallback(
     (id: string) => {
-      setParty((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      setParty((prev) => {
+        if (prev.includes(id)) {
+          return prev;
+        }
+        // Stamp the join day so the Ring's corruption of traitors has a grace
+        // period (and resets if they leave and are re-recruited later).
+        joinDayRef.current[id] = journeyDayRef.current;
+        return [...prev, id];
+      });
       flashEmote(id, "joy");
     },
     [flashEmote],
   );
 
   // Try to recruit, honoring per-character conditions; refusals show a voiced
-  // line. `fromOffer` (post-battle invite) skips the random "mood" refusal.
+  // line.
   const attemptRecruit = useCallback(
-    (character: Character, fromOffer = false) => {
+    (character: Character) => {
       const refuse = (line: string) => {
         flashEmote(character.id, "refuse");
         setRecruitRefusal(line);
       };
 
       // Deterministic party-composition rules (incl. Gollum's hobbits-only).
-      const blocked = recruitRefusalLine(character.id, party);
-      if (blocked) {
-        refuse(blocked);
+      const blockedKey = recruitRefusalKey(character.id, party);
+      if (blockedKey) {
+        refuse(t(blockedKey));
         return;
       }
       // Círdan only follows a bearer at least as wise as himself.
@@ -1155,23 +1256,18 @@ export default function MiddleEarthMap() {
           ? effectiveStats(bearer, statBonusById[bearerId] ?? ZERO_BONUS).intelligence
           : 0;
         if (bearerInt < character.intelligence) {
-          refuse("Кирдан: «Я не вверю себя хранителю, что уступает мне в мудрости.»");
+          refuse(t("refuse.cirdanWisdom"));
           return;
         }
       }
       // Bilbo clings to Rivendell — only relents after much pestering.
       if (character.id === "bilbo" && Math.random() >= BILBO_RECRUIT_CHANCE) {
-        refuse("Бильбо ворчит: «Нет-нет, мне и тут уютно… загляни попозже.»");
-        return;
-      }
-      // Occasional bad mood (not for hard-won battle invites).
-      if (!fromOffer && Math.random() < MOOD_REFUSAL_CHANCE) {
-        refuse(`${character.name}: ${RANDOM_REFUSALS[Math.floor(Math.random() * RANDOM_REFUSALS.length)]}`);
+        refuse(t("refuse.bilbo"));
         return;
       }
       recruitCharacter(character.id);
     },
-    [bearerId, flashEmote, party, recruitCharacter, statBonusById],
+    [bearerId, flashEmote, party, recruitCharacter, statBonusById, t],
   );
 
   // Invite the foe defeated in battle (or decline).
@@ -1193,7 +1289,7 @@ export default function MiddleEarthMap() {
       const half = Math.floor((character.strength * HEALTH_PER_STR) / 2);
       damageRef.current = { ...damageRef.current, [id]: half };
       setDamageById(damageRef.current);
-      attemptRecruit(character, true);
+      attemptRecruit(character);
     }
   }, [recruitOffer, leftBehind, recruitCharacter, attemptRecruit]);
 
@@ -1230,11 +1326,13 @@ export default function MiddleEarthMap() {
         lastHit: null,
         attacker: null,
         tick: 0,
+        hitDir: 0,
         bearerKey: bearer.id,
         ringOn: false,
         recruitId: null,
         enemyBeast: false,
-        ringIneffective: true,
+        // Saruman is no wraith — the Ring still hides the bearer from him.
+        ringIneffective: traitorId !== "saruman",
         betrayalBy: traitorId,
         gandalfOnly: false,
       });
@@ -1325,6 +1423,7 @@ export default function MiddleEarthMap() {
       lastHit: null,
       attacker: null,
       tick: 0,
+      hitDir: 0,
       bearerKey: allies.some((a) => a.key === bearerId) ? bearerId : null,
       ringOn: false,
       recruitId: m.recruitId ?? null,
@@ -1342,6 +1441,33 @@ export default function MiddleEarthMap() {
     });
   }, []);
 
+  // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
+  const adjustCreation = useCallback((stat: keyof StatBonus, delta: number) => {
+    setCreationBonus((prev) => {
+      const spent = prev.strength + prev.defense + prev.intelligence + prev.luck;
+      const nextValue = prev[stat] + delta;
+      if (nextValue < 0 || (delta > 0 && spent >= CREATION_POINTS)) {
+        return prev;
+      }
+      return { ...prev, [stat]: nextValue };
+    });
+  }, []);
+
+  // Scatter all creation points randomly across the four stats.
+  const randomizeCreation = useCallback(() => {
+    const stats: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
+    const rolled: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
+    for (let i = 0; i < CREATION_POINTS; i += 1) {
+      rolled[stats[Math.floor(Math.random() * stats.length)]] += 1;
+    }
+    setCreationBonus(rolled);
+  }, []);
+
+  const confirmCreation = useCallback(() => {
+    setStatBonusById((prev) => ({ ...prev, [RING_BEARER_ID]: creationBonus }));
+    setCreated(true);
+  }, [creationBonus]);
+
   // Flee: keep the wounds taken so far, no XP, leave the fight.
   const fleeBattle = useCallback(() => {
     if (!battle) {
@@ -1353,6 +1479,10 @@ export default function MiddleEarthMap() {
     }
     damageRef.current = nextDamage;
     setDamageById(nextDamage);
+    // Fleeing means dropping the packs: all but a single day of food is lost.
+    const nextFood = Math.min(foodRef.current, 1);
+    foodRef.current = nextFood;
+    setFood(nextFood);
     setBattle(null);
   }, [battle]);
 
@@ -1849,7 +1979,10 @@ export default function MiddleEarthMap() {
         (members.includes("eomer") ? EOMER_SPEED_MULTIPLIER : 1);
       const canSail = (activeTransport ? activeTransport.sea : false) || members.includes("cirdan");
       const currentTerrain = getTerrainAtPoint(current);
-      const terrainCost = members.includes("gollum") ? 1 : currentTerrain.cost;
+      // Gollum ignores rough ground; Cirdan (or a ship) wipes the water penalty.
+      const onWater = currentTerrain.name === "water";
+      const terrainCost =
+        members.includes("gollum") || (onWater && canSail) ? 1 : currentTerrain.cost;
       const visibleSpeed = (SPEED_PX_PER_SECOND * animationSpeed * transportSpeed) / terrainCost;
       const travel = Math.min(routeRadius, visibleSpeed * elapsedSeconds);
 
@@ -1939,7 +2072,7 @@ export default function MiddleEarthMap() {
         nextPlayer = activeTarget;
       }
 
-      const nextJourneyMiles = journeyMilesRef.current + actualTravel * currentTerrain.cost;
+      const nextJourneyMiles = journeyMilesRef.current + actualTravel * terrainCost;
       const nextJourneyDay = Math.floor(nextJourneyMiles / MILES_PER_DAY);
 
       journeyMilesRef.current = nextJourneyMiles;
@@ -2029,10 +2162,6 @@ export default function MiddleEarthMap() {
   const iconFor = (character: { id: string; icon: string }): string =>
     emote && emote.id === character.id ? iconVariant(character.icon, emote.kind) : character.icon;
   const partyCharacters = CHARACTERS.filter((character) => party.includes(character.id));
-  const partyLuck = partyCharacters.reduce(
-    (best, character) => Math.max(best, effectiveStats(character, totalBonusFor(character)).luck),
-    0,
-  );
   const anyHurt = partyCharacters.some((character) => (damageById[character.id] ?? 0) > 0);
   const foodCapacity = foodCapacityFor(transport);
   const transportEmoji =
@@ -2094,7 +2223,13 @@ export default function MiddleEarthMap() {
       bonusFor(openCharacter.id).intelligence +
       bonusFor(openCharacter.id).luck
     : 0;
-  const openPoints = openLevel.level - 1 - openSpent;
+  // Frodo's creation points are baked into his bonus; don't count them as
+  // level-up spending.
+  const creationOffset = openCharacter?.id === RING_BEARER_ID ? CREATION_POINTS : 0;
+  const openPoints = openLevel.level - 1 - (openSpent - creationOffset);
+  const creationSpent =
+    creationBonus.strength + creationBonus.defense + creationBonus.intelligence + creationBonus.luck;
+  const creationHero = CHARACTERS.find((character) => character.id === RING_BEARER_ID)!;
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
   const bearerCorruption = ringBearer
     ? computeCharacterStats(
@@ -2141,7 +2276,7 @@ export default function MiddleEarthMap() {
     }
     const deadIds = new Set(dead.map((character) => character.id));
     setParty((prev) => prev.filter((id) => !deadIds.has(id)));
-    setDeathNotice(dead.map((character) => character.name).join(", "));
+    setDeathNotice(dead.map((character) => character.id).join(","));
   }, [damageById, party, bearerId, statBonusById]);
 
   // Re-check compatibility whenever the party changes: someone who can't abide
@@ -2153,19 +2288,18 @@ export default function MiddleEarthMap() {
         return false;
       }
       const character = CHARACTERS.find((c) => c.id === id);
-      return character ? recruitRefusalLine(id, party.filter((p) => p !== id)) !== null : false;
+      return character ? recruitRefusalKey(id, party.filter((p) => p !== id)) !== null : false;
     });
     if (!evictee) {
       return;
     }
-    const character = CHARACTERS.find((c) => c.id === evictee);
-    const line = recruitRefusalLine(evictee, party.filter((p) => p !== evictee));
+    const key = recruitRefusalKey(evictee, party.filter((p) => p !== evictee));
     setParty((prev) => prev.filter((id) => id !== evictee));
     flashEmote(evictee, "refuse");
     setRecruitRefusal(
-      `${character?.name ?? "Спутник"} покидает отряд. ${line ?? ""}`.trim(),
+      t("refuse.evicted", { name: charName(evictee), line: key ? t(key) : "" }).trim(),
     );
-  }, [party, bearerId, flashEmote]);
+  }, [party, bearerId, flashEmote, t, charName]);
 
   // Auto-battle clock: one strike per tick (allies in turn, then the enemy).
   useEffect(() => {
@@ -2212,6 +2346,7 @@ export default function MiddleEarthMap() {
             lastHit: enemies[target].key,
             attacker: allies[i].key,
             tick: b.tick + 1,
+            hitDir: Math.floor(Math.random() * 4),
           };
         }
 
@@ -2243,6 +2378,7 @@ export default function MiddleEarthMap() {
           lastHit: allies[target].key,
           attacker: enemies[j].key,
           tick: b.tick + 1,
+          hitDir: Math.floor(Math.random() * 4),
         };
       });
     }, BATTLE_TICK_MS);
@@ -2283,12 +2419,11 @@ export default function MiddleEarthMap() {
       // Betrayal repelled: the traitor is driven off and leaves the party.
       if (battle.betrayalBy) {
         const traitorId = battle.betrayalBy;
-        const traitor = CHARACTERS.find((c) => c.id === traitorId);
         setParty((prev) => prev.filter((id) => id !== traitorId));
         setRecruitRefusal(
           traitorId === "gollum"
-            ? "Голлум шипит и удирает во тьму."
-            : `${traitor?.name ?? "Предатель"} опомнился и в стыде покидает отряд.`,
+            ? t("refuse.gollumFled")
+            : t("refuse.traitorReturns", { name: charName(traitorId) }),
         );
       }
       // A defeated roaming foe: offer to invite them.
@@ -2301,7 +2436,7 @@ export default function MiddleEarthMap() {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
       }
     }
-  }, [battle]);
+  }, [battle, t, charName]);
 
   // Roll "is he home?" once per visit for sometimes-present characters.
   useEffect(() => {
@@ -2364,10 +2499,15 @@ export default function MiddleEarthMap() {
     setDamageById(nextDamage);
     if (bombadilLeaves) {
       setParty((prev) => prev.filter((id) => id !== "bombadil"));
-      setRecruitRefusal("Том Бомбадил соскучился по дому и покидает отряд.");
+      setRecruitRefusal(t("refuse.bombadilLeaves"));
     }
     if (encountered) {
-      const traitors = party.filter((id) => id !== bearerId && TRAITORS.has(id));
+      const traitors = party.filter(
+        (id) =>
+          id !== bearerId &&
+          TRAITORS.has(id) &&
+          journeyDay - (joinDayRef.current[id] ?? journeyDay) >= BETRAYAL_GRACE_DAYS,
+      );
       if (traitors.length > 0 && Math.random() < BETRAYAL_CHANCE) {
         setPendingBetrayal(traitors[Math.floor(Math.random() * traitors.length)]);
       } else {
@@ -2375,7 +2515,7 @@ export default function MiddleEarthMap() {
         setEncounter(rollEncounter(position, party));
       }
     }
-  }, [journeyDay, party, hasCloaks, hobbiton, bearerId]);
+  }, [journeyDay, party, hasCloaks, hobbiton, bearerId, t]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   useEffect(() => {
@@ -2429,8 +2569,8 @@ export default function MiddleEarthMap() {
             <button
               key={location.id}
               type="button"
-              title={location.name}
-              aria-label={location.name}
+              title={locName(location)}
+              aria-label={locName(location)}
               className="absolute z-10 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-red-600 shadow-[0_0_0_2px_rgba(120,0,0,0.35)] transition-transform hover:scale-[1.8] hover:bg-red-500"
               style={{ left: screen.x, top: screen.y }}
               onPointerDown={(event) => event.stopPropagation()}
@@ -2688,7 +2828,7 @@ export default function MiddleEarthMap() {
                     {character.id === bearerId && (
                       <span
                         className="pointer-events-none absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border border-amber-700 bg-neutral-900"
-                        title="Хранитель Кольца"
+                        title={t("character.bearer")}
                       >
                         <img
                           src={ringImage}
@@ -2722,11 +2862,19 @@ export default function MiddleEarthMap() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="location-title"
-              className="w-full max-w-72 rounded border border-neutral-700 bg-neutral-900 p-5 text-center shadow-2xl"
+              className="max-h-[88vh] w-full max-w-sm overflow-y-auto rounded border border-neutral-700 bg-neutral-900 p-5 text-center shadow-2xl"
             >
               <h2 id="location-title" className="font-serif text-2xl text-neutral-100">
                 {locName(visitedLocation)}
               </h2>
+
+              {locationImage(visitedLocation.id, seasonAt(journeyDay)) && (
+                <LocationPreview
+                  key={`${visitedLocation.id}-${seasonAt(journeyDay)}`}
+                  src={locationImage(visitedLocation.id, seasonAt(journeyDay))!}
+                  alt={locName(visitedLocation)}
+                />
+              )}
 
               {BOSSES_BY_LOCATION[visitedLocation.id] &&
                 !defeatedBosses.has(BOSSES_BY_LOCATION[visitedLocation.id].name) &&
@@ -2742,7 +2890,9 @@ export default function MiddleEarthMap() {
                   }
                   className="mt-4 w-full rounded border border-red-800 bg-red-900/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/70"
                 >
-                  ⚔️ Вступить в бой: {BOSSES_BY_LOCATION[visitedLocation.id].name}
+                  {t("location.fight", {
+                    name: monsterName(BOSSES_BY_LOCATION[visitedLocation.id].icon),
+                  })}
                 </button>
               )}
 
@@ -2750,24 +2900,29 @@ export default function MiddleEarthMap() {
                 <ul className="mt-4 space-y-2 text-left">
                   {recruitsHere.map((character) => {
                     const inParty = party.includes(character.id);
-                    const requiredLuck = RECRUIT_MIN_LUCK[character.id] ?? 0;
-                    const needLuck = !inParty && partyLuck < requiredLuck;
                     return (
                       <li key={character.id} className="flex items-center gap-3">
-                        <img
-                          src={iconFor(character)}
-                          alt=""
-                          className="size-12 border border-neutral-700 bg-parchment object-cover"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setOpenCharacterId(character.id)}
+                          title={t("recruit.statsAria", { name: charName(character.id) })}
+                          aria-label={t("recruit.statsAria", { name: charName(character.id) })}
+                          className="size-12 shrink-0 border border-neutral-700 bg-parchment transition hover:brightness-95"
+                        >
+                          <img
+                            src={iconFor(character)}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        </button>
                         <span className="flex-1 text-sm text-neutral-200">{charName(character.id)}</span>
                         <button
                           type="button"
-                          disabled={inParty || needLuck}
-                          title={needLuck ? `Нужна удача отряда ${requiredLuck}+` : undefined}
+                          disabled={inParty}
                           onClick={() => attemptRecruit(character)}
                           className="rounded border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
                         >
-                          {inParty ? "В отряде" : needLuck ? `Удача ${requiredLuck}+` : "Позвать"}
+                          {inParty ? t("recruit.inParty") : t("recruit.call")}
                         </button>
                       </li>
                     );
@@ -2786,8 +2941,8 @@ export default function MiddleEarthMap() {
                   className="mt-4 w-full rounded border border-amber-800 bg-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-amber-900/30"
                 >
                   {food >= foodCapacity
-                    ? `🍞 Запасы полны (${foodCapacity} дн.)`
-                    : `🍞 Взять запасы на ${foodCapacity} дн.`}
+                    ? t("location.suppliesFull", { n: foodCapacity })
+                    : t("location.supplies", { n: foodCapacity })}
                 </button>
               )}
 
@@ -2798,7 +2953,7 @@ export default function MiddleEarthMap() {
                   onClick={() => setHasCloaks(true)}
                   className="mt-4 w-full rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
                 >
-                  {hasCloaks ? "🧥 Плащи получены" : "🧥 Взять эльфийские плащи"}
+                  {hasCloaks ? t("location.cloaksHave") : t("location.cloaksTake")}
                 </button>
               )}
 
@@ -2815,7 +2970,9 @@ export default function MiddleEarthMap() {
                     onClick={() => setTransport(offered)}
                     className="mt-4 w-full rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
                   >
-                    {active ? `${TRANSPORTS[offered].name}: уже с вами` : TRANSPORTS[offered].action}
+                    {active
+                      ? t("transport.active", { name: t(`transport.${offered}`) })
+                      : t(`transport.take${offered.charAt(0).toUpperCase()}${offered.slice(1)}`)}
                   </button>
                 );
               })()}
@@ -2828,7 +2985,7 @@ export default function MiddleEarthMap() {
                   setTargetLocation(null);
                 }}
               >
-                Покинуть место
+                {t("location.leave")}
               </button>
             </div>
           </div>
@@ -2848,11 +3005,9 @@ export default function MiddleEarthMap() {
             >
               <div className="border-b border-neutral-800 px-5 py-4">
                 <h2 id="recruitment-calendar-title" className="font-serif text-xl text-neutral-100">
-                  Календарь найма
+                  {t("calendar.title")}
                 </h2>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Сегодня: {journeyDate}. Без расписания — доступен всегда.
-                </p>
+                <p className="mt-1 text-xs text-neutral-500">{t("calendar.today", { date: journeyDate })}</p>
               </div>
 
               <ul className="overflow-y-auto px-5 py-3">
@@ -2874,7 +3029,7 @@ export default function MiddleEarthMap() {
                     </div>
                     <div className="shrink-0 text-right text-xs">
                       <p>{entry.periodLabel}</p>
-                      {entry.isActive && <p className="text-emerald-500">сейчас</p>}
+                      {entry.isActive && <p className="text-emerald-500">{t("calendar.now")}</p>}
                     </div>
                   </li>
                 ))}
@@ -2886,7 +3041,7 @@ export default function MiddleEarthMap() {
                   className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                   onClick={() => setCalendarOpen(false)}
                 >
-                  Закрыть
+                  {t("calendar.close")}
                 </button>
               </div>
             </div>
@@ -2905,10 +3060,8 @@ export default function MiddleEarthMap() {
               className="flex max-h-[80vh] w-full max-w-sm flex-col rounded border border-neutral-700 bg-neutral-900 shadow-2xl"
             >
               <div className="border-b border-neutral-800 px-5 py-4">
-                <h2 className="font-serif text-xl text-neutral-100">Разделиться</h2>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Оставить спутника здесь (потом подойти и позвать) или выгнать совсем.
-                </p>
+                <h2 className="font-serif text-xl text-neutral-100">{t("split.title")}</h2>
+                <p className="mt-1 text-xs text-neutral-500">{t("split.hint")}</p>
               </div>
               <ul className="overflow-y-auto px-5 py-3">
                 {partyCharacters
@@ -2929,21 +3082,19 @@ export default function MiddleEarthMap() {
                         onClick={() => leaveMember(character.id)}
                         className="rounded border border-amber-700 bg-amber-900/30 px-2 py-1 text-xs font-semibold text-amber-200 transition hover:bg-amber-900/60"
                       >
-                        Оставить
+                        {t("split.leave")}
                       </button>
                       <button
                         type="button"
                         onClick={() => dismissMember(character.id)}
                         className="rounded border border-red-800 bg-red-900/30 px-2 py-1 text-xs font-semibold text-red-200 transition hover:bg-red-900/60"
                       >
-                        Выгнать
+                        {t("split.dismiss")}
                       </button>
                     </li>
                   ))}
                 {partyCharacters.filter((character) => character.id !== bearerId).length === 0 && (
-                  <li className="py-3 text-center text-sm text-neutral-500">
-                    Кроме хранителя в отряде никого нет.
-                  </li>
+                  <li className="py-3 text-center text-sm text-neutral-500">{t("split.empty")}</li>
                 )}
               </ul>
               <div className="border-t border-neutral-800 px-5 py-4">
@@ -2952,7 +3103,7 @@ export default function MiddleEarthMap() {
                   className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                   onClick={() => setSplitOpen(false)}
                 >
-                  Готово
+                  {t("split.done")}
                 </button>
               </div>
             </div>
@@ -3050,42 +3201,56 @@ export default function MiddleEarthMap() {
                 )}
               </div>
 
-              <div className="mb-5 flex justify-center gap-4">
-                <VerticalStat
-                  icon={<Heart className="size-4" />}
-                  label="Здоровье"
-                  value={openStats.health}
-                  max={openStats.maxHealth}
-                  color="bg-emerald-500"
-                />
-                {(openStats.isBearer || openStats.corruption > 0) && (
-                  <VerticalStat
-                    icon={<Flame className="size-4" />}
-                    label="Власть Кольца"
-                    value={openStats.corruption}
-                    max={100}
-                    unit="%"
-                    color="bg-yellow-600"
+              <div className="mb-3 text-left">
+                <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="flex items-center gap-1">
+                    <Heart className="size-3.5 text-emerald-500" />
+                    {t("character.health")}
+                  </span>
+                  <span className="tabular-nums text-neutral-200">
+                    {openStats.health}/{openStats.maxHealth}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded bg-neutral-800">
+                  <div
+                    className="h-full bg-green-500"
+                    style={{
+                      width: `${Math.max(0, (openStats.health / openStats.maxHealth) * 100)}%`,
+                    }}
                   />
-                )}
+                </div>
               </div>
 
+              {(openStats.isBearer || openStats.corruption > 0) && (
+                <div className="mb-4 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1 text-yellow-500">
+                    <Flame className="size-4" />
+                    {t("character.ringPower")}
+                  </span>
+                  <span className="font-semibold tabular-nums text-yellow-400">
+                    {openStats.corruption}%
+                  </span>
+                </div>
+              )}
+
               <div className="space-y-2">
-                <StatBar label="Сила" value={openStats.strength} max={10} color="bg-red-500" />
-                <StatBar label="Защита" value={openStats.defense} max={10} color="bg-sky-500" />
+                <StatBar label={t("character.strength")} value={openStats.strength} max={10} color="bg-red-500" />
+                <StatBar label={t("character.defense")} value={openStats.defense} max={10} color="bg-sky-500" />
                 <StatBar
-                  label="Интеллект"
+                  label={t("character.intelligence")}
                   value={openStats.intelligence}
                   max={10}
                   color="bg-violet-500"
                 />
-                <StatBar label="Удача" value={openStats.luck} max={10} color="bg-lime-500" />
+                <StatBar label={t("character.luck")} value={openStats.luck} max={10} color="bg-lime-500" />
               </div>
 
               {ABILITIES[openCharacter.id] && (
                 <div className="mt-3 rounded border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-left">
-                  <p className="text-[10px] uppercase tracking-wide text-amber-500/80">Способность</p>
-                  <p className="text-sm text-amber-200">{ABILITIES[openCharacter.id]}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-amber-500/80">
+                    {t("character.ability")}
+                  </p>
+                  <p className="text-sm text-amber-200">{t(`ability.${openCharacter.id}`)}</p>
                 </div>
               )}
 
@@ -3096,10 +3261,13 @@ export default function MiddleEarthMap() {
                     className="w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
                     onClick={claimLordship}
                   >
-                    Стать властелином
+                    {t("character.becomeLord")}
                   </button>
                 )}
-                {!openStats.isBearer && !openStats.dead && !NON_BEARERS.has(openCharacter.id) && (
+                {!openStats.isBearer &&
+                  !openStats.dead &&
+                  party.includes(openCharacter.id) &&
+                  !NON_BEARERS.has(openCharacter.id) && (
                   <button
                     type="button"
                     className="flex w-full items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
@@ -3111,7 +3279,7 @@ export default function MiddleEarthMap() {
                       draggable="false"
                       className="size-4 select-none object-contain"
                     />
-                    Сделать хранителем
+                    {t("character.makeBearer")}
                   </button>
                 )}
                 <button
@@ -3119,7 +3287,7 @@ export default function MiddleEarthMap() {
                   className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                   onClick={() => setOpenCharacterId(null)}
                 >
-                  Закрыть
+                  {t("character.close")}
                 </button>
               </div>
             </div>
@@ -3137,17 +3305,15 @@ export default function MiddleEarthMap() {
               aria-modal="true"
               className="w-full max-w-sm rounded border border-amber-700 bg-neutral-900 p-6 text-center shadow-2xl"
             >
-              <h2 className="font-serif text-2xl text-neutral-100">Ородруин</h2>
-              <p className="mt-3 text-sm text-neutral-300">
-                Ты на краю Роковой горы. Кольцо жжёт ладонь. Решайся.
-              </p>
+              <h2 className="font-serif text-2xl text-neutral-100">{t("orodruin.title")}</h2>
+              <p className="mt-3 text-sm text-neutral-300">{t("orodruin.text")}</p>
               <div className="mt-5 flex flex-col gap-2">
                 <button
                   type="button"
                   className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/70"
                   onClick={() => setEnding("victory")}
                 >
-                  Уничтожить Кольцо
+                  {t("orodruin.destroy")}
                 </button>
                 <button
                   type="button"
@@ -3157,7 +3323,7 @@ export default function MiddleEarthMap() {
                     setEnding("lord");
                   }}
                 >
-                  Объявить себя Властелином
+                  {t("orodruin.claim")}
                 </button>
               </div>
             </div>
@@ -3177,14 +3343,14 @@ export default function MiddleEarthMap() {
             >
               <div className="text-4xl">🍞</div>
               <h2 className="mt-2 font-serif text-xl text-amber-200">
-                {foodFarmed > 0 ? `Вы добыли еды: ${foodFarmed} дн.` : "Запасы уже полны"}
+                {foodFarmed > 0 ? t("farmResult.got", { n: foodFarmed }) : t("farmResult.full")}
               </h2>
               <button
                 type="button"
                 className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                 onClick={() => setFoodFarmed(null)}
               >
-                Хорошо
+                {t("farmResult.ok")}
               </button>
             </div>
           </div>
@@ -3202,7 +3368,7 @@ export default function MiddleEarthMap() {
               className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded border border-red-800 bg-neutral-900 p-5 shadow-2xl"
             >
               <h2 className="mb-4 text-center font-serif text-xl text-red-300">
-                {battle.betrayalBy ? "Предательство!" : "Бой"}
+                {battle.betrayalBy ? t("battle.betrayalTitle") : t("battle.title")}
               </h2>
               <div className="flex items-start justify-center gap-3">
                 <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
@@ -3238,7 +3404,12 @@ export default function MiddleEarthMap() {
                               key={battle.tick}
                               className="pointer-events-none absolute inset-0 flex items-center justify-center"
                             >
-                              <span className="hit-sweep block h-2 w-[140%] bg-white/70" />
+                              <span
+                                className="hit-sweep block h-2 w-[140%] bg-white/70"
+                                style={
+                                  { "--sweep-angle": SWEEP_ANGLES[battle.hitDir] } as CSSProperties
+                                }
+                              />
                             </span>
                           )}
                           <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/50">
@@ -3286,7 +3457,12 @@ export default function MiddleEarthMap() {
                             key={battle.tick}
                             className="pointer-events-none absolute inset-0 flex items-center justify-center"
                           >
-                            <span className="hit-sweep block h-2 w-[140%] bg-white/70" />
+                            <span
+                              className="hit-sweep block h-2 w-[140%] bg-white/70"
+                              style={
+                                { "--sweep-angle": SWEEP_ANGLES[battle.hitDir] } as CSSProperties
+                              }
+                            />
                           </span>
                         )}
                         <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/50">
@@ -3311,53 +3487,47 @@ export default function MiddleEarthMap() {
                       battle.outcome === "win" ? "text-emerald-400" : "text-red-400"
                     }`}
                   >
-                    {battle.outcome === "win" ? `Победа! +${battle.exp} опыта` : "Поражение"}
+                    {battle.outcome === "win" ? t("battle.victory", { n: battle.exp }) : t("battle.defeat")}
                   </p>
                   <button
                     type="button"
                     className="mt-3 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                     onClick={() => setBattle(null)}
                   >
-                    Продолжить
+                    {t("battle.continue")}
                   </button>
                 </div>
               ) : (
                 <div className="mt-5 flex flex-col gap-2">
                   {battle.ringIneffective && (
-                    <p className="text-center text-xs text-amber-400">
-                      Эти враги видят сквозь Кольцо — невидимость не спасёт.
-                    </p>
+                    <p className="text-center text-xs text-amber-400">{t("battle.ringNote")}</p>
                   )}
                   {battle.gandalfOnly && !battle.allies.some((a) => BALROG_DAMAGERS.has(a.key)) && (
-                    <p className="text-center text-xs text-amber-400">
-                      Балрога ранят лишь Гэндальф, Бомбадил или Саруман — без них лучше бежать.
-                    </p>
+                    <p className="text-center text-xs text-amber-400">{t("battle.balrogNote")}</p>
                   )}
-                  {battle.betrayalBy && (
-                    <p className="text-center text-xs text-amber-400">
-                      Бежать некуда — сражайся за Кольцо.
-                    </p>
+                  {battle.betrayalBy && battle.betrayalBy !== "saruman" && (
+                    <p className="text-center text-xs text-amber-400">{t("battle.betrayalNote")}</p>
                   )}
-                  {!battle.betrayalBy &&
+                  {(!battle.betrayalBy || battle.betrayalBy === "saruman") &&
                     battle.bearerKey &&
                     battle.allies.some((a) => a.key === battle.bearerKey && a.hp > 0) && (
                       <button
                         type="button"
                         onClick={battle.ringOn ? takeOffRing : putOnRing}
                         className="flex items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
-                        title="Носитель невидим и неуязвим, но +1 день разложения"
+                        title={t("battle.ringTitle")}
                       >
                         <img src={ringImage} alt="" className="size-4 object-contain" />
-                        {battle.ringOn ? "Снять Кольцо" : "Надеть Кольцо"}
+                        {battle.ringOn ? t("battle.takeRing") : t("battle.putRing")}
                       </button>
                     )}
-                  {!battle.betrayalBy && (
+                  {(!battle.betrayalBy || battle.betrayalBy === "saruman") && (
                   <button
                     type="button"
                     onClick={fleeBattle}
                     className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                   >
-                    Сбежать
+                    {t("battle.flee")}
                   </button>
                   )}
                 </div>
@@ -3378,15 +3548,16 @@ export default function MiddleEarthMap() {
               className="w-full max-w-xs rounded border border-red-800 bg-neutral-900 p-6 text-center shadow-2xl"
             >
               <div className="text-4xl">⚔️</div>
-              <h2 className="mt-2 font-serif text-2xl text-red-300">Вы встретили врага</h2>
+              <h2 className="mt-2 font-serif text-2xl text-red-300">{t("encounter.title")}</h2>
               <p className="mt-1 text-base text-neutral-100">{monsterName(encounter.monster.icon)}</p>
               <p className="mt-1 text-xs text-neutral-400">
-                Сила {encounter.monster.strength} · Защита {encounter.monster.defense}
+                {t("encounter.stats", {
+                  str: encounter.monster.strength,
+                  def: encounter.monster.defense,
+                })}
               </p>
               {encounter.dangerous && (
-                <p className="mt-2 text-sm font-semibold text-amber-400">
-                  ⚠ Силён — лучше сбежать и вернуться позже
-                </p>
+                <p className="mt-2 text-sm font-semibold text-amber-400">{t("encounter.dangerous")}</p>
               )}
               <div className="mt-5 flex flex-col gap-2">
                 <button
@@ -3394,14 +3565,14 @@ export default function MiddleEarthMap() {
                   className="w-full rounded border border-red-800 bg-red-900/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/70"
                   onClick={startBattle}
                 >
-                  Принять бой
+                  {t("encounter.accept")}
                 </button>
                 <button
                   type="button"
                   className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                   onClick={() => setEncounter(null)}
                 >
-                  Сбежать
+                  {t("encounter.flee")}
                 </button>
               </div>
             </div>
@@ -3432,23 +3603,28 @@ export default function MiddleEarthMap() {
                     className="mx-auto size-16 border border-neutral-700 bg-parchment object-cover"
                   />
                   <h2 className="mt-3 font-serif text-xl text-neutral-100">
-                    {offered.name} {leftBehind.some((m) => m.id === offered.id) ? "ждёт" : "повержен"}
+                    {t(
+                      leftBehind.some((m) => m.id === offered.id)
+                        ? "recruit.waiting"
+                        : "recruit.defeated",
+                      { name: charName(offered.id) },
+                    )}
                   </h2>
-                  <p className="mt-1 text-sm text-neutral-300">Позвать его в отряд?</p>
+                  <p className="mt-1 text-sm text-neutral-300">{t("recruit.invitePrompt")}</p>
                   <div className="mt-5 flex flex-col gap-2">
                     <button
                       type="button"
                       className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/70"
                       onClick={acceptRecruitOffer}
                     >
-                      Позвать
+                      {t("recruit.invite")}
                     </button>
                     <button
                       type="button"
                       className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                       onClick={() => setRecruitOffer(null)}
                     >
-                      Не звать
+                      {t("recruit.decline")}
                     </button>
                   </div>
                 </div>
@@ -3473,7 +3649,7 @@ export default function MiddleEarthMap() {
                 className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                 onClick={() => setRecruitRefusal(null)}
               >
-                Ладно
+                {t("farmResult.ok")}
               </button>
             </div>
           </div>
@@ -3490,17 +3666,28 @@ export default function MiddleEarthMap() {
               aria-modal="true"
               className="w-full max-w-sm rounded border border-red-800 bg-neutral-900 p-6 text-center shadow-2xl"
             >
-              <h2 className="font-serif text-2xl text-red-400">💀 {deathNotice}</h2>
+              <h2 className="font-serif text-2xl text-red-400">
+                {t("death.title", {
+                  names: deathNotice
+                    .split(",")
+                    .map((id) => charName(id))
+                    .join(", "),
+                })}
+              </h2>
               <p className="mt-3 text-sm text-neutral-300">
-                Запасы кончились, и {deathNotice} не пережил голод в пути. Отряд продолжает путь без
-                него.
+                {t("death.text", {
+                  names: deathNotice
+                    .split(",")
+                    .map((id) => charName(id))
+                    .join(", "),
+                })}
               </p>
               <button
                 type="button"
                 className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                 onClick={() => setDeathNotice(null)}
               >
-                Идти дальше
+                {t("death.continue")}
               </button>
             </div>
           </div>
@@ -3517,33 +3704,102 @@ export default function MiddleEarthMap() {
               aria-modal="true"
               className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded border border-neutral-700 bg-neutral-900 p-6 shadow-2xl"
             >
-              <h2 className="font-serif text-2xl text-neutral-100">Как играть</h2>
+              <h2 className="font-serif text-2xl text-neutral-100">{t("help.title")}</h2>
               <div className="mt-3 space-y-3 text-sm leading-relaxed text-neutral-300">
-                <p>
-                  Ты ведёшь хранителя Кольца через Средиземье к Роковой горе. Кликай по карте, чтобы
-                  идти; красные точки — места: там можно вербовать спутников, пополнять припасы,
-                  брать транспорт. Карту можно таскать и масштабировать колесом.
-                </p>
-                <p>
-                  Время идёт по дням. Еда тратится по 1 в день — бери запасы в городах или добывай в
-                  пути; без еды отряд голодает и теряет здоровье, при нуле спутник гибнет. В дороге
-                  случаются бои: «Принять бой» — авто-схватка, «Сбежать» — уйти и вернуться позже.
-                  Власть Кольца у носителя растёт со временем; если дойдёт до 100% — он сорвётся и
-                  объявит себя Властелином (конец игры).
-                </p>
-                <p>
-                  У каждого героя есть статы, уровень (растёт от побед — даёт +1 к стату на выбор) и
-                  своя способность. Состав отряда важен: некоторые вместе не уживаются (эльфы и гном
-                  и т.п.). Дойди до Ородруина и выбери: уничтожить Кольцо (победа) или присвоить его
-                  (тьма).
-                </p>
+                <p>{t("help.p1")}</p>
+                <p>{t("help.p2")}</p>
+                <p>{t("help.p3")}</p>
               </div>
               <button
                 type="button"
                 className="mt-5 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                 onClick={() => setHelpOpen(false)}
               >
-                Понятно
+                {t("help.ok")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!created && (
+          <div
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/85 p-6"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="w-full max-w-xs rounded border border-amber-800 bg-neutral-900 p-6 text-center shadow-2xl"
+            >
+              <img
+                src={creationHero.icon}
+                alt=""
+                draggable="false"
+                className="mx-auto size-20 select-none border border-neutral-700 bg-parchment object-cover"
+              />
+              <h2 className="mt-3 font-serif text-2xl text-neutral-100">{t("creation.title")}</h2>
+              <p className="mt-1 text-sm text-neutral-300">{charName(RING_BEARER_ID)}</p>
+              <p className="mt-3 text-xs text-amber-300">
+                {t("creation.pointsLeft", { n: CREATION_POINTS - creationSpent })}
+              </p>
+
+              <div className="mt-3 space-y-2">
+                {(["strength", "defense", "intelligence", "luck"] as (keyof StatBonus)[]).map(
+                  (stat) => {
+                    const value = creationHero[stat] + creationBonus[stat];
+                    return (
+                      <div key={stat} className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-neutral-300">{t(`character.${stat}`)}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => adjustCreation(stat, -1)}
+                            disabled={creationBonus[stat] === 0}
+                            aria-label={`-${t(`character.${stat}`)}`}
+                            className="flex size-7 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-base font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-800"
+                          >
+                            −
+                          </button>
+                          <span className="w-6 text-center text-base font-semibold tabular-nums text-neutral-100">
+                            {value}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => adjustCreation(stat, 1)}
+                            disabled={creationSpent >= CREATION_POINTS}
+                            aria-label={`+${t(`character.${stat}`)}`}
+                            className="flex size-7 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-base font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-800"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+
+              <p className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-400">
+                <Heart className="size-3 text-emerald-500" />
+                {(creationHero.strength + creationBonus.strength) * HEALTH_PER_STR}
+              </p>
+
+              <button
+                type="button"
+                onClick={randomizeCreation}
+                className="mt-4 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+              >
+                🎲 {t("creation.random")}
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmCreation}
+                disabled={creationSpent < CREATION_POINTS}
+                className="mt-2 w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
+              >
+                {t("creation.start")}
               </button>
             </div>
           </div>
@@ -3568,18 +3824,17 @@ export default function MiddleEarthMap() {
             >
               {ending === "starved" ? (
                 <>
-                  <h2 className="font-serif text-2xl text-red-400">Хранитель погиб</h2>
+                  <h2 className="font-serif text-2xl text-red-400">{t("ending.starvedTitle")}</h2>
                   <p className="mt-3 text-sm text-neutral-300">
-                    Запасы вышли, и {ringBearer?.name ?? "хранитель"} не пережил голод. Поход
-                    окончен.
+                    {t("ending.starvedText", {
+                      name: ringBearer ? charName(ringBearer.id) : t("character.bearer"),
+                    })}
                   </p>
                 </>
               ) : ending === "victory" ? (
                 <>
-                  <h2 className="font-serif text-2xl text-emerald-400">Кольцо уничтожено</h2>
-                  <p className="mt-3 text-sm text-neutral-300">
-                    Роковая гора поглотила Кольцо. Саурон повержен, Средиземье спасено.
-                  </p>
+                  <h2 className="font-serif text-2xl text-emerald-400">{t("ending.victoryTitle")}</h2>
+                  <p className="mt-3 text-sm text-neutral-300">{t("ending.victoryText")}</p>
                 </>
               ) : lordClaimed ? (
                 <>
@@ -3590,10 +3845,11 @@ export default function MiddleEarthMap() {
                       className="mx-auto mb-3 size-24 border border-amber-800 object-cover"
                     />
                   )}
-                  <h2 className="font-serif text-2xl text-amber-400">Вы стали Властелином</h2>
+                  <h2 className="font-serif text-2xl text-amber-400">{t("ending.claimTitle")}</h2>
                   <p className="mt-3 text-sm text-neutral-300">
-                    Кольцо взяло верх. {ringBearer?.name ?? "Хранитель"} принял власть. Игра
-                    окончена.
+                    {t("ending.claimText", {
+                      name: ringBearer ? charName(ringBearer.id) : t("character.bearer"),
+                    })}
                   </p>
                 </>
               ) : (
@@ -3606,11 +3862,14 @@ export default function MiddleEarthMap() {
                     />
                   )}
                   <h2 className="font-serif text-2xl text-amber-400">
-                    {ringBearer?.name ?? "Хранитель"} надел Кольцо
+                    {t("ending.lordTitle", {
+                      name: ringBearer ? charName(ringBearer.id) : t("character.bearer"),
+                    })}
                   </h2>
                   <p className="mt-3 text-sm text-neutral-300">
-                    Тьма поглотила хранителя. {ringBearer?.name ?? "Он"} объявляет себя новым
-                    Властелином. Игра окончена.
+                    {t("ending.lordText", {
+                      name: ringBearer ? charName(ringBearer.id) : t("character.bearer"),
+                    })}
                   </p>
                 </>
               )}
@@ -3619,7 +3878,7 @@ export default function MiddleEarthMap() {
                 className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
                 onClick={() => window.location.reload()}
               >
-                Сыграть заново
+                {t("ending.replay")}
               </button>
             </div>
           </div>

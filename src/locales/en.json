@@ -132,6 +132,12 @@
     "lordText": "Darkness took the bearer. {{name}} proclaims himself the new Lord. Game over.",
     "replay": "Play again"
   },
+  "creation": {
+    "title": "Create your hero",
+    "pointsLeft": "Points left: {{n}}",
+    "random": "Randomize",
+    "start": "Begin the journey"
+  },
   "help": {
     "title": "How to play",
     "p1": "You lead the Ring-bearer across Middle-earth to Mount Doom. Click the map to travel; red dots are places — there you can recruit companions, restock supplies, take transport. Drag the map and zoom with the wheel.",
