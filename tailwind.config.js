@@ -6,6 +6,10 @@ module.exports = {
       fontFamily: {
         serif: ["Georgia", "Cambria", "Times New Roman", "serif"],
       },
+      colors: {
+        // Parchment tone behind character/enemy portraits.
+        parchment: "#f1d18a",
+      },
     },
   },
   plugins: [],
