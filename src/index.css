@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Short translucent white stripe sweeping diagonally across a struck unit. */
+@keyframes hit-sweep {
+  0% {
+    transform: rotate(-45deg) translateX(-120%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: rotate(-45deg) translateX(120%);
+    opacity: 0;
+  }
+}
+.hit-sweep {
+  animation: hit-sweep 0.4s ease-out forwards;
+}

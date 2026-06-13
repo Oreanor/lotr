@@ -1,0 +1,289 @@
+{
+  "meta": {
+    "map": {
+      "width": 1846,
+      "height": 2048
+    }
+  },
+  "locations": [
+    {
+      "id": 1,
+      "name": "Carn Dûm",
+      "name_ru": "Карн Дум",
+      "point": {
+        "x": 726,
+        "y": 274
+      }
+    },
+    {
+      "id": 2,
+      "name": "Erebor / The Lonely Mountain",
+      "name_ru": "Эребор / Одинокая гора",
+      "point": {
+        "x": 1245,
+        "y": 409
+      }
+    },
+    {
+      "id": 3,
+      "name": "Wood-elves / Elvenking's Halls",
+      "name_ru": "Лесные эльфы / Чертоги Короля эльфов",
+      "point": {
+        "x": 1207,
+        "y": 437
+      }
+    },
+    {
+      "id": 4,
+      "name": "Fornost",
+      "name_ru": "Форност",
+      "point": {
+        "x": 553,
+        "y": 447
+      }
+    },
+    {
+      "id": 5,
+      "name": "Beorn's House / Old Forest Road",
+      "name_ru": "Дом Беорна / Старая Лесная дорога",
+      "point": {
+        "x": 1043,
+        "y": 505
+      }
+    },
+    {
+      "id": 6,
+      "name": "Forlond",
+      "name_ru": "Форлонд",
+      "point": {
+        "x": 101,
+        "y": 524
+      }
+    },
+    {
+      "id": 7,
+      "name": "Rivendell / Imladris",
+      "name_ru": "Ривенделл / Имладрис",
+      "point": {
+        "x": 889,
+        "y": 534
+      }
+    },
+    {
+      "id": 8,
+      "name": "Bree",
+      "name_ru": "Бри",
+      "point": {
+        "x": 582,
+        "y": 543
+      }
+    },
+    {
+      "id": 9,
+      "name": "Weathertop / Amon Sûl",
+      "name_ru": "Заверть / Амон Сул",
+      "point": {
+        "x": 668,
+        "y": 543
+      }
+    },
+    {
+      "id": 10,
+      "name": "Hobbiton",
+      "name_ru": "Хоббитон",
+      "point": {
+        "x": 447,
+        "y": 553
+      }
+    },
+    {
+      "id": 11,
+      "name": "Grey Havens / Mithlond",
+      "name_ru": "Серые Гавани / Митлонд",
+      "point": {
+        "x": 274,
+        "y": 562
+      }
+    },
+    {
+      "id": 12,
+      "name": "Old Forest",
+      "name_ru": "Старый лес",
+      "point": {
+        "x": 505,
+        "y": 601
+      }
+    },
+    {
+      "id": 13,
+      "name": "Harlond",
+      "name_ru": "Харлонд",
+      "point": {
+        "x": 178,
+        "y": 611
+      }
+    },
+    {
+      "id": 14,
+      "name": "Moria Gate",
+      "name_ru": "Врата Мории",
+      "point": {
+        "x": 870,
+        "y": 716
+      }
+    },
+    {
+      "id": 15,
+      "name": "Lothlórien",
+      "name_ru": "Лотлориэн",
+      "point": {
+        "x": 957,
+        "y": 764
+      }
+    },
+    {
+      "id": 16,
+      "name": "Isengard / Nan Curunír",
+      "name_ru": "Изенгард / Нан Курунир",
+      "point": {
+        "x": 793,
+        "y": 947
+      }
+    },
+    {
+      "id": 17,
+      "name": "Helm's Deep",
+      "name_ru": "Хельмова Падь",
+      "point": {
+        "x": 841,
+        "y": 1024
+      }
+    },
+    {
+      "id": 18,
+      "name": "Edoras",
+      "name_ru": "Эдорас",
+      "point": {
+        "x": 909,
+        "y": 1062
+      }
+    },
+    {
+      "id": 19,
+      "name": "Barad-dûr",
+      "name_ru": "Барад-дур",
+      "point": {
+        "x": 1370,
+        "y": 1120
+      }
+    },
+    {
+      "id": 20,
+      "name": "Erech",
+      "name_ru": "Эрех",
+      "point": {
+        "x": 899,
+        "y": 1130
+      }
+    },
+    {
+      "id": 21,
+      "name": "Mount Doom / Orodruin",
+      "name_ru": "Ородруин / Роковая гора",
+      "point": {
+        "x": 1332,
+        "y": 1130
+      }
+    },
+    {
+      "id": 22,
+      "name": "Cirith Ungol",
+      "name_ru": "Кирит Унгол",
+      "point": {
+        "x": 1255,
+        "y": 1168
+      }
+    },
+    {
+      "id": 23,
+      "name": "Minas Morgul",
+      "name_ru": "Минас Моргул",
+      "point": {
+        "x": 1235,
+        "y": 1178
+      }
+    },
+    {
+      "id": 24,
+      "name": "Minas Tirith",
+      "name_ru": "Минас Тирит",
+      "point": {
+        "x": 1187,
+        "y": 1187
+      }
+    },
+    {
+      "id": 25,
+      "name": "Osgiliath",
+      "name_ru": "Осгилиат",
+      "point": {
+        "x": 1207,
+        "y": 1187
+      }
+    },
+    {
+      "id": 26,
+      "name": "Dol Amroth",
+      "name_ru": "Дол Амрот",
+      "point": {
+        "x": 861,
+        "y": 1293
+      }
+    },
+    {
+      "id": 27,
+      "name": "Pelargir",
+      "name_ru": "Пеларгир",
+      "point": {
+        "x": 1139,
+        "y": 1312
+      }
+    },
+    {
+      "id": 28,
+      "name": "City of the Corsairs",
+      "name_ru": "Город Корсаров",
+      "point": {
+        "x": 947,
+        "y": 1716
+      }
+    },
+    {
+      "id": 29,
+      "name": "Havens of Umbar",
+      "name_ru": "Гавани Умбара",
+      "point": {
+        "x": 899,
+        "y": 1736
+      }
+    },
+    {
+      "id": 30,
+      "name": "Buckland",
+      "name_ru": "Бакленд",
+      "point": {
+        "x": 505,
+        "y": 553
+      }
+    },
+    {
+      "id": 31,
+      "name": "Esgaroth",
+      "name_ru": "Эсгарот",
+      "point": {
+        "x": 1210,
+        "y": 478
+      }
+    }
+  ]
+}

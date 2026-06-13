@@ -1,0 +1,25 @@
+{
+  "gandalf": [
+    { "from": "3018-09-29", "to": "3018-09-29", "place": "hobbiton", "source": "canon" },
+    { "from": "3018-10-03", "to": "3018-10-04", "place": "weathertop", "source": "canon" },
+    { "from": "3018-10-18", "to": null, "place": "rivendell", "source": "canon" }
+  ],
+  "aragorn": [
+    { "from": "3018-09-29", "to": "3018-09-30", "place": "bree", "source": "canon" },
+    { "from": "3018-10-20", "to": null, "place": "rivendell", "source": "canon" }
+  ],
+  "boromir": [
+    { "from": "3018-10-24", "to": null, "place": "rivendell", "time": "night", "source": "canon" }
+  ],
+  "legolas": [
+    { "from": "3018-10-25", "to": null, "place": "rivendell", "source": "canon" }
+  ],
+  "gimli": [
+    { "from": "3018-10-25", "to": null, "place": "rivendell", "source": "canon" }
+  ],
+  "galdor": [
+    { "from": "3018-09-23", "to": "3018-10-24", "place": "grey_havens" },
+    { "from": "3018-10-25", "to": "3018-12-25", "place": "rivendell" },
+    { "from": "3018-12-26", "to": null, "place": "grey_havens" }
+  ]
+}
