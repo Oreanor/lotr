@@ -157,6 +157,7 @@ function writeSavedSpeed(kind: keyof SavedSpeeds, value: number) {
 }
 
 const MILES_PER_DAY = 30;
+const INITIAL_FOOD_DAYS = 3;
 const PATH_SAMPLE_DISTANCE = 12;
 const MOVE_SUBSTEPS = 4;
 // Ring bearer picks up a left-behind companion within this map distance.
@@ -902,14 +903,31 @@ function seasonAt(dayOffset: number): Season {
   return "winter";
 }
 
-// Folder of location artwork per season. Only the autumn set exists for now —
-// the others fall back to it until their folders are added.
+// Folder of location artwork per season. Spring/summer sets are partial — fall
+// remains the fallback until every location has seasonal art.
 const SEASON_FOLDER: Record<Season, string> = {
   spring: "fall",
   summer: "fall",
   fall: "fall",
-  winter: "fall",
+  winter: "winter",
 };
+
+const preloadedLocationImages = new Set<string>();
+
+function preloadLocationImage(src: string): Promise<void> {
+  if (preloadedLocationImages.has(src)) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      preloadedLocationImages.add(src);
+      resolve();
+    };
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
 
 // Month is 1-based (9 = сентябрь). Day offset 0 = START_DATE.
 function dateToDayOffset(day: number, month1Based: number, year: number): number {
@@ -1201,7 +1219,7 @@ function HoverHint({
 // Square location artwork shown on entering a town. A pulsing skeleton holds
 // the space until the image loads, then it fades in. Remount (via key) per town.
 function LocationPreview({ src, alt }: { src: string; alt: string }) {
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => preloadedLocationImages.has(src));
   return (
     <div className="relative mx-auto my-4 aspect-square w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800 sm:aspect-[4/3]">
       {!loaded && <div className="absolute inset-0 animate-pulse bg-neutral-800" />}
@@ -1236,6 +1254,8 @@ export default function MiddleEarthMap() {
   const frameRef = useRef<number | null>(null);
   const journeyMilesRef = useRef(0);
   const journeyDayRef = useRef(0);
+  const openVisitedLocationRef = useRef<(location: MapLocation) => void>(() => {});
+  const initialLocationOpenedRef = useRef(false);
   const lastTimeRef = useRef<number | null>(null);
   const playerRef = useRef<Point | null>(null);
   const terrainRef = useRef<TerrainGrid | null>(null);
@@ -1305,8 +1325,8 @@ export default function MiddleEarthMap() {
   const [targetLocation, setTargetLocation] = useState<MapLocation | null>(null);
   // A companion left on the map that we're walking toward (invite on arrival).
   const [targetMemberId, setTargetMemberId] = useState<string | null>(null);
-  // The game opens with the Hobbiton location card (recruit Sam, take supplies).
-  const [visitedLocation, setVisitedLocation] = useState<MapLocation | null>(hobbiton);
+  // Location card opens after its seasonal artwork has been preloaded.
+  const [visitedLocation, setVisitedLocation] = useState<MapLocation | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const [terrainReady, setTerrainReady] = useState(false);
   const [showTerrain, setShowTerrain] = useState(false);
@@ -1324,7 +1344,7 @@ export default function MiddleEarthMap() {
   // Food (days left) and per-character starvation damage are simulated per day.
   // Damage is per character so new recruits join at full health; with double
   // rations on, a damaged party heals at the cost of extra food.
-  const [food, setFood] = useState(0);
+  const [food, setFood] = useState(INITIAL_FOOD_DAYS);
   const [damageById, setDamageById] = useState<Record<string, number>>({});
   const [deathNotice, setDeathNotice] = useState<{ ids: string; cause: DeathCause } | null>(null);
   const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>({});
@@ -1363,11 +1383,32 @@ export default function MiddleEarthMap() {
   const prevJourneyDayForRingRef = useRef(0);
   const prevRingWearForRingRef = useRef(0);
   const battleAppliedRef = useRef(false);
-  const foodRef = useRef(0);
+  const foodRef = useRef(INITIAL_FOOD_DAYS);
   const damageRef = useRef<Record<string, number>>({});
   const processedDayRef = useRef(0);
   // Movement halts while any modal is open; the rAF loop reads this.
   const animationPausedRef = useRef(false);
+
+  const openVisitedLocation = useCallback((location: MapLocation) => {
+    const src = locationImage(location.id, seasonAt(journeyDayRef.current));
+    if (!src) {
+      setVisitedLocation(location);
+      return;
+    }
+    void preloadLocationImage(src).then(() => setVisitedLocation(location));
+  }, []);
+
+  useEffect(() => {
+    openVisitedLocationRef.current = openVisitedLocation;
+  }, [openVisitedLocation]);
+
+  useEffect(() => {
+    if (initialLocationOpenedRef.current) {
+      return;
+    }
+    initialLocationOpenedRef.current = true;
+    openVisitedLocation(hobbiton);
+  }, [openVisitedLocation, hobbiton]);
 
   const flashEmote = useCallback((id: string, kind: "refuse" | "joy") => {
     if (emoteTimerRef.current) {
@@ -2277,7 +2318,11 @@ export default function MiddleEarthMap() {
     }
 
     function finishTravel(visitLocation: MapLocation | null) {
-      setVisitedLocation(visitLocation);
+      if (visitLocation) {
+        openVisitedLocationRef.current(visitLocation);
+      } else {
+        setVisitedLocation(null);
+      }
       setTarget(null);
       setTargetLocation(null);
       setTargetMemberId(null);
