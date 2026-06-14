@@ -207,7 +207,9 @@ export default function MiddleEarthMap() {
   const partyRef = useRef<string[]>(DEFAULT_PARTY);
   // Party members present when the current location was entered; used to hide
   // already-recruited companions on repeat visits.
-  const entryPartyRef = useRef<Set<string>>(new Set(DEFAULT_PARTY));
+  const [entryParty, setEntryParty] = useState<Set<string>>(
+    () => new Set(initialSave?.party ?? DEFAULT_PARTY),
+  );
 
   const mapSize = useMemo<Size>(
     () => ({
@@ -335,12 +337,19 @@ export default function MiddleEarthMap() {
   const animationPausedRef = useRef(false);
 
   const openVisitedLocation = useCallback((location: MapLocation) => {
+    // Snapshot who's already in the party as we arrive, so companions recruited
+    // on an earlier visit aren't listed again — only the one just recruited
+    // this visit shows "in party".
+    const open = () => {
+      setEntryParty(new Set(partyRef.current));
+      setVisitedLocation(location);
+    };
     const src = locationImage(location.id, seasonAt(journeyDayRef.current));
     if (!src) {
-      setVisitedLocation(location);
+      open();
       return;
     }
-    void preloadLocationImage(src).then(() => setVisitedLocation(location));
+    void preloadLocationImage(src).then(open);
   }, []);
 
   useEffect(() => {
@@ -1838,7 +1847,7 @@ export default function MiddleEarthMap() {
           (character.id !== "saruman" || sarumanFriendly) &&
           // Hide companions already aboard when we arrived (recruited on an
           // earlier visit); the one just recruited this visit still shows.
-          !entryPartyRef.current.has(character.id),
+          !entryParty.has(character.id),
       )
     : [];
   // The boss to offer a fight with at the current location (null if none, slain,
@@ -2105,7 +2114,6 @@ export default function MiddleEarthMap() {
     if (!visitedLocation) {
       return;
     }
-    entryPartyRef.current = new Set(partyRef.current);
     rollPresence(visitedLocation.id);
   }, [visitedLocation, rollPresence]);
 
