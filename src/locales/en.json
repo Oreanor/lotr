@@ -61,6 +61,7 @@
     "statsAria": "Stats: {{name}}",
     "defeated": "{{name}} is defeated",
     "waiting": "{{name}} is waiting",
+    "joins": "{{name}} wants to join",
     "invitePrompt": "Invite him to the party?",
     "invite": "Invite",
     "decline": "Leave him"
@@ -195,6 +196,7 @@
     "gollumFled": "Gollum hisses and slinks off into the dark.",
     "traitorReturns": "{{name}} comes to his senses and leaves the party in shame.",
     "bombadilLeaves": "Tom Bombadil misses his home and leaves the party.",
+    "eomerSendsEowyn": "Éomer: \"Sister, ride back to Edoras.\" Éowyn heads home.",
     "evicted": "{{name}} leaves the party. {{line}}"
   },
   "ability": {

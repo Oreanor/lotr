@@ -276,6 +276,8 @@ export default function MiddleEarthMap() {
   const [recruitRefusal, setRecruitRefusal] = useState<RecruitRefusalNotice | null>(null);
   // After defeating a recruitable foe: offer to invite them.
   const [recruitOffer, setRecruitOffer] = useState<string | null>(null);
+  // The current offer is a peaceful "wants to join" (no battle, joins at full HP).
+  const [peacefulOffer, setPeacefulOffer] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
@@ -420,7 +422,9 @@ export default function MiddleEarthMap() {
   // Invite the foe defeated in battle (or decline).
   const acceptRecruitOffer = useCallback(() => {
     const id = recruitOffer;
+    const peaceful = peacefulOffer;
     setRecruitOffer(null);
+    setPeacefulOffer(false);
     if (!id) {
       return;
     }
@@ -432,13 +436,21 @@ export default function MiddleEarthMap() {
     }
     const character = CHARACTERS.find((c) => c.id === id);
     if (character) {
-      // Subdued in battle → joins wounded (half health).
-      const half = Math.floor((character.strength * HEALTH_PER_STR) / 2);
-      damageRef.current = { ...damageRef.current, [id]: half };
-      setDamageById(damageRef.current);
+      // Subdued in battle → joins wounded (half health); a peaceful join is unhurt.
+      if (!peaceful) {
+        const half = Math.floor((character.strength * HEALTH_PER_STR) / 2);
+        damageRef.current = { ...damageRef.current, [id]: half };
+        setDamageById(damageRef.current);
+      }
       attemptRecruit(character);
+      // Éomer sends his sister Éowyn home as he joins; she's recruitable again at
+      // Edoras (we only drop her from the party, never mark her gone).
+      if (id === "eomer" && partyRef.current.includes("eowyn")) {
+        setParty((prev) => prev.filter((memberId) => memberId !== "eowyn"));
+        showRecruitRefusal(t("refuse.eomerSendsEowyn"), "eowyn");
+      }
     }
-  }, [recruitOffer, leftBehind, recruitCharacter, attemptRecruit]);
+  }, [recruitOffer, peacefulOffer, leftBehind, recruitCharacter, attemptRecruit, showRecruitRefusal, t]);
 
   // A tempted companion turns on the bearer: a 1v1 fight for the Ring.
   const startBetrayal = useCallback(
@@ -2144,13 +2156,15 @@ export default function MiddleEarthMap() {
       setPendingBetrayal(pendingTraitor);
     } else if (wildEncounter && !onWater) {
       const position = playerRef.current ?? hobbiton.point;
-      setEncounter(
-        createEncounter(
-          rollEncounter(position, party, leftBehind, slainRoamingRecruits),
-          party.length,
-          position,
-        ),
-      );
+      const rolled = rollEncounter(position, party, leftBehind, slainRoamingRecruits);
+      const kinPresent = party.includes("theoden") || party.includes("eowyn");
+      if (rolled.monster.recruitId === "eomer" && kinPresent) {
+        // With his kin along, Éomer meets the party peacefully and offers to join.
+        setPeacefulOffer(true);
+        setRecruitOffer("eomer");
+      } else {
+        setEncounter(createEncounter(rolled, party.length, position));
+      }
     }
   }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince]);
 
@@ -2639,14 +2653,19 @@ export default function MiddleEarthMap() {
             recruitOffer && !battle ? (CHARACTERS.find((c) => c.id === recruitOffer) ?? null) : null
           }
           waiting={leftBehind.some((m) => m.id === recruitOffer)}
+          peaceful={peacefulOffer}
           charName={charName}
           onAccept={acceptRecruitOffer}
-          onDecline={() => setRecruitOffer(null)}
+          onDecline={() => {
+            setRecruitOffer(null);
+            setPeacefulOffer(false);
+          }}
         />
 
         <RecruitRefusalModal
           notice={recruitRefusal}
           viewportRef={viewportRef}
+          centered={battle !== null}
           onClose={() => setRecruitRefusal(null)}
         />
 

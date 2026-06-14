@@ -29,10 +29,12 @@ function topAbovePortraitRow(viewport: HTMLElement, gap = REFUSAL_GAP_PX): numbe
 export function RecruitRefusalModal({
   notice,
   viewportRef,
+  centered = false,
   onClose,
 }: {
   notice: RecruitRefusalNotice | null;
   viewportRef: RefObject<HTMLElement | null>;
+  centered?: boolean;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -46,7 +48,8 @@ export function RecruitRefusalModal({
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || (!notice && !lastNotice.current)) {
+    // `centered` (e.g. over the battle modal) skips portrait anchoring entirely.
+    if (centered || !viewport || (!notice && !lastNotice.current)) {
       setTop(null);
       return;
     }
@@ -54,7 +57,7 @@ export function RecruitRefusalModal({
     measure();
     const id = requestAnimationFrame(measure);
     return () => cancelAnimationFrame(id);
-  }, [notice, viewportRef]);
+  }, [centered, notice, viewportRef]);
 
   useEffect(() => {
     if (notice) {
