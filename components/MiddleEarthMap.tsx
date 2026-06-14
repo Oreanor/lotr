@@ -58,6 +58,7 @@ import {
   BOSSES_BY_LOCATION,
   buildRecruitmentCalendar,
   CARN_DUM_ID,
+  clearSave,
   CHARACTERS,
   clamp,
   computeCharacterStats,
@@ -91,6 +92,7 @@ import {
   isCharacterRecruitableHere,
   ISENGARD_ID,
   levelForExp,
+  loadSave,
   locationData,
   locationImage,
   LOTHLORIEN_ID,
@@ -126,6 +128,7 @@ import {
   TRANSPORTS,
   unspentPointsFor,
   RING_PIERCING_FOES,
+  writeSave,
   ZERO_BONUS,
   ZOOM_STEP,
 } from "@/game";
@@ -158,11 +161,15 @@ export default function MiddleEarthMap() {
   const locName = (loc: MapLocation) => getLocationLabel(loc, lang);
   const toggleLang = () => i18n.changeLanguage(lang === "en" ? "ru" : "en");
 
+  // Snapshot of a saved game (if any), read once. Seeds the state below so an
+  // accidental reload resumes from the last stop/town.
+  const [initialSave] = useState(loadSave);
+
   // Day each companion joined the party (for the betrayal grace period).
-  const joinDayRef = useRef<Record<string, number>>({});
+  const joinDayRef = useRef<Record<string, number>>(initialSave?.joinDay ?? {});
   const frameRef = useRef<number | null>(null);
-  const journeyMilesRef = useRef(0);
-  const journeyDayRef = useRef(0);
+  const journeyMilesRef = useRef(initialSave?.journeyMiles ?? 0);
+  const journeyDayRef = useRef(initialSave?.journeyDay ?? 0);
   const openVisitedLocationRef = useRef<(location: MapLocation) => void>(() => {});
   const initialLocationOpenedRef = useRef(false);
   const autoRouteIndexRef = useRef(0);
@@ -176,7 +183,7 @@ export default function MiddleEarthMap() {
   const autoPlayTickRef = useRef<() => void>(() => {});
   const lastTimeRef = useRef<number | null>(null);
   const playerRef = useRef<Point | null>(null);
-  const bilboAttemptsRef = useRef(0);
+  const bilboAttemptsRef = useRef(initialSave?.bilboAttempts ?? 0);
   const waterRunRef = useRef<WaterRun>({ cellKey: null, count: 0 });
   const dragRef = useRef<DragState>({
     active: false,
@@ -228,16 +235,15 @@ export default function MiddleEarthMap() {
     };
   });
   const [player, setPlayer] = useState<Point>(() => {
-    const start = getStartPosition(hobbiton.point);
+    const start = initialSave?.player ?? getStartPosition(hobbiton.point);
     playerRef.current = start;
     return start;
   });
-  const [heroPath, setHeroPath] = useState<Point[]>(() => {
-    const start = getStartPosition(hobbiton.point);
-    return [start];
-  });
+  const [heroPath, setHeroPath] = useState<Point[]>(
+    () => [initialSave?.player ?? getStartPosition(hobbiton.point)],
+  );
   const [showHeroPath, setShowHeroPath] = useState(false);
-  const [journeyDay, setJourneyDay] = useState(0);
+  const [journeyDay, setJourneyDay] = useState(initialSave?.journeyDay ?? 0);
   const [target, setTarget] = useState<Point | null>(null);
   const [targetLocation, setTargetLocation] = useState<MapLocation | null>(null);
   // A companion left on the map that we're walking toward (invite on arrival).
@@ -252,25 +258,27 @@ export default function MiddleEarthMap() {
   const [openCharacterPaging, setOpenCharacterPaging] = useState(false);
   const [ending, setEnding] = useState<"victory" | "lord" | "starved" | "battle" | null>(null);
   const [lordClaimed, setLordClaimed] = useState(false);
-  const [party, setParty] = useState<string[]>(DEFAULT_PARTY);
+  const [party, setParty] = useState<string[]>(initialSave?.party ?? DEFAULT_PARTY);
   const [partyOpen, setPartyOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [bearerId, setBearerId] = useState(RING_BEARER_ID);
-  const [transport, setTransport] = useState<TransportId | null>(null);
+  const [bearerId, setBearerId] = useState(initialSave?.bearerId ?? RING_BEARER_ID);
+  const [transport, setTransport] = useState<TransportId | null>(initialSave?.transport ?? null);
   // Eagles of Manwë: offered only on some Carn Dûm visits, and they leave after
   // a month. `eagleSince` is the journey day they joined (null when not flying).
   const [eagleOffered, setEagleOffered] = useState(false);
-  const [eagleSince, setEagleSince] = useState<number | null>(null);
+  const [eagleSince, setEagleSince] = useState<number | null>(initialSave?.eagleSince ?? null);
   const [eaglesLeft, setEaglesLeft] = useState(false);
   // A transport swap awaiting the player's confirmation (replaces the current one).
   const [pendingTransport, setPendingTransport] = useState<TransportId | null>(null);
   // Food (days left) and per-character starvation damage are simulated per day.
   // Damage is per character so new recruits join at full health; with double
   // rations on, a damaged party heals at the cost of extra food.
-  const [food, setFood] = useState(INITIAL_FOOD_DAYS);
-  const [damageById, setDamageById] = useState<Record<string, number>>({});
+  const [food, setFood] = useState(initialSave?.food ?? INITIAL_FOOD_DAYS);
+  const [damageById, setDamageById] = useState<Record<string, number>>(initialSave?.damageById ?? {});
   const [deathNotice, setDeathNotice] = useState<{ ids: string; cause: DeathCause } | null>(null);
-  const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>({});
+  const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>(
+    initialSave?.deathCauseById ?? {},
+  );
   const [foodFarmed, setFoodFarmed] = useState<number | null>(null);
   const [randomPresence, setRandomPresence] = useState<Record<string, boolean>>({});
   const [recruitRefusal, setRecruitRefusal] = useState<RecruitRefusalNotice | null>(null);
@@ -281,37 +289,48 @@ export default function MiddleEarthMap() {
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
-  const [created, setCreated] = useState(false);
+  // A loaded save means the hero was already created.
+  const [created, setCreated] = useState(initialSave !== null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [creationBonus, setCreationBonus] = useState<StatBonus>(ZERO_BONUS);
   // Level-up point allocation queue (shown one modal at a time after battle).
   const [levelUpQueue, setLevelUpQueue] = useState<string[]>([]);
   const [levelUpCharacterId, setLevelUpCharacterId] = useState<string | null>(null);
   const [levelUpDraft, setLevelUpDraft] = useState<StatBonus>(ZERO_BONUS);
-  const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(new Set());
+  const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(
+    () => new Set(initialSave?.defeatedBosses ?? []),
+  );
   // Roaming recruits never reappear once dead (Gollum slain in betrayal, starved, or fallen).
-  const [slainRoamingRecruits, setSlainRoamingRecruits] = useState<Set<string>>(new Set());
+  const [slainRoamingRecruits, setSlainRoamingRecruits] = useState<Set<string>>(
+    () => new Set(initialSave?.slainRoamingRecruits ?? []),
+  );
   const [pendingBetrayal, setPendingBetrayal] = useState<string | null>(null);
   // Companions left waiting on the map; can be re-called by clicking their marker.
-  const [leftBehind, setLeftBehind] = useState<{ id: string; point: Point }[]>([]);
+  const [leftBehind, setLeftBehind] = useState<{ id: string; point: Point }[]>(
+    initialSave?.leftBehind ?? [],
+  );
   // Brief face swap (refuse/joy) on a character's portrait when (de)recruited.
   const [emote, setEmote] = useState<{ id: string; kind: "refuse" | "joy" } | null>(null);
   const emoteTimerRef = useRef<number | null>(null);
-  const [hasCloaks, setHasCloaks] = useState(false);
+  const [hasCloaks, setHasCloaks] = useState(initialSave?.hasCloaks ?? false);
   const [encounter, setEncounter] = useState<EncounterState | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
-  const [expById, setExpById] = useState<Record<string, number>>({});
-  const [statBonusById, setStatBonusById] = useState<Record<string, StatBonus>>({});
+  const [expById, setExpById] = useState<Record<string, number>>(initialSave?.expById ?? {});
+  const [statBonusById, setStatBonusById] = useState<Record<string, StatBonus>>(
+    initialSave?.statBonusById ?? {},
+  );
   // Extra days of Ring decay bought by putting it on in battle.
-  const [ringWear, setRingWear] = useState(0);
+  const [ringWear, setRingWear] = useState(initialSave?.ringWear ?? 0);
   // Days the current bearer has carried the Ring (resets on transfer).
-  const [bearerRingDays, setBearerRingDays] = useState(0);
-  const prevJourneyDayForRingRef = useRef(0);
-  const prevRingWearForRingRef = useRef(0);
+  const [bearerRingDays, setBearerRingDays] = useState(initialSave?.bearerRingDays ?? 0);
+  // Seed the ring-day trackers so a loaded game doesn't re-accrue past days.
+  const prevJourneyDayForRingRef = useRef(initialSave?.journeyDay ?? 0);
+  const prevRingWearForRingRef = useRef(initialSave?.ringWear ?? 0);
   const battleAppliedRef = useRef(false);
-  const foodRef = useRef(INITIAL_FOOD_DAYS);
-  const damageRef = useRef<Record<string, number>>({});
-  const processedDayRef = useRef(0);
+  const foodRef = useRef(initialSave?.food ?? INITIAL_FOOD_DAYS);
+  const damageRef = useRef<Record<string, number>>(initialSave?.damageById ?? {});
+  // Days already simulated — start at the loaded day so they aren't replayed.
+  const processedDayRef = useRef(initialSave?.journeyDay ?? 0);
   // Movement halts while any modal is open; the rAF loop reads this.
   const animationPausedRef = useRef(false);
 
@@ -333,8 +352,12 @@ export default function MiddleEarthMap() {
       return;
     }
     initialLocationOpenedRef.current = true;
-    openVisitedLocation(hobbiton);
-  }, [openVisitedLocation, hobbiton]);
+    // Fresh game opens at Hobbiton; a resumed save drops you back where you
+    // stopped, so don't pop the Hobbiton card.
+    if (!initialSave) {
+      openVisitedLocation(hobbiton);
+    }
+  }, [openVisitedLocation, hobbiton, initialSave]);
 
   const flashEmote = useCallback((id: string, kind: "refuse" | "joy") => {
     if (emoteTimerRef.current) {
@@ -937,6 +960,67 @@ export default function MiddleEarthMap() {
     }
     prevRingWearForRingRef.current = ringWear;
   }, [ringWear]);
+
+  // Auto-save the full game state, but only at rest — never mid-move, mid-battle,
+  // or with an encounter pending — so a reload resumes from a clean stop/town.
+  useEffect(() => {
+    if (!created || ending || battle || encounter || isMoving || target) {
+      return;
+    }
+    writeSave({
+      player,
+      journeyDay,
+      journeyMiles: journeyMilesRef.current,
+      party,
+      bearerId,
+      transport,
+      eagleSince,
+      food,
+      damageById,
+      deathCauseById,
+      expById,
+      statBonusById,
+      ringWear,
+      bearerRingDays,
+      hasCloaks,
+      defeatedBosses: [...defeatedBosses],
+      slainRoamingRecruits: [...slainRoamingRecruits],
+      leftBehind,
+      joinDay: joinDayRef.current,
+      bilboAttempts: bilboAttemptsRef.current,
+    });
+  }, [
+    created,
+    ending,
+    battle,
+    encounter,
+    isMoving,
+    target,
+    player,
+    journeyDay,
+    party,
+    bearerId,
+    transport,
+    eagleSince,
+    food,
+    damageById,
+    deathCauseById,
+    expById,
+    statBonusById,
+    ringWear,
+    bearerRingDays,
+    hasCloaks,
+    defeatedBosses,
+    slainRoamingRecruits,
+    leftBehind,
+  ]);
+
+  // Game over: drop the save so a reload starts a fresh quest.
+  useEffect(() => {
+    if (ending) {
+      clearSave();
+    }
+  }, [ending]);
 
   const clampOffset = useCallback(
     (nextOffset: Point, nextZoom: number): Point => {
@@ -2718,7 +2802,10 @@ export default function MiddleEarthMap() {
             bearer={ringBearer}
             bearerName={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
             lordClaimed={lordClaimed}
-            onReplay={() => window.location.reload()}
+            onReplay={() => {
+              clearSave();
+              window.location.reload();
+            }}
           />
         )}
       </div>
