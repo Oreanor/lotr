@@ -24,7 +24,12 @@ export const SPEED_STORAGE_KEY = "lotr-speed";
 // Travel / movement.
 export const MILES_PER_DAY = 30;
 export const INITIAL_FOOD_DAYS = 3;
-export const PATH_SAMPLE_DISTANCE = 12;
+// Trail is stored as line segments: a new vertex is added only when the heading
+// changes (dot of consecutive directions ≤ PATH_COLLINEAR_DOT). Sub-pixel moves
+// are ignored. On touch devices the vertex count is capped (MAX_PATH_POINTS).
+export const PATH_MIN_STEP = 2;
+export const PATH_COLLINEAR_DOT = 0.999; // ~2.5° — straighter than this just extends
+export const MAX_PATH_POINTS = 400;
 export const MOVE_SUBSTEPS = 4;
 // Deflection angles (deg) tried in order when the straight path is blocked, so
 // the figure slides along walls toward the goal rather than stopping dead.

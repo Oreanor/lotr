@@ -26,7 +26,8 @@ import {
   LEVEL_XP_STEP,
   MAP_GRID_COLS,
   MORDOR_POINT,
-  PATH_SAMPLE_DISTANCE,
+  PATH_COLLINEAR_DOT,
+  PATH_MIN_STEP,
   RECRUITS_BY_LOCATION,
   REGION_X,
   REGION_Y_NORTH,
@@ -715,12 +716,34 @@ export function getStartPosition(hobbitonPoint: Point): Point {
   };
 }
 
-export function appendPathPoint(path: Point[], point: Point): Point[] {
-  const last = path[path.length - 1];
-  if (last && Math.hypot(point.x - last.x, point.y - last.y) < PATH_SAMPLE_DISTANCE) {
-    return path;
+// Store the trail as line segments: only turns become vertices. While the hero
+// keeps going (nearly) straight we just move the last vertex; a real change of
+// direction adds a new one. `maxPoints` (touch only) caps the vertex count.
+export function appendPathPoint(path: Point[], point: Point, maxPoints?: number): Point[] {
+  const n = path.length;
+  if (n === 0) {
+    return [point];
   }
-  return [...path, point];
+  const last = path[n - 1];
+  const stepLen = Math.hypot(point.x - last.x, point.y - last.y);
+  if (stepLen < PATH_MIN_STEP) {
+    return path; // ignore sub-pixel jitter
+  }
+  if (n >= 2) {
+    const prev = path[n - 2];
+    const segX = last.x - prev.x;
+    const segY = last.y - prev.y;
+    const segLen = Math.hypot(segX, segY) || 1;
+    const dot = (segX * (point.x - last.x) + segY * (point.y - last.y)) / (segLen * stepLen);
+    if (dot > PATH_COLLINEAR_DOT) {
+      // Still heading the same way → extend the current segment, no new vertex.
+      const extended = path.slice(0, -1);
+      extended.push(point);
+      return extended;
+    }
+  }
+  const next = [...path, point];
+  return maxPoints && next.length > maxPoints ? next.slice(-maxPoints) : next;
 }
 
 // Zoom at which `visibleFraction` of the map area fills the given viewport.

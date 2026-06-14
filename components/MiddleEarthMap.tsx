@@ -97,6 +97,7 @@ import {
   locationImage,
   LOTHLORIEN_ID,
   mapImage,
+  MAX_PATH_POINTS,
   MAX_WATER_CROSSING_CELLS,
   MAX_ZOOM_FACTOR,
   MEMBER_PICKUP_RANGE,
@@ -184,6 +185,13 @@ export default function MiddleEarthMap() {
   const lastTimeRef = useRef<number | null>(null);
   const playerRef = useRef<Point | null>(null);
   const recruitAttemptsRef = useRef<Record<string, number>>(initialSave?.recruitAttempts ?? {});
+  // Cap the drawn trail only on touch devices (weak in-app browsers); desktop
+  // keeps the full path. Computed once.
+  const trailCapRef = useRef<number | undefined>(
+    typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches
+      ? MAX_PATH_POINTS
+      : undefined,
+  );
   const waterRunRef = useRef<WaterRun>({ cellKey: null, count: 0 });
   const dragRef = useRef<DragState>({
     active: false,
@@ -1669,7 +1677,7 @@ export default function MiddleEarthMap() {
       if (routeRadius <= 0.5) {
         playerRef.current = activeTarget;
         setPlayer(activeTarget);
-        setHeroPath((path) => appendPathPoint(path, activeTarget));
+        setHeroPath((path) => appendPathPoint(path, activeTarget, trailCapRef.current));
         finishTravel(arrivalLocation);
         return;
       }
@@ -1824,7 +1832,7 @@ export default function MiddleEarthMap() {
       journeyMilesRef.current = nextJourneyMiles;
       playerRef.current = nextPlayer;
       setPlayer(nextPlayer);
-      setHeroPath((path) => appendPathPoint(path, nextPlayer));
+      setHeroPath((path) => appendPathPoint(path, nextPlayer, trailCapRef.current));
 
       // Pan the map only once the figure crosses the margin band near an edge,
       // but never while the user is dragging — otherwise both fight over offset.
@@ -1895,9 +1903,11 @@ export default function MiddleEarthMap() {
 
   const playerScreen = mapToScreen(player);
   const targetScreen = target ? mapToScreen(target) : null;
+  // Only project the trail to screen space when it's actually shown — otherwise
+  // we'd remap every point on every frame of movement for nothing.
   const heroPathScreen = useMemo(
-    () => heroPath.map((point) => mapToScreen(point)),
-    [heroPath, mapToScreen],
+    () => (showHeroPath ? heroPath.map((point) => mapToScreen(point)) : []),
+    [showHeroPath, heroPath, mapToScreen],
   );
   const journeyDate = getJourneyDate(journeyDay, months);
 
