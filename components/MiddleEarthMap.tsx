@@ -51,7 +51,7 @@ import {
   BEAST_MONSTERS,
   BETRAYAL_CHANCE,
   BETRAYAL_GRACE_DAYS,
-  BILBO_RECRUIT_ATTEMPTS,
+  RELUCTANT_RECRUIT_ATTEMPTS,
   BOMBADIL_LEAVE_CHANCE,
   bonusPoints,
   BOSS_NAMES,
@@ -183,7 +183,7 @@ export default function MiddleEarthMap() {
   const autoPlayTickRef = useRef<() => void>(() => {});
   const lastTimeRef = useRef<number | null>(null);
   const playerRef = useRef<Point | null>(null);
-  const bilboAttemptsRef = useRef(initialSave?.bilboAttempts ?? 0);
+  const recruitAttemptsRef = useRef<Record<string, number>>(initialSave?.recruitAttempts ?? {});
   const waterRunRef = useRef<WaterRun>({ cellKey: null, count: 0 });
   const dragRef = useRef<DragState>({
     active: false,
@@ -192,6 +192,13 @@ export default function MiddleEarthMap() {
     startX: 0,
     startY: 0,
     startOffset: { x: 0, y: 0 },
+  });
+  // Active touch points and pinch-zoom gesture state (two-finger zoom on mobile).
+  const pointersRef = useRef<Map<number, Point>>(new Map());
+  const pinchRef = useRef<{ active: boolean; startDist: number; startZoom: number }>({
+    active: false,
+    startDist: 0,
+    startZoom: 1,
   });
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const offsetRef = useRef<Point | null>(null);
@@ -438,11 +445,12 @@ export default function MiddleEarthMap() {
           return;
         }
       }
-      // Bilbo clings to Rivendell — only relents after enough pestering.
-      if (character.id === "bilbo") {
-        bilboAttemptsRef.current += 1;
-        if (bilboAttemptsRef.current < BILBO_RECRUIT_ATTEMPTS) {
-          refuse(t("refuse.bilbo"));
+      // Reluctant recruits (Bilbo, Denethor…) only relent after enough pestering.
+      const needed = RELUCTANT_RECRUIT_ATTEMPTS[character.id];
+      if (needed) {
+        recruitAttemptsRef.current[character.id] = (recruitAttemptsRef.current[character.id] ?? 0) + 1;
+        if (recruitAttemptsRef.current[character.id] < needed) {
+          refuse(t(`refuse.${character.id}`));
           return;
         }
       }
@@ -996,7 +1004,7 @@ export default function MiddleEarthMap() {
       slainRoamingRecruits: [...slainRoamingRecruits],
       leftBehind,
       joinDay: joinDayRef.current,
-      bilboAttempts: bilboAttemptsRef.current,
+      recruitAttempts: recruitAttemptsRef.current,
     });
   }, [
     created,
@@ -1145,13 +1153,36 @@ export default function MiddleEarthMap() {
     [getTerrainAtPoint, screenToMap],
   );
 
+  // Begin a two-finger pinch: freeze the drag and remember the start spread/zoom.
+  const beginPinch = useCallback(() => {
+    const pts = [...pointersRef.current.values()];
+    if (pts.length < 2) {
+      return;
+    }
+    dragRef.current = { ...dragRef.current, active: false, pointerId: null };
+    pinchRef.current = {
+      active: true,
+      startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+      startZoom: zoomRef.current,
+    };
+    followDisabledRef.current = true;
+  }, []);
+
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) {
+      // Touch/pen always tracked; for mouse only the primary button drags.
+      if (event.pointerType === "mouse" && event.button !== 0) {
         return;
       }
 
       event.currentTarget.setPointerCapture(event.pointerId);
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (pointersRef.current.size >= 2) {
+        beginPinch();
+        return;
+      }
+
       dragRef.current = {
         active: true,
         moved: false,
@@ -1161,11 +1192,49 @@ export default function MiddleEarthMap() {
         startOffset: offset,
       };
     },
-    [offset],
+    [beginPinch, offset],
   );
 
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (pointersRef.current.has(event.pointerId)) {
+        pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
+
+      // Two fingers → pinch-zoom around their midpoint.
+      if (pinchRef.current.active && pointersRef.current.size >= 2) {
+        const viewport = viewportRef.current;
+        if (!viewport) {
+          return;
+        }
+        const [a, b] = [...pointersRef.current.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (dist <= 0) {
+          return;
+        }
+        const bounds = viewport.getBoundingClientRect();
+        const mid = { x: (a.x + b.x) / 2 - bounds.left, y: (a.y + b.y) / 2 - bounds.top };
+        const minZoom = coverZoom(view, mapSize);
+        const maxZoom = Math.max(minZoom, baseZoomRef.current * MAX_ZOOM_FACTOR);
+        const nextZoom = clamp(
+          (pinchRef.current.startZoom * dist) / pinchRef.current.startDist,
+          minZoom,
+          maxZoom,
+        );
+        const liveOffset = offsetRef.current ?? offset;
+        const liveZoom = zoomRef.current;
+        const mapPoint = { x: (mid.x - liveOffset.x) / liveZoom, y: (mid.y - liveOffset.y) / liveZoom };
+        const nextOffset = clampOffset(
+          { x: mid.x - mapPoint.x * nextZoom, y: mid.y - mapPoint.y * nextZoom },
+          nextZoom,
+        );
+        zoomRef.current = nextZoom;
+        offsetRef.current = nextOffset;
+        setZoom(nextZoom);
+        setOffset(nextOffset);
+        return;
+      }
+
       const drag = dragRef.current;
       if (!drag.active || drag.pointerId !== event.pointerId) {
         return;
@@ -1192,32 +1261,50 @@ export default function MiddleEarthMap() {
       offsetRef.current = draggedOffset;
       setOffset(draggedOffset);
     },
-    [clampOffset, zoom],
+    [clampOffset, mapSize, offset, view, zoom],
   );
+
+  const releasePointer = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // pointer may already be released
+    }
+    if (pointersRef.current.size < 2) {
+      pinchRef.current.active = false;
+    }
+  }, []);
 
   const handlePointerUp = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      const wasPinching = pinchRef.current.active;
       const drag = dragRef.current;
-      if (!drag.active || drag.pointerId !== event.pointerId) {
+      releasePointer(event);
+
+      if (wasPinching || pinchRef.current.active) {
         return;
       }
-
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      dragRef.current = { ...drag, active: false, pointerId: null };
-
-      if (!drag.moved) {
-        setTargetFromClientPoint(event.clientX, event.clientY);
+      if (drag.active && drag.pointerId === event.pointerId) {
+        dragRef.current = { ...drag, active: false, pointerId: null };
+        if (!drag.moved) {
+          setTargetFromClientPoint(event.clientX, event.clientY);
+        }
       }
     },
-    [setTargetFromClientPoint],
+    [releasePointer, setTargetFromClientPoint],
   );
 
-  const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (drag.active && drag.pointerId === event.pointerId) {
-      dragRef.current = { ...drag, active: false, pointerId: null };
-    }
-  }, []);
+  const handlePointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      releasePointer(event);
+      const drag = dragRef.current;
+      if (drag.active && drag.pointerId === event.pointerId) {
+        dragRef.current = { ...drag, active: false, pointerId: null };
+      }
+    },
+    [releasePointer],
+  );
 
   const handleMarkerClick = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>, location: MapLocation) => {

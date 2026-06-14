@@ -186,6 +186,7 @@
     "elfDwarf": "The elf shakes his head: \"I will not take a step while a dwarf is in the party.\"",
     "cirdanWisdom": "Cirdan: \"I will not trust myself to a bearer less wise than I.\"",
     "bilbo": "Bilbo grumbles: \"No, no — I'm not so young anymore. Adventures aren't for me.\"",
+    "denethor": "Denethor: \"I have no time for mad schemes. The Ring belongs to Minas Tirith.\"",
     "mood": "{{name}}: {{line}}",
     "moodLines": [
       "\"Not today — I have things to do.\"",
@@ -237,6 +238,7 @@
     "eowyn": "Éowyn",
     "eomer": "Éomer",
     "faramir": "Faramir",
+    "denethor": "Denethor",
     "gollum": "Gollum"
   },
   "monster": {

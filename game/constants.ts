@@ -107,7 +107,7 @@ export const FOOD_DAYS_HORSE = 60;
 export const HEAL_PER_DAY = 10;
 
 // Encounters & difficulty gradient (distance to Mordor, south-east).
-export const ENCOUNTER_CHANCE_PER_DAY = 1 / 3;
+export const ENCOUNTER_CHANCE_PER_DAY = 1 / 6;
 export const MORDOR_POINT = { x: 1332, y: 1130 };
 export const ENCOUNTER_TIER_SPAN = 1100; // px over which the tier falls from 5 to 0
 export const DANGEROUS_ENCOUNTER_CHANCE = 0.15;
@@ -127,14 +127,14 @@ export const GRIMBEORN_BEAST_BONUS = 4;
 // Roaming specials.
 export const EDORAS_POINT = { x: 909, y: 1062 };
 export const ROHAN_RADIUS = 280;
-export const GOLLUM_ENCOUNTER_CHANCE = 0.05;
+export const GOLLUM_ENCOUNTER_CHANCE = 0.033;
 export const EOMER_ENCOUNTER_CHANCE = 0.2;
 export const ROAMING_RECRUIT_IDS = new Set(["gollum", "eomer"]);
 export const BOMBADIL_LEAVE_CHANCE = 1 / 40;
 
 // Betrayal: a traitor must travel with the party a while before the Ring works
 // on them, then it's a low per-encounter roll (betrayal ~1-3 months after joining).
-export const TRAITORS = new Set(["bilbo", "boromir", "gollum", "saruman"]);
+export const TRAITORS = new Set(["bilbo", "boromir", "gollum", "saruman", "denethor"]);
 export const BETRAYAL_GRACE_DAYS = 30;
 export const BETRAYAL_CHANCE = 0.06;
 
@@ -185,6 +185,7 @@ export const BEAST_MONSTERS = new Set([
 export const FOOD_SUPPLY_LOCATION_IDS = new Set<number>([
   HOBBITON_ID,
   RIVENDELL_ID,
+  EDORAS_ID,
   MINAS_TIRITH_ID,
   LOTHLORIEN_ID,
   ESGAROTH_ID,
@@ -201,7 +202,7 @@ export const RECRUITS_BY_LOCATION: Record<number, string[]> = {
   [LOTHLORIEN_ID]: ["galadriel", "celeborn", "haldir"],
   [ISENGARD_ID]: ["saruman"],
   [EDORAS_ID]: ["theoden", "eowyn"],
-  [MINAS_TIRITH_ID]: ["faramir"],
+  [MINAS_TIRITH_ID]: ["faramir", "denethor"],
 };
 // Characters who are only sometimes home; rolled once per visit.
 export const RANDOM_PRESENCE: Record<string, number> = {
@@ -211,7 +212,11 @@ export const RANDOM_PRESENCE: Record<string, number> = {
 // The One Ring has no hold on these — they can never become its bearer.
 export const NON_BEARERS = new Set<string>(["bombadil", "boromir", "saruman", "gollum"]);
 // Bilbo only relents after much pestering — he gives in on this many tries.
-export const BILBO_RECRUIT_ATTEMPTS = 7;
+// Reluctant recruits who only relent after this many pestering attempts.
+export const RELUCTANT_RECRUIT_ATTEMPTS: Record<string, number> = {
+  bilbo: 7,
+  denethor: 5,
+};
 
 export const TRANSPORT_BY_LOCATION: Record<number, TransportId> = {
   [CARN_DUM_ID]: "eagle",

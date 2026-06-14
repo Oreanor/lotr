@@ -3,7 +3,7 @@
 import type { DeathCause, Point, StatBonus, TransportId } from "@/game/types";
 
 const SAVE_KEY = "lotr-save";
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 export interface GameSave {
   version: number;
@@ -26,7 +26,7 @@ export interface GameSave {
   slainRoamingRecruits: string[];
   leftBehind: { id: string; point: Point }[];
   joinDay: Record<string, number>;
-  bilboAttempts: number;
+  recruitAttempts: Record<string, number>;
 }
 
 export function loadSave(): GameSave | null {
