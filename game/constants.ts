@@ -143,6 +143,14 @@ export const TRAITORS = new Set(["bilbo", "boromir", "gollum", "saruman", "denet
 export const BETRAYAL_GRACE_DAYS = 30;
 export const BETRAYAL_CHANCE = 0.06;
 
+// If the Ring leaves your hands (the bearer breaks at 100% corruption, or a
+// betrayer wins and takes it), you have this many days to hunt the rogue down
+// before he reaches Mount Doom and crowns himself. He's invisible — only about
+// ROGUE_HIT_CHANCE of strikes against him land — and appears on some encounters.
+export const ROGUE_CHASE_DAYS = 60;
+export const ROGUE_HIT_CHANCE = 0.25;
+export const ROGUE_ENCOUNTER_CHANCE = 0.5;
+
 // Leveling.
 export const LEVEL_BASE_XP = 300; // xp from level 1 to 2
 export const LEVEL_XP_STEP = 120; // each further level needs this much more

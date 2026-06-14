@@ -38,7 +38,7 @@ export function SplitModal({
             <img
               src={character.icon}
               alt=""
-              className="size-10 border border-neutral-700 bg-parchment object-cover"
+              className="size-12 border border-neutral-700 bg-parchment object-cover"
             />
             <span className="flex-1 text-sm text-neutral-200">{charName(character.id)}</span>
             <button

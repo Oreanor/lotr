@@ -39,7 +39,7 @@ export function CalendarModal({
             <img
               src={entry.character.icon}
               alt=""
-              className="size-9 shrink-0 rounded-full border-2 border-[#4a2a13] bg-parchment object-cover"
+              className="size-11 shrink-0 rounded-full border-2 border-[#4a2a13] bg-parchment object-cover"
             />
             <div className="min-w-0 flex-1 text-sm">
               <p className="font-medium">{charName(entry.character.id)}</p>

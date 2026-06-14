@@ -151,6 +151,8 @@ export interface BattleState {
   ringIneffective: boolean; // wraiths and the Balrog see through the Ring's invisibility
   betrayalBy: string | null; // a companion turned on the bearer (1v1 for the Ring)
   gandalfOnly: boolean; // only Gandalf can wound this foe (the Balrog)
+  rogueId: string | null; // the fled ring-bearer being hunted (reclaim the Ring on win)
+  invisibleEnemy: boolean; // foe wears the Ring — most strikes against it miss
 }
 
 export type TransportId = "pony" | "horse" | "ship" | "eagle";

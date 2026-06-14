@@ -110,16 +110,18 @@
   "battle": {
     "title": "Battle",
     "betrayalTitle": "Betrayal!",
+    "rogueTitle": "The runaway is cornered!",
     "victory": "Victory! +{{n}} XP",
     "defeat": "Defeat",
     "continue": "Continue",
     "putRing": "Put on the Ring",
     "takeRing": "Take off the Ring",
-    "ringTitle": "The bearer turns invisible & untargetable, but +1 day of corruption",
+    "ringTitle": "The Ring hides the bearer — most blows miss, but +1 day of corruption",
     "flee": "Flee",
     "ringNote": "These foes see through the Ring — invisibility won't save you.",
     "balrogNote": "Only Gandalf, Bombadil or Saruman can wound the Balrog — flee without them.",
-    "betrayalNote": "Nowhere to run — fight for the Ring."
+    "betrayalNote": "Nowhere to run — fight for the Ring.",
+    "rogueNote": "The Ring keeps him all but invisible — only a quarter of blows land."
   },
   "encounter": {
     "title": "You meet an enemy",
@@ -147,7 +149,19 @@
     "claimText": "The Ring prevailed. {{name}} seized power. Game over.",
     "lordTitle": "{{name}} put on the Ring",
     "lordText": "Darkness took the bearer. {{name}} proclaims himself the new Lord. Game over.",
+    "nothingTitle": "All for nothing",
+    "nothingText": "{{name}} bested you and vanished with the Ring. No one is left to give chase. The quest ends with nothing.",
+    "rogueLordTitle": "{{name}} put on the Ring",
+    "rogueLordText": "You were too late. {{name}} reached Mount Doom first and proclaimed himself the new Lord. Game over.",
     "replay": "Play again"
+  },
+  "rogue": {
+    "fledTitle": "The Ring is gone",
+    "fledText": "{{name}} could not resist the Ring and fled with it. You have two months to catch him before he reaches Mount Doom.",
+    "fledContinue": "Give chase",
+    "reclaimedTitle": "The Ring is yours again",
+    "reclaimedText": "You overcame {{name}} and reclaimed the Ring.",
+    "chooseBearer": "Who shall carry it now?"
   },
   "creation": {
     "title": "Create your hero",

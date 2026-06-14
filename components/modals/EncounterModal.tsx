@@ -23,12 +23,12 @@ export function EncounterModal({
       <h2 className="font-serif text-2xl text-red-300">{t("encounter.title")}</h2>
         <div className="mt-3 flex flex-wrap justify-center gap-3">
           {uniquePackTypes(encounter.pack).map((mm) => (
-            <div key={mm.icon} className="flex w-20 flex-col items-center gap-1">
+            <div key={mm.icon} className="flex w-24 flex-col items-center gap-1">
               <img
                 src={mm.icon}
                 alt=""
                 draggable="false"
-                className="size-16 select-none border border-neutral-700 bg-parchment object-cover"
+                className="size-20 select-none border border-neutral-700 bg-parchment object-cover"
               />
               <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
                 {monsterName(mm.icon)}

@@ -28,6 +28,7 @@ import {
   MORDOR_POINT,
   PATH_COLLINEAR_DOT,
   PATH_MIN_STEP,
+  ROGUE_HIT_CHANCE,
   RECRUITS_BY_LOCATION,
   REGION_X,
   REGION_Y_NORTH,
@@ -139,9 +140,10 @@ export function recruitRefusalKey(characterId: string, party: string[]): string 
   if (characterId === "gandalf" && party.includes("saruman")) {
     return "refuse.gandalfSaruman";
   }
-  // Arwen (like Legolas) doesn't mind a dwarf along for the road.
+  // Arwen, Galadriel (like Legolas) don't mind a dwarf along for the road.
   if (
     characterId !== "arwen" &&
+    characterId !== "galadriel" &&
     ELF_IDS.has(characterId) &&
     party.some((id) => DWARF_IDS.has(id))
   ) {
@@ -478,8 +480,10 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     }
     const target = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
     const beastBonus = allies[i].key === "grimbeorn" && battle.enemyBeast ? GRIMBEORN_BEAST_BONUS : 0;
+    // An invisible foe (the rogue ring-bearer) shrugs off most strikes.
+    const missesInvisible = battle.invisibleEnemy && Math.random() > ROGUE_HIT_CHANCE;
     const dealt =
-      battle.gandalfOnly && !BALROG_DAMAGERS.has(allies[i].key)
+      missesInvisible || (battle.gandalfOnly && !BALROG_DAMAGERS.has(allies[i].key))
         ? 0
         : hitDamage(allies[i], enemies[target]) + beastBonus;
     enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
@@ -507,17 +511,18 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   if (j >= enemies.length) {
     return { ...battle, allies, enemies, turn: "allies", index: 0, lastHit: null, attacker: null };
   }
-  const aliveAllies = allies.flatMap((ally, idx) =>
-    ally.hp > 0 && !(battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey) ? [idx] : [],
-  );
+  const aliveAllies = allies.flatMap((ally, idx) => (ally.hp > 0 ? [idx] : []));
   if (aliveAllies.length === 0) {
-    if (allies.some((ally) => ally.hp > 0)) {
-      return { ...battle, allies, enemies, turn: "allies", index: 0, lastHit: null, attacker: null };
-    }
     return { ...battle, allies, enemies, outcome: "lose" };
   }
   const target = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
-  allies[target].hp = Math.max(0, allies[target].hp - hitDamage(enemies[j], allies[target], "enemy"));
+  // The Ring hides its bearer but isn't total cover — only about ROGUE_HIT_CHANCE
+  // of blows find him.
+  const ringProtected =
+    battle.ringOn && !battle.ringIneffective && allies[target].key === battle.bearerKey;
+  const missesRing = ringProtected && Math.random() > ROGUE_HIT_CHANCE;
+  const dealt = missesRing ? 0 : hitDamage(enemies[j], allies[target], "enemy");
+  allies[target].hp = Math.max(0, allies[target].hp - dealt);
   return {
     ...battle,
     allies,

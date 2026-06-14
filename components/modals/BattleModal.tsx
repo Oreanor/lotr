@@ -39,7 +39,11 @@ export function BattleModal({
         <>
           <div className="relative mb-4">
             <h2 className="text-center font-serif text-xl text-red-300">
-              {battle.betrayalBy ? t("battle.betrayalTitle") : t("battle.title")}
+              {battle.rogueId
+                ? t("battle.rogueTitle")
+                : battle.betrayalBy
+                  ? t("battle.betrayalTitle")
+                  : t("battle.title")}
             </h2>
             {!battle.outcome && (
               <button
@@ -60,9 +64,9 @@ export function BattleModal({
                 const invisible =
                   battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
                 return (
-                  <div key={ally.key} className="flex w-20 flex-col items-center gap-1">
+                  <div key={ally.key} className="flex w-24 flex-col items-center gap-1">
                     <div
-                      className={`relative size-20 overflow-hidden border bg-parchment ${
+                      className={`relative size-24 overflow-hidden border bg-parchment ${
                         battle.attacker === ally.key
                           ? "border-amber-400 ring-2 ring-amber-400"
                           : "border-neutral-700"
@@ -114,9 +118,9 @@ export function BattleModal({
 
             <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
               {battle.enemies.map((enemy) => (
-                <div key={enemy.key} className="flex w-20 flex-col items-center gap-1">
+                <div key={enemy.key} className="flex w-24 flex-col items-center gap-1">
                   <div
-                    className={`relative flex size-20 items-center justify-center overflow-hidden border bg-parchment text-4xl ${
+                    className={`relative flex size-24 items-center justify-center overflow-hidden border bg-parchment text-4xl ${
                       battle.attacker === enemy.key
                         ? "border-amber-400 ring-2 ring-amber-400"
                         : "border-neutral-700"
@@ -126,10 +130,17 @@ export function BattleModal({
                       <img
                         src={battle.lastHit === enemy.key ? iconVariant(enemy.icon, "pain") : enemy.icon}
                         alt=""
-                        className={`size-full object-cover ${enemy.hp <= 0 ? "opacity-30 grayscale" : ""}`}
+                        className={`size-full object-cover ${
+                          enemy.hp <= 0 ? "opacity-30 grayscale" : battle.invisibleEnemy ? "opacity-40" : ""
+                        }`}
                       />
                     ) : (
                       <span className={enemy.hp <= 0 ? "opacity-30" : ""}>👹</span>
+                    )}
+                    {battle.invisibleEnemy && enemy.hp > 0 && (
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <img src={ringImage} alt="" className="size-7 object-contain" />
+                      </span>
                     )}
                     {battle.lastHit === enemy.key && (
                       <span
@@ -150,7 +161,11 @@ export function BattleModal({
                     </span>
                   </div>
                   <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
-                    {enemy.icon ? monsterName(enemy.icon) : enemy.name}
+                    {battle.betrayalBy || battle.rogueId
+                      ? charName(enemy.key)
+                      : enemy.icon
+                        ? monsterName(enemy.icon)
+                        : enemy.name}
                   </span>
                 </div>
               ))}
@@ -182,6 +197,9 @@ export function BattleModal({
               {battle.gandalfOnly && !battle.allies.some((a) => BALROG_DAMAGERS.has(a.key)) && (
                 <p className="text-center text-xs text-amber-400">{t("battle.balrogNote")}</p>
               )}
+              {battle.rogueId && (
+                <p className="text-center text-xs text-amber-400">{t("battle.rogueNote")}</p>
+              )}
               {battle.betrayalBy && battle.betrayalBy !== "saruman" && (
                 <p className="text-center text-xs text-amber-400">{t("battle.betrayalNote")}</p>
               )}
@@ -199,7 +217,7 @@ export function BattleModal({
                     {battle.ringOn ? t("battle.takeRing") : t("battle.putRing")}
                   </button>
                 )}
-              {(!battle.betrayalBy || battle.betrayalBy === "saruman") && (
+              {(!battle.betrayalBy || battle.betrayalBy === "saruman") && !battle.rogueId && (
                 <button
                   type="button"
                   onClick={onFlee}

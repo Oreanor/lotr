@@ -27,7 +27,7 @@ export function RecruitOfferModal({
           <img
             src={offered.icon}
             alt=""
-            className="mx-auto size-16 border border-neutral-700 bg-parchment object-cover"
+            className="mx-auto size-20 border border-neutral-700 bg-parchment object-cover"
           />
           <h2 className="mt-3 font-serif text-xl text-neutral-100">
             {t(headingKey, { name: charName(offered.id) })}

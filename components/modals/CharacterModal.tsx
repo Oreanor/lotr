@@ -19,7 +19,6 @@ export function CharacterModal({
   iconFor,
   onPrev,
   onNext,
-  onClaimLord,
   onMakeBearer,
   onCall,
   onClose,
@@ -35,7 +34,6 @@ export function CharacterModal({
   iconFor: (c: Character) => string;
   onPrev: () => void;
   onNext: () => void;
-  onClaimLord: () => void;
   onMakeBearer: () => void;
   onCall: () => void;
   onClose: () => void;
@@ -65,7 +63,7 @@ export function CharacterModal({
             <img
               src={iconFor(character)}
               alt=""
-              className="size-12 shrink-0 border border-neutral-700 bg-parchment object-cover"
+              className="size-14 shrink-0 border border-neutral-700 bg-parchment object-cover"
             />
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-serif text-xl text-neutral-100">{charName(character.id)}</h2>
@@ -161,15 +159,6 @@ export function CharacterModal({
           </div>
 
           <div className="flex flex-col gap-2">
-            {stats.isBearer && (
-              <button
-                type="button"
-                className="w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
-                onClick={onClaimLord}
-              >
-                {t("character.becomeLord")}
-              </button>
-            )}
             {canMakeBearer && (
               <button
                 type="button"

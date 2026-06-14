@@ -34,7 +34,7 @@ export function CreationModal({
         src={hero.icon}
         alt=""
         draggable="false"
-        className="mx-auto size-20 select-none border border-neutral-700 bg-parchment object-cover"
+        className="mx-auto size-24 select-none border border-neutral-700 bg-parchment object-cover"
       />
       <h2 className="mt-3 font-serif text-2xl text-neutral-100">{t("creation.title")}</h2>
       <p className="mt-1 text-sm text-neutral-300">{heroName}</p>

@@ -19,6 +19,7 @@ import { HoverHint } from "@/components/ui/HoverHint";
 import { HelpModal } from "@/components/modals/HelpModal";
 import { DeathNoticeModal, FarmResultModal, RecruitRefusalModal } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
+import { RogueFledModal, BearerChooserModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
 import { BattleModal } from "@/components/modals/BattleModal";
 import { OrodruinModal } from "@/components/modals/OrodruinModal";
@@ -113,6 +114,8 @@ import {
   recruitRefusalKey,
   resolveBattleInstantly,
   RING_BEARER_ID,
+  ROGUE_CHASE_DAYS,
+  ROGUE_ENCOUNTER_CHANCE,
   type RecruitRefusalNotice,
   ringImage,
   rollEncounter,
@@ -152,14 +155,16 @@ import type {
 export default function MiddleEarthMap() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
-  const months = t("months", { returnObjects: true }) as unknown as string[];
+  // Memoized so the array identity is stable per language — otherwise every
+  // render rebuilt the recruitment calendar and the journey date for nothing.
+  const months = useMemo(() => t("months", { returnObjects: true }) as unknown as string[], [t]);
   // Localized display names (logic still keys off ids / canonical names).
   const charName = useCallback((id: string) => t(`char.${id}`), [t]);
   const monsterName = useCallback(
     (icon: string) => t(`monster.${icon.split("/").pop()?.replace(".png", "")}`),
     [t],
   );
-  const locName = (loc: MapLocation) => getLocationLabel(loc, lang);
+  const locName = useCallback((loc: MapLocation) => getLocationLabel(loc, lang), [lang]);
   const toggleLang = () => i18n.changeLanguage(lang === "en" ? "ru" : "en");
 
   // Snapshot of a saved game (if any), read once. Seeds the state below so an
@@ -273,7 +278,17 @@ export default function MiddleEarthMap() {
   // Whether the open details panel can page through the party (arrows). True
   // only when opened from the party HUD or by clicking the hero on the map.
   const [openCharacterPaging, setOpenCharacterPaging] = useState(false);
-  const [ending, setEnding] = useState<"victory" | "lord" | "starved" | "battle" | null>(null);
+  const [ending, setEnding] = useState<
+    "victory" | "lord" | "starved" | "battle" | "nothing" | "rogueLord" | null
+  >(null);
+  // The Ring fled with this companion (bearer broke at 100% or a betrayer won);
+  // null means the party holds the Ring. While set, the party is "ringless".
+  const [rogueBearerId, setRogueBearerId] = useState<string | null>(null);
+  const [rogueSinceDay, setRogueSinceDay] = useState<number | null>(null);
+  // After beating the rogue: pick who receives the reclaimed Ring (id shown).
+  const [reclaimedFrom, setReclaimedFrom] = useState<string | null>(null);
+  // "X fled with the Ring" notice, shown once when the flight begins.
+  const [rogueFledNotice, setRogueFledNotice] = useState<string | null>(null);
   const [lordClaimed, setLordClaimed] = useState(false);
   const [party, setParty] = useState<string[]>(initialSave?.party ?? DEFAULT_PARTY);
   const [partyOpen, setPartyOpen] = useState(false);
@@ -538,10 +553,12 @@ export default function MiddleEarthMap() {
         ringOn: false,
         recruitId: null,
         enemyBeast: false,
-        // Saruman is no wraith — the Ring still hides the bearer from him.
-        ringIneffective: traitorId !== "saruman",
+        // These betrayers are no wraiths — the Ring still hides the bearer.
+        ringIneffective: !["saruman", "boromir", "bilbo"].includes(traitorId),
         betrayalBy: traitorId,
         gandalfOnly: false,
+        rogueId: null,
+        invisibleEnemy: false,
       };
       if (autoPlayRef.current) {
         battleState = resolveBattleInstantly(battleState);
@@ -662,6 +679,8 @@ export default function MiddleEarthMap() {
       ringIneffective: pack.some((mm) => RING_PIERCING_FOES.has(mm.name)),
       betrayalBy: null,
       gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
+      rogueId: null,
+      invisibleEnemy: false,
     };
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
@@ -825,11 +844,6 @@ export default function MiddleEarthMap() {
     setBattle((b) => (b ? { ...b, ringOn: false } : b));
   }, []);
 
-  const claimLordship = useCallback(() => {
-    setOpenCharacterId(null);
-    setLordClaimed(true);
-    setEnding("lord");
-  }, []);
 
   const makeBearer = useCallback((id: string) => {
     if (NON_BEARERS.has(id)) {
@@ -838,6 +852,90 @@ export default function MiddleEarthMap() {
     setBearerId(id);
     setBearerRingDays(0);
   }, []);
+
+  // The Ring slips away with a companion (the bearer broke at 100%, or a betrayer
+  // bested the party). He drops out and runs for Mount Doom; the party is left
+  // ringless with ROGUE_CHASE_DAYS to hunt him down.
+  const triggerRingFlight = useCallback((fledId: string) => {
+    setParty((prev) => prev.filter((id) => id !== fledId));
+    setBearerId("");
+    setBearerRingDays(0);
+    setLordClaimed(false);
+    setRogueBearerId(fledId);
+    setRogueSinceDay(journeyDayRef.current);
+    setRogueFledNotice(fledId);
+  }, []);
+
+  // Confront the fled bearer: the current party against the lone, Ring-veiled
+  // rogue. Winning reclaims the Ring; losing ends the tale with nothing.
+  const startRogueBattle = useCallback(
+    (rogueId: string) => {
+      const rogue = CHARACTERS.find((c) => c.id === rogueId);
+      if (!rogue) {
+        return;
+      }
+      const allies: Combatant[] = party
+        .map((id): Combatant | null => {
+          const character = CHARACTERS.find((c) => c.id === id);
+          if (!character) {
+            return null;
+          }
+          const s = effectiveStats(
+            character,
+            addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
+          );
+          const maxHp = s.strength * HEALTH_PER_STR;
+          return {
+            key: id,
+            name: character.name,
+            icon: character.icon,
+            hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
+            maxHp,
+            strength: s.strength,
+            defense: s.defense,
+          };
+        })
+        .filter((c): c is Combatant => c !== null && c.hp > 0);
+      const rs = effectiveStats(rogue, statBonusById[rogueId] ?? ZERO_BONUS);
+      const rogueMaxHp = rs.strength * HEALTH_PER_STR;
+      const enemy: Combatant = {
+        key: rogueId,
+        name: rogue.name,
+        icon: rogue.icon,
+        hp: rogueMaxHp,
+        maxHp: rogueMaxHp,
+        strength: rs.strength,
+        defense: rs.defense,
+      };
+      battleAppliedRef.current = false;
+      let battleState: BattleState = {
+        allies,
+        enemies: [enemy],
+        exp: 0,
+        turn: "allies",
+        index: 0,
+        outcome: allies.length === 0 ? "lose" : null,
+        lastHit: null,
+        attacker: null,
+        tick: 0,
+        hitDir: 0,
+        bearerKey: null,
+        ringOn: false,
+        recruitId: null,
+        enemyBeast: false,
+        ringIneffective: false,
+        betrayalBy: null,
+        gandalfOnly: false,
+        rogueId,
+        invisibleEnemy: true,
+      };
+      if (autoPlayRef.current) {
+        battleState = resolveBattleInstantly(battleState);
+      }
+      setBattle(battleState);
+    },
+    [party, statBonusById, damageById],
+  );
 
   // Re-roll who/what is around: sometimes-present companions and the eagles at
   // Carn Dûm. Fired on arrival and again whenever the player waits a day.
@@ -941,6 +1039,8 @@ export default function MiddleEarthMap() {
       openCharacterId !== null ||
       recruitOffer !== null ||
       recruitRefusal !== null ||
+      rogueFledNotice !== null ||
+      reclaimedFrom !== null ||
       (deathNotice !== null && ending === null) ||
       helpOpen ||
       levelUpCharacterId !== null && !autoPlay ||
@@ -956,6 +1056,8 @@ export default function MiddleEarthMap() {
       openCharacterId,
       recruitOffer,
       recruitRefusal,
+      rogueFledNotice,
+      reclaimedFrom,
       deathNotice,
       helpOpen,
       levelUpCharacterId,
@@ -989,7 +1091,9 @@ export default function MiddleEarthMap() {
   // Auto-save the full game state, but only at rest — never mid-move, mid-battle,
   // or with an encounter pending — so a reload resumes from a clean stop/town.
   useEffect(() => {
-    if (!created || ending || battle || encounter || isMoving || target) {
+    // Never persist a ringless chase — a reload would leave the party with no
+    // Ring and no rogue. Saves resume only from a clean stop with the Ring held.
+    if (!created || ending || battle || encounter || isMoving || target || rogueBearerId) {
       return;
     }
     writeSave({
@@ -1038,6 +1142,7 @@ export default function MiddleEarthMap() {
     defeatedBosses,
     slainRoamingRecruits,
     leftBehind,
+    rogueBearerId,
   ]);
 
   // Game over: drop the save so a reload starts a fresh quest.
@@ -1909,7 +2014,7 @@ export default function MiddleEarthMap() {
     () => (showHeroPath ? heroPath.map((point) => mapToScreen(point)) : []),
     [showHeroPath, heroPath, mapToScreen],
   );
-  const journeyDate = getJourneyDate(journeyDay, months);
+  const journeyDate = useMemo(() => getJourneyDate(journeyDay, months), [journeyDay, months]);
 
   const bonusFor = (id: string): StatBonus => statBonusById[id] ?? ZERO_BONUS;
   // Allocated level-up points plus party auras (Bombadil/Elrond/Galadriel).
@@ -1917,7 +2022,10 @@ export default function MiddleEarthMap() {
     addBonus(bonusFor(character.id), auraBonus(character, party));
   const iconFor = (character: { id: string; icon: string }): string =>
     emote && emote.id === character.id ? iconVariant(character.icon, emote.kind) : character.icon;
-  const partyCharacters = CHARACTERS.filter((character) => party.includes(character.id));
+  const partyCharacters = useMemo(
+    () => CHARACTERS.filter((character) => party.includes(character.id)),
+    [party],
+  );
   const anyHurt = partyCharacters.some((character) => (damageById[character.id] ?? 0) > 0);
   const foodCapacity = foodCapacityFor(transport);
   const transportEmoji =
@@ -2012,6 +2120,28 @@ export default function MiddleEarthMap() {
       ),
     [locations, journeyDay, months, lang, t],
   );
+  // Markers only re-project when the camera (offset/zoom) or labels change — not
+  // on every movement frame where only the figure moves.
+  const locationMarkers = useMemo(
+    () =>
+      locations.map((location) => {
+        const screen = mapToScreen(location.point);
+        return (
+          <button
+            key={location.id}
+            type="button"
+            title={locName(location)}
+            aria-label={locName(location)}
+            className="absolute z-10 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-red-600 shadow-[0_0_0_2px_rgba(120,0,0,0.35)] transition-transform hover:scale-[1.8] hover:bg-red-500"
+            style={{ left: screen.x, top: screen.y }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={(event) => handleMarkerClick(event, location)}
+          />
+        );
+      }),
+    [locations, mapToScreen, locName, handleMarkerClick],
+  );
   const openCharacter = openCharacterId
     ? (CHARACTERS.find((character) => character.id === openCharacterId) ?? null)
     : null;
@@ -2045,6 +2175,9 @@ export default function MiddleEarthMap() {
     ? levelForExp(expById[levelUpCharacterId] ?? 0).level
     : 1;
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
+  // The figure on the map is the bearer, or — while the Ring is fled — whoever
+  // leads the chase.
+  const figureCharacter = ringBearer ?? partyCharacters[0];
   const bearerCorruption = ringBearer
     ? computeCharacterStats(
         ringBearer,
@@ -2055,13 +2188,14 @@ export default function MiddleEarthMap() {
       ).corruption
     : 0;
   const hasFallen = bearerCorruption >= 100;
-  // Resilience exhausted before reaching Mount Doom: the bearer breaks and the
-  // game ends as the Lord (unless an ending was already reached).
+  // Resilience exhausted before reaching Mount Doom: the bearer succumbs, slips
+  // away with the Ring and bolts for Mount Doom. The party has two months to
+  // catch him before he crowns himself.
   useEffect(() => {
-    if (hasFallen) {
-      setEnding((prev) => prev ?? "lord");
+    if (hasFallen && rogueBearerId === null && ending === null && bearerId) {
+      triggerRingFlight(bearerId);
     }
-  }, [hasFallen]);
+  }, [hasFallen, rogueBearerId, ending, bearerId, triggerRingFlight]);
 
   // Re-check compatibility whenever the party changes: someone who can't abide
   // the new company (e.g. Gollum once a non-hobbit joins) walks off. One per
@@ -2094,6 +2228,27 @@ export default function MiddleEarthMap() {
     }
     battleAppliedRef.current = true;
 
+    // Hunt for the fled bearer resolved: a win reclaims the Ring (and prompts
+    // for a new bearer); a loss ends the tale with nothing.
+    if (battle.rogueId) {
+      const nextDamage = { ...damageRef.current };
+      for (const ally of battle.allies) {
+        nextDamage[ally.key] = ally.maxHp - ally.hp;
+      }
+      damageRef.current = nextDamage;
+      setDamageById(nextDamage);
+      applyBattleCasualties(battle.allies);
+      if (battle.outcome === "win") {
+        setRogueBearerId(null);
+        setRogueSinceDay(null);
+        setReclaimedFrom(battle.rogueId);
+      } else {
+        setEnding((prev) => prev ?? "nothing");
+      }
+      setBattle(null);
+      return;
+    }
+
     // Betrayal lost: traitor takes the Ring — unless they cannot be its bearer.
     if (battle.outcome === "lose" && battle.betrayalBy) {
       if (NON_BEARERS.has(battle.betrayalBy)) {
@@ -2115,10 +2270,17 @@ export default function MiddleEarthMap() {
         setBattle(null);
         return;
       }
-      setBearerId(battle.betrayalBy);
-      setBearerRingDays(0);
-      setLordClaimed(false);
-      setEnding("lord");
+      // The traitor seizes the Ring and vanishes, racing for Mount Doom — the
+      // party has two months to hunt him down before he crowns himself.
+      const traitorId = battle.betrayalBy;
+      const nextDamage = { ...damageRef.current };
+      for (const ally of battle.allies) {
+        nextDamage[ally.key] = ally.maxHp - ally.hp;
+      }
+      damageRef.current = nextDamage;
+      setDamageById(nextDamage);
+      applyBattleCasualties(battle.allies);
+      triggerRingFlight(traitorId);
       setBattle(null);
       return;
     }
@@ -2245,8 +2407,10 @@ export default function MiddleEarthMap() {
       encounterChance = 0; // eagles fly above any trouble
     }
     let wildEncounter = false;
+    let rogueEncounter = false;
     let pendingTraitor: string | null = null;
     let bombadilLeaves = false;
+    const ringless = rogueBearerId !== null;
     const hungerDead: string[] = [];
     const onWater =
       getTerrainAtPoint(playerRef.current ?? hobbiton.point).name === "water";
@@ -2277,17 +2441,24 @@ export default function MiddleEarthMap() {
           }
         }
       }
-      const traitors = members.filter(
-        (id) =>
-          id !== bearerId &&
-          TRAITORS.has(id) &&
-          day + 1 - (joinDayRef.current[id] ?? day + 1) >= BETRAYAL_GRACE_DAYS,
-      );
-      if (!onEagles && !pendingTraitor && traitors.length > 0 && Math.random() < BETRAYAL_CHANCE) {
-        pendingTraitor = traitors[Math.floor(Math.random() * traitors.length)];
-      }
-      if (!visitedLocation && Math.random() < encounterChance) {
-        wildEncounter = true;
+      if (ringless) {
+        // No Ring to covet and no wild foes to bother with — just hunt the rogue.
+        if (!onEagles && !visitedLocation && Math.random() < ROGUE_ENCOUNTER_CHANCE) {
+          rogueEncounter = true;
+        }
+      } else {
+        const traitors = members.filter(
+          (id) =>
+            id !== bearerId &&
+            TRAITORS.has(id) &&
+            day + 1 - (joinDayRef.current[id] ?? day + 1) >= BETRAYAL_GRACE_DAYS,
+        );
+        if (!onEagles && !pendingTraitor && traitors.length > 0 && Math.random() < BETRAYAL_CHANCE) {
+          pendingTraitor = traitors[Math.floor(Math.random() * traitors.length)];
+        }
+        if (!visitedLocation && Math.random() < encounterChance) {
+          wildEncounter = true;
+        }
       }
       if (members.includes("bombadil") && Math.random() < BOMBADIL_LEAVE_CHANCE) {
         bombadilLeaves = true;
@@ -2341,7 +2512,14 @@ export default function MiddleEarthMap() {
       setEagleSince(null);
       setEaglesLeft(true);
     }
-    if (pendingTraitor) {
+    if (ringless) {
+      // Ran out of time: the rogue reaches Mount Doom and crowns himself.
+      if (rogueSinceDay !== null && journeyDay - rogueSinceDay >= ROGUE_CHASE_DAYS) {
+        setEnding((prev) => prev ?? "rogueLord");
+      } else if (rogueEncounter && rogueBearerId) {
+        startRogueBattle(rogueBearerId);
+      }
+    } else if (pendingTraitor) {
       setPendingBetrayal(pendingTraitor);
     } else if (wildEncounter && !onWater) {
       const position = playerRef.current ?? hobbiton.point;
@@ -2355,7 +2533,7 @@ export default function MiddleEarthMap() {
         setEncounter(createEncounter(rolled, party.length, position));
       }
     }
-  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince]);
+  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   useEffect(() => {
@@ -2403,22 +2581,7 @@ export default function MiddleEarthMap() {
           }}
         />
 
-        {locations.map((location) => {
-          const screen = mapToScreen(location.point);
-          return (
-            <button
-              key={location.id}
-              type="button"
-              title={locName(location)}
-              aria-label={locName(location)}
-              className="absolute z-10 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-red-600 shadow-[0_0_0_2px_rgba(120,0,0,0.35)] transition-transform hover:scale-[1.8] hover:bg-red-500"
-              style={{ left: screen.x, top: screen.y }}
-              onPointerDown={(event) => event.stopPropagation()}
-              onPointerUp={(event) => event.stopPropagation()}
-              onClick={(event) => handleMarkerClick(event, location)}
-            />
-          );
-        })}
+        {locationMarkers}
 
         {leftBehind.map((member) => {
           const character = CHARACTERS.find((c) => c.id === member.id);
@@ -2432,7 +2595,7 @@ export default function MiddleEarthMap() {
               type="button"
               title={charName(character.id)}
               aria-label={charName(character.id)}
-              className="absolute z-20 size-9 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-amber-300 bg-parchment shadow-lg"
+              className="absolute z-20 size-11 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-amber-300 bg-parchment shadow-lg"
               style={{ left: screen.x, top: screen.y }}
               onPointerDown={(event) => event.stopPropagation()}
               onPointerUp={(event) => event.stopPropagation()}
@@ -2476,19 +2639,21 @@ export default function MiddleEarthMap() {
 
         <button
           type="button"
-          aria-label={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
-          title={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
-          className="absolute z-30 size-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+          aria-label={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
+          title={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
+          className="absolute z-30 size-12 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
           style={{ left: playerScreen.x, top: playerScreen.y }}
           onPointerDown={(event) => event.stopPropagation()}
           onPointerUp={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            openCharacterPanel(bearerId, true);
+            if (figureCharacter) {
+              openCharacterPanel(figureCharacter.id, true);
+            }
           }}
         >
           <img
-            src={ringBearer?.icon ?? PLAYER_ICON}
+            src={figureCharacter?.icon ?? PLAYER_ICON}
             alt=""
             draggable="false"
             className="size-full select-none object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
@@ -2665,7 +2830,7 @@ export default function MiddleEarthMap() {
                     onClick={() => openCharacterPanel(character.id, true)}
                     aria-label={t("recruit.statsAria", { name: charName(character.id) })}
                     data-character-portrait={character.id}
-                    className="group relative size-11 border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-14"
+                    className="group relative size-14 border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-16"
                   >
                     <img
                       src={iconFor(character)}
@@ -2785,6 +2950,7 @@ export default function MiddleEarthMap() {
             !!openStats &&
             !openStats.isBearer &&
             !openStats.dead &&
+            rogueBearerId === null &&
             party.includes(openCharacter.id) &&
             !NON_BEARERS.has(openCharacter.id)
           }
@@ -2793,7 +2959,6 @@ export default function MiddleEarthMap() {
           iconFor={iconFor}
           onPrev={() => showAdjacentCharacter(-1)}
           onNext={() => showAdjacentCharacter(1)}
-          onClaimLord={claimLordship}
           onMakeBearer={() => openCharacter && makeBearer(openCharacter.id)}
           onCall={() => {
             const member = openCharacter && leftBehind.find((m) => m.id === openCharacter.id);
@@ -2805,7 +2970,7 @@ export default function MiddleEarthMap() {
         />
 
         <OrodruinModal
-          open={visitedLocation?.id === ORODRUIN_ID && !ending}
+          open={visitedLocation?.id === ORODRUIN_ID && !ending && rogueBearerId === null}
           onDestroy={() => setEnding("victory")}
           onClaim={() => {
             setLordClaimed(true);
@@ -2900,12 +3065,37 @@ export default function MiddleEarthMap() {
           onAutoPlay={startAutoPlay}
         />
 
+        <RogueFledModal
+          fled={
+            rogueFledNotice && !ending ? (CHARACTERS.find((c) => c.id === rogueFledNotice) ?? null) : null
+          }
+          charName={charName}
+          onContinue={() => setRogueFledNotice(null)}
+        />
+
+        <BearerChooserModal
+          fromId={reclaimedFrom && !ending ? reclaimedFrom : null}
+          candidates={partyCharacters.filter((c) => !NON_BEARERS.has(c.id))}
+          charName={charName}
+          iconFor={iconFor}
+          onChoose={(id) => {
+            makeBearer(id);
+            setReclaimedFrom(null);
+          }}
+        />
+
         {ending && (
           <EndingModal
             open
             ending={ending}
-            bearer={ringBearer}
-            bearerName={ringBearer ? charName(ringBearer.id) : t("character.bearer")}
+            bearer={rogueBearerId ? CHARACTERS.find((c) => c.id === rogueBearerId) : ringBearer}
+            bearerName={
+              rogueBearerId
+                ? charName(rogueBearerId)
+                : ringBearer
+                  ? charName(ringBearer.id)
+                  : t("character.bearer")
+            }
             lordClaimed={lordClaimed}
             onReplay={() => {
               clearSave();

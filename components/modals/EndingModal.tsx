@@ -3,7 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { iconVariant } from "@/game";
 import type { Character } from "@/game";
 
-export type Ending = "victory" | "lord" | "starved" | "battle";
+export type Ending = "victory" | "lord" | "starved" | "battle" | "nothing" | "rogueLord";
 
 // Terminal game-over screen. The page passes the outcome and the bearer.
 export function EndingModal({
@@ -25,14 +25,14 @@ export function EndingModal({
   const borderClass =
     ending === "victory"
       ? "border-emerald-700"
-      : ending === "starved" || ending === "battle"
+      : ending === "starved" || ending === "battle" || ending === "nothing"
         ? "border-red-800"
         : "border-amber-700";
   const darkPortrait = bearer && (
     <img
       src={iconVariant(bearer.icon, "dark")}
       alt=""
-      className="mx-auto mb-3 size-24 border border-amber-800 object-cover"
+      className="mx-auto mb-3 size-28 border border-amber-800 object-cover"
     />
   );
 
@@ -52,6 +52,17 @@ export function EndingModal({
           <>
             <h2 className="font-serif text-2xl text-emerald-400">{t("ending.victoryTitle")}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.victoryText")}</p>
+          </>
+        ) : ending === "nothing" ? (
+          <>
+            <h2 className="font-serif text-2xl text-red-400">{t("ending.nothingTitle")}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.nothingText", { name: bearerName })}</p>
+          </>
+        ) : ending === "rogueLord" ? (
+          <>
+            {darkPortrait}
+            <h2 className="font-serif text-2xl text-amber-400">{t("ending.rogueLordTitle", { name: bearerName })}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.rogueLordText", { name: bearerName })}</p>
           </>
         ) : lordClaimed ? (
           <>

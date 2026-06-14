@@ -102,14 +102,14 @@ export function LocationModal({
               {recruits.map((character) => {
                 const inParty = party.includes(character.id);
                 return (
-                  <div key={character.id} className="flex w-20 shrink-0 flex-col items-center gap-1">
+                  <div key={character.id} className="flex w-24 shrink-0 flex-col items-center gap-1">
                     <button
                       type="button"
                       onClick={() => onViewStats(character.id)}
                       title={t("recruit.statsAria", { name: charName(character.id) })}
                       aria-label={t("recruit.statsAria", { name: charName(character.id) })}
                       data-character-portrait={character.id}
-                      className="size-16 border border-neutral-700 bg-parchment transition hover:brightness-95"
+                      className="size-20 border border-neutral-700 bg-parchment transition hover:brightness-95"
                     >
                       <img src={iconFor(character)} alt="" draggable={false} className="size-full object-cover" />
                     </button>
