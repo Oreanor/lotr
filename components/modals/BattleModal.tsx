@@ -57,7 +57,8 @@ export function BattleModal({
           <div className="flex items-start justify-center gap-3">
             <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
               {battle.allies.map((ally) => {
-                const invisible = battle.ringOn && ally.key === battle.bearerKey;
+                const invisible =
+                  battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
                 return (
                   <div key={ally.key} className="flex w-20 flex-col items-center gap-1">
                     <div
@@ -185,6 +186,7 @@ export function BattleModal({
                 <p className="text-center text-xs text-amber-400">{t("battle.betrayalNote")}</p>
               )}
               {(!battle.betrayalBy || battle.betrayalBy === "saruman") &&
+                !battle.ringIneffective &&
                 battle.bearerKey &&
                 battle.allies.some((a) => a.key === battle.bearerKey && a.hp > 0) && (
                   <button

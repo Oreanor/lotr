@@ -165,6 +165,9 @@ export const ELF_IDS = new Set([
 ]);
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
 export const WRAITH_FOES = new Set(["Умертвие", "Назгул", "Король-чародей"]);
+export const BALROG_NAME = "Балрог";
+// Supernatural foes that pierce the Ring's invisibility (wraiths and the Balrog).
+export const RING_PIERCING_FOES = new Set([...WRAITH_FOES, BALROG_NAME]);
 // Only these beings can wound the Balrog.
 export const BALROG_DAMAGERS = new Set(["gandalf", "bombadil", "saruman"]);
 // Beast-type foes (Grimbeorn hits them harder).

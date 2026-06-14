@@ -148,7 +148,7 @@ export interface BattleState {
   ringOn: boolean; // bearer wears the Ring: invisible & untargetable
   recruitId: string | null; // character who may join if this foe is defeated
   enemyBeast: boolean; // foes are beasts (Grimbeorn hits them harder)
-  ringIneffective: boolean; // wraiths see through the Ring's invisibility
+  ringIneffective: boolean; // wraiths and the Balrog see through the Ring's invisibility
   betrayalBy: string | null; // a companion turned on the bearer (1v1 for the Ring)
   gandalfOnly: boolean; // only Gandalf can wound this foe (the Balrog)
 }
@@ -183,4 +183,9 @@ export interface RecruitmentCalendarEntry {
   periodLabel: string;
   fromDay: number;
   isActive: boolean;
+}
+
+export interface RecruitRefusalNotice {
+  message: string;
+  characterId?: string;
 }

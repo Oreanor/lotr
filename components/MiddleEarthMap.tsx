@@ -106,6 +106,7 @@ import {
   recruitRefusalKey,
   resolveBattleInstantly,
   RING_BEARER_ID,
+  type RecruitRefusalNotice,
   ringImage,
   rollEncounter,
   rollStatBonus,
@@ -120,7 +121,7 @@ import {
   TRANSPORT_BY_LOCATION,
   TRANSPORTS,
   unspentPointsFor,
-  WRAITH_FOES,
+  RING_PIERCING_FOES,
   ZERO_BONUS,
   ZOOM_STEP,
 } from "@/game";
@@ -260,7 +261,7 @@ export default function MiddleEarthMap() {
   const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>({});
   const [foodFarmed, setFoodFarmed] = useState<number | null>(null);
   const [randomPresence, setRandomPresence] = useState<Record<string, boolean>>({});
-  const [recruitRefusal, setRecruitRefusal] = useState<string | null>(null);
+  const [recruitRefusal, setRecruitRefusal] = useState<RecruitRefusalNotice | null>(null);
   // After defeating a recruitable foe: offer to invite them.
   const [recruitOffer, setRecruitOffer] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
@@ -329,6 +330,18 @@ export default function MiddleEarthMap() {
     emoteTimerRef.current = window.setTimeout(() => setEmote(null), 500);
   }, []);
 
+  const showRecruitRefusal = useCallback(
+    (message: string, characterId?: string) => {
+      if (characterId) {
+        flashEmote(characterId, "refuse");
+      }
+      requestAnimationFrame(() => {
+        setRecruitRefusal({ message, characterId });
+      });
+    },
+    [flashEmote],
+  );
+
   const recruitCharacter = useCallback(
     (id: string) => {
       setParty((prev) => {
@@ -359,8 +372,7 @@ export default function MiddleEarthMap() {
   const attemptRecruit = useCallback(
     (character: Character) => {
       const refuse = (line: string) => {
-        flashEmote(character.id, "refuse");
-        setRecruitRefusal(line);
+        showRecruitRefusal(line, character.id);
       };
 
       // Deterministic party-composition rules (incl. Gollum's hobbits-only).
@@ -387,7 +399,7 @@ export default function MiddleEarthMap() {
       }
       recruitCharacter(character.id);
     },
-    [bearerId, flashEmote, party, recruitCharacter, statBonusById, t],
+    [bearerId, party, recruitCharacter, showRecruitRefusal, statBonusById, t],
   );
 
   // Invite the foe defeated in battle (or decline).
@@ -572,7 +584,7 @@ export default function MiddleEarthMap() {
       ringOn: false,
       recruitId: m.recruitId ?? null,
       enemyBeast: pack.some((mm) => BEAST_MONSTERS.has(mm.name)),
-      ringIneffective: pack.some((mm) => WRAITH_FOES.has(mm.name)),
+      ringIneffective: pack.some((mm) => RING_PIERCING_FOES.has(mm.name)),
       betrayalBy: null,
       gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
     };
@@ -1807,11 +1819,11 @@ export default function MiddleEarthMap() {
     }
     const key = recruitRefusalKey(evictee, party.filter((p) => p !== evictee));
     setParty((prev) => prev.filter((id) => id !== evictee));
-    flashEmote(evictee, "refuse");
-    setRecruitRefusal(
+    showRecruitRefusal(
       t("refuse.evicted", { name: charName(evictee), line: key ? t(key) : "" }).trim(),
+      evictee,
     );
-  }, [party, bearerId, flashEmote, t, charName]);
+  }, [party, bearerId, showRecruitRefusal, t, charName]);
 
   useBattleClock(battle, battleSpeed, autoPlay, setBattle);
 
@@ -1834,10 +1846,11 @@ export default function MiddleEarthMap() {
         const traitorId = battle.betrayalBy;
         setParty((prev) => prev.filter((id) => id !== traitorId));
         applyBattleCasualties(battle.allies);
-        setRecruitRefusal(
+        showRecruitRefusal(
           traitorId === "gollum"
             ? t("refuse.gollumFled")
             : t("refuse.traitorReturns", { name: charName(traitorId) }),
+          traitorId,
         );
         setBattle(null);
         return;
@@ -1896,10 +1909,11 @@ export default function MiddleEarthMap() {
           setDeathCauseById((prev) => ({ ...prev, gollum: "battle" }));
           setDeathNotice({ ids: "gollum", cause: "battle" });
         } else {
-          setRecruitRefusal(
+          showRecruitRefusal(
             traitorId === "gollum"
               ? t("refuse.gollumFled")
               : t("refuse.traitorReturns", { name: charName(traitorId) }),
+            traitorId,
           );
         }
       }
@@ -1912,7 +1926,7 @@ export default function MiddleEarthMap() {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
       }
     }
-  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties]);
+  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal]);
 
   // Show the next level-up allocation modal when the queue advances.
   useEffect(() => {
@@ -2044,7 +2058,7 @@ export default function MiddleEarthMap() {
     }
     if (bombadilLeaves) {
       setParty((prev) => prev.filter((id) => id !== "bombadil"));
-      setRecruitRefusal(t("refuse.bombadilLeaves"));
+      showRecruitRefusal(t("refuse.bombadilLeaves"), "bombadil");
     }
     if (pendingTraitor) {
       setPendingBetrayal(pendingTraitor);
@@ -2058,7 +2072,7 @@ export default function MiddleEarthMap() {
         ),
       );
     }
-  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation]);
+  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   useEffect(() => {
@@ -2357,13 +2371,17 @@ export default function MiddleEarthMap() {
               <Users className="size-5" />
             </button>
 
-            <div className={`${partyOpen ? "flex" : "hidden"} flex-col gap-1 sm:flex`}>
+            <div
+              data-party-portraits
+              className={`${partyOpen ? "flex" : "hidden"} flex-col gap-1 sm:flex`}
+            >
                 {partyCharacters.map((character) => (
                   <button
                     key={character.id}
                     type="button"
                     onClick={() => openCharacterPanel(character.id, true)}
                     aria-label={t("recruit.statsAria", { name: charName(character.id) })}
+                    data-character-portrait={character.id}
                     className="group relative size-11 border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-14"
                   >
                     <img
@@ -2427,6 +2445,7 @@ export default function MiddleEarthMap() {
           transportOffer={locationTransport}
           transportActive={transport === locationTransport}
           isMoving={isMoving}
+          refusalOpen={recruitRefusal !== null}
           onFightBoss={() => {
             if (locationBoss) {
               setEncounter({ monster: locationBoss, dangerous: true, solo: true, pack: [locationBoss] });
@@ -2446,6 +2465,10 @@ export default function MiddleEarthMap() {
           }}
           onWait={waitOneDay}
           onLeave={() => {
+            if (recruitRefusal) {
+              setRecruitRefusal(null);
+              return;
+            }
             setVisitedLocation(null);
             setTargetLocation(null);
           }}
@@ -2541,7 +2564,11 @@ export default function MiddleEarthMap() {
           onDecline={() => setRecruitOffer(null)}
         />
 
-        <RecruitRefusalModal message={recruitRefusal} onClose={() => setRecruitRefusal(null)} />
+        <RecruitRefusalModal
+          notice={recruitRefusal}
+          viewportRef={viewportRef}
+          onClose={() => setRecruitRefusal(null)}
+        />
 
         <DeathNoticeModal
           notice={ending ? null : deathNotice}

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Hourglass } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { LocationPreview } from "@/components/ui/LocationPreview";
+import { ScrollRow } from "@/components/ui/ScrollRow";
 import type { Character, MapLocation, Monster, TransportId } from "@/game";
 
 // Town/place screen: artwork, optional boss fight, recruits, supplies, cloaks,
@@ -26,6 +27,7 @@ export function LocationModal({
   transportOffer,
   transportActive,
   isMoving,
+  refusalOpen,
   onFightBoss,
   onViewStats,
   onRecruit,
@@ -53,6 +55,7 @@ export function LocationModal({
   transportOffer: TransportId | null;
   transportActive: boolean;
   isMoving: boolean;
+  refusalOpen: boolean;
   onFightBoss: () => void;
   onViewStats: (id: string) => void;
   onRecruit: (c: Character) => void;
@@ -63,14 +66,15 @@ export function LocationModal({
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
+  const blocked = refusalOpen ? " pointer-events-none" : "";
   return (
     <Modal
       open={location !== null}
-      overlayClassName="bg-black/60"
-      className="max-h-[88vh] w-full max-w-sm overflow-y-auto border-neutral-700 p-5 text-center"
+      overlayClassName={`bg-black/60${blocked}`}
+      className={`max-h-[88vh] w-full max-w-sm overflow-y-auto border-neutral-700 p-5 text-center${blocked}`}
     >
       {location && (
-        <>
+        <div data-location-modal>
           <h2 className="font-serif text-2xl text-neutral-100">{locationName}</h2>
 
           {imageSrc && (
@@ -93,33 +97,38 @@ export function LocationModal({
           )}
 
           {recruits.length > 0 && (
-            <ul className="mt-4 space-y-2 text-left">
+            <div data-recruit-portraits>
+              <ScrollRow>
               {recruits.map((character) => {
                 const inParty = party.includes(character.id);
                 return (
-                  <li key={character.id} className="flex items-center gap-3">
+                  <div key={character.id} className="flex w-20 shrink-0 flex-col items-center gap-1">
                     <button
                       type="button"
                       onClick={() => onViewStats(character.id)}
                       title={t("recruit.statsAria", { name: charName(character.id) })}
                       aria-label={t("recruit.statsAria", { name: charName(character.id) })}
-                      className="size-12 shrink-0 border border-neutral-700 bg-parchment transition hover:brightness-95"
+                      data-character-portrait={character.id}
+                      className="size-16 border border-neutral-700 bg-parchment transition hover:brightness-95"
                     >
-                      <img src={iconFor(character)} alt="" className="size-full object-cover" />
+                      <img src={iconFor(character)} alt="" draggable={false} className="size-full object-cover" />
                     </button>
-                    <span className="flex-1 text-sm text-neutral-200">{charName(character.id)}</span>
+                    <span className="w-full truncate text-center text-xs text-neutral-200">
+                      {charName(character.id)}
+                    </span>
                     <button
                       type="button"
                       disabled={inParty}
                       onClick={() => onRecruit(character)}
-                      className="rounded border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
+                      className="w-full rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
                     >
                       {inParty ? t("recruit.inParty") : t("recruit.call")}
                     </button>
-                  </li>
+                  </div>
                 );
               })}
-            </ul>
+              </ScrollRow>
+            </div>
           )}
 
           {canRestock && (
@@ -176,7 +185,7 @@ export function LocationModal({
           >
             {t("location.leave")}
           </button>
-        </>
+        </div>
       )}
     </Modal>
   );

@@ -1,27 +1,106 @@
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import type { DeathCause } from "@/game";
+import type { DeathCause, RecruitRefusalNotice } from "@/game";
 
-// Simple "voiced refusal" popup when a companion declines to join.
+const REFUSAL_GAP_PX = 12;
+
+function topAbovePortraitRow(viewport: HTMLElement, gap = REFUSAL_GAP_PX): number | null {
+  const scope = viewport.querySelector<HTMLElement>("[data-location-modal]") ?? viewport;
+  const row =
+    scope.querySelector<HTMLElement>("[data-recruit-portraits]") ??
+    viewport.querySelector<HTMLElement>("[data-party-portraits]");
+  if (!row) {
+    return null;
+  }
+  const portrait = row.querySelector<HTMLElement>("[data-character-portrait]");
+  if (!portrait) {
+    return null;
+  }
+  const portraitRect = portrait.getBoundingClientRect();
+  const viewportRect = viewport.getBoundingClientRect();
+  return portraitRect.top - viewportRect.top - gap;
+}
+
+// Voiced refusal bubble — quote only, centered above the portrait row.
 export function RecruitRefusalModal({
-  message,
+  notice,
+  viewportRef,
   onClose,
 }: {
-  message: string | null;
+  notice: RecruitRefusalNotice | null;
+  viewportRef: RefObject<HTMLElement | null>;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const [mounted, setMounted] = useState(notice !== null);
+  const [shown, setShown] = useState(false);
+  const [top, setTop] = useState<number | null>(null);
+  const lastNotice = useRef<RecruitRefusalNotice | null>(null);
+  if (notice) {
+    lastNotice.current = notice;
+  }
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || (!notice && !lastNotice.current)) {
+      setTop(null);
+      return;
+    }
+    const measure = () => setTop(topAbovePortraitRow(viewport));
+    measure();
+    const id = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(id);
+  }, [notice, viewportRef]);
+
+  useEffect(() => {
+    if (notice) {
+      setMounted(true);
+      const id = requestAnimationFrame(() => setShown(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setShown(false);
+    const id = window.setTimeout(() => setMounted(false), 150);
+    return () => window.clearTimeout(id);
+  }, [notice]);
+
+  if (!mounted || !lastNotice.current) {
+    return null;
+  }
+
+  const handleClose = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+    onClose();
+  };
+
+  const anchored = top !== null;
+
   return (
-    <Modal open={message !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-neutral-700 p-6 text-center">
-      <p className="text-sm text-neutral-200">{message}</p>
-      <button
-        type="button"
-        className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
-        onClick={onClose}
+    <div
+      className="absolute inset-0 z-[60]"
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={`absolute left-1/2 w-full max-w-xs rounded border border-neutral-700 bg-neutral-900 p-4 text-center shadow-2xl transition duration-150 ${
+          anchored ? "-translate-x-1/2 -translate-y-full" : "-translate-x-1/2 -translate-y-1/2"
+        } ${shown ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}
+        style={anchored ? { top } : { top: "50%" }}
       >
-        {t("farmResult.ok")}
-      </button>
-    </Modal>
+        <p className="text-sm text-neutral-200">{lastNotice.current.message}</p>
+        <button
+          type="button"
+          className="mt-3 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+          onClick={handleClose}
+        >
+          {t("farmResult.ok")}
+        </button>
+      </div>
+    </div>
   );
 }
 

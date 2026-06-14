@@ -12,12 +12,14 @@ export function Modal({
   className,
   overlayClassName = "bg-black/70",
   z = "z-50",
+  align = "center",
 }: {
   open: boolean;
   children: ReactNode;
   className: string;
   overlayClassName?: string;
   z?: string;
+  align?: "center" | "top";
 }) {
   const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
@@ -43,9 +45,9 @@ export function Modal({
 
   return (
     <div
-      className={`absolute inset-0 ${z} flex items-center justify-center ${overlayClassName} p-6 transition-opacity duration-150 ${
-        shown ? "opacity-100" : "opacity-0"
-      }`}
+      className={`absolute inset-0 ${z} flex justify-center ${overlayClassName} p-6 transition-opacity duration-150 ${
+        align === "top" ? "items-start pt-8" : "items-center"
+      } ${shown ? "opacity-100" : "opacity-0"}`}
       onPointerDown={(event) => event.stopPropagation()}
       onPointerUp={(event) => event.stopPropagation()}
     >
