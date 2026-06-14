@@ -25,7 +25,12 @@
     "healing": "+healing",
     "healingTitle": "Healing: spends 2 food/day, +10 health",
     "onFoot": "On foot",
-    "cloaksTitle": "Elven cloaks: fewer encounters"
+    "cloaksTitle": "Elven cloaks: fewer encounters",
+    "restart": "Restart",
+    "restartConfirmTitle": "Start over?",
+    "restartConfirmText": "Your current journey will be lost and the game will begin anew.",
+    "restartConfirm": "Start over",
+    "cancel": "Cancel"
   },
   "transport": {
     "pony": "Pony",
@@ -114,6 +119,8 @@
     "victory": "Victory! +{{n}} XP",
     "defeat": "Defeat",
     "continue": "Continue",
+    "skip": "Skip",
+    "skipTitle": "Jump straight to the battle result",
     "putRing": "Put on the Ring",
     "takeRing": "Take off the Ring",
     "ringTitle": "The Ring hides the bearer — most blows miss, but +1 day of corruption",

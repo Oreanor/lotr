@@ -16,8 +16,8 @@
     "useDefineForClassFields": true,
     "moduleDetection": "force",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "components", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }

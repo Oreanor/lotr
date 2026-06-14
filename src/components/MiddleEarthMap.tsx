@@ -10,12 +10,14 @@ import {
   Gauge,
   Hourglass,
   LocateFixed,
+  RotateCcw,
   Route,
   Split,
   Users,
   Wheat,
 } from "lucide-react";
 import { HoverHint } from "@/components/ui/HoverHint";
+import { Modal } from "@/components/ui/Modal";
 import { HelpModal } from "@/components/modals/HelpModal";
 import { DeathNoticeModal, FarmResultModal, RecruitRefusalModal } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
@@ -320,6 +322,8 @@ export default function MiddleEarthMap() {
   const [peacefulOffer, setPeacefulOffer] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Restart-the-game confirmation dialog (wipes the save and reloads).
+  const [restartConfirm, setRestartConfirm] = useState(false);
   // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
   // A loaded save means the hero was already created.
   const [created, setCreated] = useState(initialSave !== null);
@@ -768,6 +772,12 @@ export default function MiddleEarthMap() {
     setStatBonusById((prev) => ({ ...prev, [RING_BEARER_ID]: creationBonus }));
     setCreated(true);
   }, [creationBonus]);
+
+  // Wipe the save and reload for a fresh quest (from the restart confirmation).
+  const restartGame = useCallback(() => {
+    clearSave();
+    window.location.reload();
+  }, []);
 
   const startAutoPlay = useCallback(() => {
     const rolled = rollStatBonus(CREATION_POINTS);
@@ -1514,8 +1524,9 @@ export default function MiddleEarthMap() {
     }
 
     if (battle) {
+      // The fight was resolved the instant it began; leave the result on screen
+      // so it's visible — a dedicated timer (below) clears it after a beat.
       if (battle.outcome) {
-        setBattle(null);
         return;
       }
       if (
@@ -1670,6 +1681,16 @@ export default function MiddleEarthMap() {
     const timer = window.setInterval(() => autoPlayTickRef.current(), 750);
     return () => window.clearInterval(timer);
   }, [autoPlay, created, ending]);
+
+  // Auto-play resolves each fight instantly; keep the result modal up for a
+  // beat so the player actually sees the battle and its outcome, then close it.
+  useEffect(() => {
+    if (!autoPlay || !battle || !battle.outcome) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setBattle(null), 1000);
+    return () => window.clearTimeout(timer);
+  }, [autoPlay, battle]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -2683,6 +2704,15 @@ export default function MiddleEarthMap() {
           >
             ?
           </button>
+          <button
+            type="button"
+            onClick={() => setRestartConfirm(true)}
+            aria-label={t("ui.restart")}
+            title={t("ui.restart")}
+            className="flex size-9 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800"
+          >
+            <RotateCcw className="size-4" />
+          </button>
         </div>
 
         {/* HUD overlay: date + controls + party float above the map, top-left */}
@@ -2984,7 +3014,7 @@ export default function MiddleEarthMap() {
         />
 
         <BattleModal
-          battle={autoPlay ? null : battle}
+          battle={battle}
           battleSpeed={battleSpeed}
           onCycleSpeed={cycleBattleSpeed}
           charName={charName}
@@ -2992,6 +3022,7 @@ export default function MiddleEarthMap() {
           onPutRing={putOnRing}
           onTakeRing={takeOffRing}
           onFlee={fleeBattle}
+          onSkip={() => setBattle((b) => (b ? resolveBattleInstantly(b) : b))}
           onContinue={() => setBattle(null)}
         />
 
@@ -3030,6 +3061,29 @@ export default function MiddleEarthMap() {
         />
 
         <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+        <Modal open={restartConfirm} className="w-full max-w-sm border-neutral-700 p-5">
+          <h2 className="text-center font-serif text-xl text-neutral-100">
+            {t("ui.restartConfirmTitle")}
+          </h2>
+          <p className="mt-3 text-center text-sm text-neutral-300">{t("ui.restartConfirmText")}</p>
+          <div className="mt-5 flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRestartConfirm(false)}
+              className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            >
+              {t("ui.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={restartGame}
+              className="rounded border border-red-800 bg-red-900/60 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-900"
+            >
+              {t("ui.restartConfirm")}
+            </button>
+          </div>
+        </Modal>
 
         <TransportConfirmModal
           from={transport}

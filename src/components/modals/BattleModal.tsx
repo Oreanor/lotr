@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Gauge } from "lucide-react";
+import { Gauge, FastForward } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { BALROG_DAMAGERS, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
@@ -16,6 +16,7 @@ export function BattleModal({
   onPutRing,
   onTakeRing,
   onFlee,
+  onSkip,
   onContinue,
 }: {
   battle: BattleState | null;
@@ -26,6 +27,7 @@ export function BattleModal({
   onPutRing: () => void;
   onTakeRing: () => void;
   onFlee: () => void;
+  onSkip: () => void;
   onContinue: () => void;
 }) {
   const { t } = useTranslation();
@@ -46,16 +48,27 @@ export function BattleModal({
                   : t("battle.title")}
             </h2>
             {!battle.outcome && (
-              <button
-                type="button"
-                onClick={onCycleSpeed}
-                aria-label={t("ui.speedValue", { n: battleSpeed })}
-                title={t("ui.speed")}
-                className="absolute right-0 top-0 flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-sm text-neutral-200 transition hover:bg-neutral-700"
-              >
-                <Gauge className="size-4" />
-                {battleSpeed}×
-              </button>
+              <div className="absolute right-0 top-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onCycleSpeed}
+                  aria-label={t("ui.speedValue", { n: battleSpeed })}
+                  title={t("ui.speed")}
+                  className="flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-sm text-neutral-200 transition hover:bg-neutral-700"
+                >
+                  <Gauge className="size-4" />
+                  {battleSpeed}×
+                </button>
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  aria-label={t("battle.skip")}
+                  title={t("battle.skipTitle")}
+                  className="flex items-center justify-center rounded border border-neutral-700 bg-neutral-800 p-1.5 text-neutral-200 transition hover:bg-neutral-700"
+                >
+                  <FastForward className="size-4" />
+                </button>
+              </div>
             )}
           </div>
           <div className="flex items-start justify-center gap-3">
