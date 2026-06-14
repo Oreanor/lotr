@@ -153,7 +153,7 @@ export interface BattleState {
   gandalfOnly: boolean; // only Gandalf can wound this foe (the Balrog)
 }
 
-export type TransportId = "pony" | "horse" | "ship";
+export type TransportId = "pony" | "horse" | "ship" | "eagle";
 
 export interface Transport {
   name: string;

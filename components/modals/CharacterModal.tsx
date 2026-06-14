@@ -103,20 +103,22 @@ export function CharacterModal({
             </p>
           )}
 
-          <div className="rounded border border-neutral-800 bg-neutral-950/60 p-2.5">
-            <div className="mb-1 flex justify-between text-xs text-neutral-400">
-              <span>{t("character.level", { n: level.level })}</span>
-              <span className="text-neutral-200">
-                {t("character.xp", { into: level.intoLevel, next: level.nextLevelXp })}
-              </span>
+          {!stats.dead && (
+            <div className="rounded border border-neutral-800 bg-neutral-950/60 p-2.5">
+              <div className="mb-1 flex justify-between text-xs text-neutral-400">
+                <span>{t("character.level", { n: level.level })}</span>
+                <span className="text-neutral-200">
+                  {t("character.xp", { into: level.intoLevel, next: level.nextLevelXp })}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
+                <div
+                  className="h-full bg-amber-400"
+                  style={{ width: `${(level.intoLevel / level.nextLevelXp) * 100}%` }}
+                />
+              </div>
             </div>
-            <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
-              <div
-                className="h-full bg-amber-400"
-                style={{ width: `${(level.intoLevel / level.nextLevelXp) * 100}%` }}
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">

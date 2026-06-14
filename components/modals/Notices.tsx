@@ -6,10 +6,13 @@ import type { DeathCause, RecruitRefusalNotice } from "@/game";
 const REFUSAL_GAP_PX = 12;
 
 function topAbovePortraitRow(viewport: HTMLElement, gap = REFUSAL_GAP_PX): number | null {
-  const scope = viewport.querySelector<HTMLElement>("[data-location-modal]") ?? viewport;
-  const row =
-    scope.querySelector<HTMLElement>("[data-recruit-portraits]") ??
-    viewport.querySelector<HTMLElement>("[data-party-portraits]");
+  const locationModal = viewport.querySelector<HTMLElement>("[data-location-modal]");
+  // Inside a location modal: anchor above its recruit row, or centre (null) when
+  // there isn't one — don't jump up to the party panel at the top of the screen.
+  // On the open map (no location modal): anchor above the party portraits.
+  const row = locationModal
+    ? locationModal.querySelector<HTMLElement>("[data-recruit-portraits]")
+    : viewport.querySelector<HTMLElement>("[data-party-portraits]");
   if (!row) {
     return null;
   }

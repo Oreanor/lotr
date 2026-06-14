@@ -38,6 +38,7 @@ export const MAX_WATER_CROSSING_CELLS = 2;
 export const FOLLOW_MARGIN_RATIO = 0.2;
 
 // Location ids — must match data/locations.json.
+export const CARN_DUM_ID = 1;
 export const EREBOR_ID = 2;
 export const WOODLAND_REALM_ID = 3;
 export const BEORN_ID = 5;
@@ -209,15 +210,20 @@ export const RANDOM_PRESENCE: Record<string, number> = {
 };
 // The One Ring has no hold on these — they can never become its bearer.
 export const NON_BEARERS = new Set<string>(["bombadil", "boromir", "saruman", "gollum"]);
-// Bilbo only relents after much pestering: each attempt has this success chance.
-export const BILBO_RECRUIT_CHANCE = 0.05;
+// Bilbo only relents after much pestering — he gives in on this many tries.
+export const BILBO_RECRUIT_ATTEMPTS = 7;
 
 export const TRANSPORT_BY_LOCATION: Record<number, TransportId> = {
+  [CARN_DUM_ID]: "eagle",
   [BREE_ID]: "pony",
   [EDORAS_ID]: "horse",
   [GREY_HAVENS_ID]: "ship",
   [UMBAR_ID]: "ship",
 };
+// Eagles of Manwë only happen to be at Carn Dûm on some visits, and tire of
+// carrying you after this many days.
+export const EAGLE_PRESENCE_CHANCE = 0.25;
+export const EAGLE_STAY_DAYS = 30;
 
 export const RECRUITMENT_PLACE_IDS: Record<string, number> = {
   hobbiton: HOBBITON_ID,

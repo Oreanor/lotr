@@ -171,6 +171,9 @@ export const TRANSPORTS: Record<TransportId, Transport> = {
   pony: { name: "Пони", speed: 2, sea: false, action: "Взять пони" },
   horse: { name: "Конь", speed: 4, sea: false, action: "Оседлать коня" },
   ship: { name: "Корабль", speed: 1, sea: true, action: "Сесть на корабль" },
+  // Eagles of Manwë: fly anywhere (sea = no terrain block), 4× walking speed,
+  // skip battles, and only stay for a month.
+  eagle: { name: "Орлы Манвэ", speed: 4, sea: true, action: "Призвать орлов" },
 };
 
 function buildRecruitmentSchedules(

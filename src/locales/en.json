@@ -31,10 +31,18 @@
     "pony": "Pony",
     "horse": "Horse",
     "ship": "Ship",
+    "eagle": "Eagles of Manwë",
     "takePony": "Take a pony",
     "takeHorse": "Mount a horse",
     "takeShip": "Board a ship",
-    "active": "{{name}}: already with you"
+    "takeEagle": "Call the eagles",
+    "active": "{{name}}: already with you",
+    "switchPrompt": "Swap \"{{from}}\" for \"{{to}}\"?",
+    "switchYes": "Swap",
+    "switchNo": "Cancel",
+    "eaglesLeftTitle": "The eagles have gone",
+    "eaglesLeftText": "The eagles tired of carrying you and returned to the skies.",
+    "eaglesNeedGandalf": "The eagles cry: \"We care for none but Gandalf.\""
   },
   "location": {
     "leave": "Leave",

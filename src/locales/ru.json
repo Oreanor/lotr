@@ -31,10 +31,18 @@
     "pony": "Пони",
     "horse": "Конь",
     "ship": "Корабль",
+    "eagle": "Орлы Манвэ",
     "takePony": "Взять пони",
     "takeHorse": "Оседлать коня",
     "takeShip": "Сесть на корабль",
-    "active": "{{name}}: уже с вами"
+    "takeEagle": "Призвать орлов",
+    "active": "{{name}}: уже с вами",
+    "switchPrompt": "Сменить «{{from}}» на «{{to}}»?",
+    "switchYes": "Сменить",
+    "switchNo": "Отмена",
+    "eaglesLeftTitle": "Орлы улетели",
+    "eaglesLeftText": "Орлам наскучило носить вас, и они вернулись в небеса.",
+    "eaglesNeedGandalf": "Орлы клекочут: «Кроме Гэндальфа нам ни до кого дела нет.»"
   },
   "location": {
     "leave": "Покинуть место",

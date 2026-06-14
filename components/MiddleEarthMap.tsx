@@ -29,6 +29,7 @@ import { CalendarModal } from "@/components/modals/CalendarModal";
 import { SplitModal } from "@/components/modals/SplitModal";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { CharacterModal } from "@/components/modals/CharacterModal";
+import { EaglesLeftModal, TransportConfirmModal } from "@/components/modals/TransportModals";
 import { useSpeedSettings } from "@/hooks/useSpeedSettings";
 import { useTerrainGrid } from "@/hooks/useTerrainGrid";
 import { useBattleClock } from "@/hooks/useBattleClock";
@@ -50,12 +51,13 @@ import {
   BEAST_MONSTERS,
   BETRAYAL_CHANCE,
   BETRAYAL_GRACE_DAYS,
-  BILBO_RECRUIT_CHANCE,
+  BILBO_RECRUIT_ATTEMPTS,
   BOMBADIL_LEAVE_CHANCE,
   bonusPoints,
   BOSS_NAMES,
   BOSSES_BY_LOCATION,
   buildRecruitmentCalendar,
+  CARN_DUM_ID,
   CHARACTERS,
   clamp,
   computeCharacterStats,
@@ -67,6 +69,8 @@ import {
   DEFAULT_VISIBLE_FRACTION,
   DEFAULT_ZOOM,
   DEFAULT_ZOOM_BOOST,
+  EAGLE_PRESENCE_CHANCE,
+  EAGLE_STAY_DAYS,
   effectiveStats,
   ENCOUNTER_CHANCE_PER_DAY,
   EOMER_SPEED_MULTIPLIER,
@@ -172,6 +176,7 @@ export default function MiddleEarthMap() {
   const autoPlayTickRef = useRef<() => void>(() => {});
   const lastTimeRef = useRef<number | null>(null);
   const playerRef = useRef<Point | null>(null);
+  const bilboAttemptsRef = useRef(0);
   const waterRunRef = useRef<WaterRun>({ cellKey: null, count: 0 });
   const dragRef = useRef<DragState>({
     active: false,
@@ -252,6 +257,13 @@ export default function MiddleEarthMap() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [bearerId, setBearerId] = useState(RING_BEARER_ID);
   const [transport, setTransport] = useState<TransportId | null>(null);
+  // Eagles of Manwë: offered only on some Carn Dûm visits, and they leave after
+  // a month. `eagleSince` is the journey day they joined (null when not flying).
+  const [eagleOffered, setEagleOffered] = useState(false);
+  const [eagleSince, setEagleSince] = useState<number | null>(null);
+  const [eaglesLeft, setEaglesLeft] = useState(false);
+  // A transport swap awaiting the player's confirmation (replaces the current one).
+  const [pendingTransport, setPendingTransport] = useState<TransportId | null>(null);
   // Food (days left) and per-character starvation damage are simulated per day.
   // Damage is per character so new recruits join at full health; with double
   // rations on, a damaged party heals at the cost of extra food.
@@ -392,10 +404,13 @@ export default function MiddleEarthMap() {
           return;
         }
       }
-      // Bilbo clings to Rivendell — only relents after much pestering.
-      if (character.id === "bilbo" && Math.random() >= BILBO_RECRUIT_CHANCE) {
-        refuse(t("refuse.bilbo"));
-        return;
+      // Bilbo clings to Rivendell — only relents after enough pestering.
+      if (character.id === "bilbo") {
+        bilboAttemptsRef.current += 1;
+        if (bilboAttemptsRef.current < BILBO_RECRUIT_ATTEMPTS) {
+          refuse(t("refuse.bilbo"));
+          return;
+        }
       }
       recruitCharacter(character.id);
     },
@@ -764,6 +779,19 @@ export default function MiddleEarthMap() {
     setBearerRingDays(0);
   }, []);
 
+  // Re-roll who/what is around: sometimes-present companions and the eagles at
+  // Carn Dûm. Fired on arrival and again whenever the player waits a day.
+  const rollPresence = useCallback((locationId?: number) => {
+    setRandomPresence(() => {
+      const rolled: Record<string, boolean> = {};
+      for (const [id, chance] of Object.entries(RANDOM_PRESENCE)) {
+        rolled[id] = Math.random() < chance;
+      }
+      return rolled;
+    });
+    setEagleOffered(locationId === CARN_DUM_ID && Math.random() < EAGLE_PRESENCE_CHANCE);
+  }, []);
+
   const waitOneDay = useCallback(() => {
     if (isMoving) {
       return;
@@ -773,7 +801,8 @@ export default function MiddleEarthMap() {
     journeyDayRef.current = nextDay;
     journeyMilesRef.current += MILES_PER_DAY;
     setJourneyDay(nextDay);
-  }, [isMoving]);
+    rollPresence(visitedLocation?.id);
+  }, [isMoving, rollPresence, visitedLocation]);
 
   // Spend a day foraging: gather 1-3 days of food, plus a bonus from the ring
   // bearer's luck, capped by the transport's carrying capacity.
@@ -1464,10 +1493,13 @@ export default function MiddleEarthMap() {
         (members.includes("eomer") ? EOMER_SPEED_MULTIPLIER : 1);
       const canSail = (activeTransport ? activeTransport.sea : false) || members.includes("cirdan");
       const currentTerrain = getTerrainAtPoint(current);
-      // Gollum ignores rough ground; Cirdan (or a ship) wipes the water penalty.
+      // Gollum ignores rough ground; Cirdan (or a ship) wipes the water penalty;
+      // eagles fly over everything.
       const onWater = currentTerrain.name === "water";
       const terrainCost =
-        members.includes("gollum") || (onWater && canSail) ? 1 : currentTerrain.cost;
+        transportRef.current === "eagle" || members.includes("gollum") || (onWater && canSail)
+          ? 1
+          : currentTerrain.cost;
       const visibleSpeed = (SPEED_PX_PER_SECOND * animationSpeed * transportSpeed) / terrainCost;
       const travel = Math.min(routeRadius, visibleSpeed * elapsedSeconds);
 
@@ -1737,8 +1769,34 @@ export default function MiddleEarthMap() {
     if (!offered || (offered === "ship" && party.includes("cirdan"))) {
       return null;
     }
+    if (offered === "eagle" && !eagleOffered) {
+      return null; // the eagles aren't here this visit
+    }
     return offered;
   })();
+
+  // Take a transport, recording the day eagles joined (so they can leave after a
+  // month). Switching from a different transport asks for confirmation first.
+  const applyTransport = useCallback((next: TransportId) => {
+    setTransport(next);
+    setEagleSince(next === "eagle" ? journeyDayRef.current : null);
+    setPendingTransport(null);
+  }, []);
+  const requestTransport = useCallback(
+    (next: TransportId) => {
+      // The eagles answer only to Gandalf — without him they won't carry anyone.
+      if (next === "eagle" && !party.includes("gandalf")) {
+        showRecruitRefusal(t("transport.eaglesNeedGandalf"));
+        return;
+      }
+      if (transportRef.current && transportRef.current !== next) {
+        setPendingTransport(next);
+      } else {
+        applyTransport(next);
+      }
+    },
+    [applyTransport, party, showRecruitRefusal, t],
+  );
   const recruitmentCalendar = useMemo(
     () =>
       buildRecruitmentCalendar(
@@ -1873,6 +1931,9 @@ export default function MiddleEarthMap() {
     if (battle.outcome === "win") {
       const toLevel: string[] = [];
       for (const ally of battle.allies) {
+        if (ally.hp <= 0) {
+          continue; // the fallen don't level up
+        }
         const oldExp = expById[ally.key] ?? 0;
         const newExp = oldExp + battle.exp;
         const bonus = statBonusById[ally.key] ?? ZERO_BONUS;
@@ -1928,16 +1989,17 @@ export default function MiddleEarthMap() {
     }
   }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal]);
 
-  // Show the next level-up allocation modal when the queue advances.
+  // Show the next level-up allocation modal when the queue advances — but only
+  // after the battle modal is dismissed, so it doesn't pop up over the fight.
   useEffect(() => {
-    if (levelUpCharacterId || levelUpQueue.length === 0) {
+    if (battle || levelUpCharacterId || levelUpQueue.length === 0) {
       return;
     }
     const [next, ...rest] = levelUpQueue;
     setLevelUpCharacterId(next);
     setLevelUpDraft(ZERO_BONUS);
     setLevelUpQueue(rest);
-  }, [levelUpCharacterId, levelUpQueue]);
+  }, [battle, levelUpCharacterId, levelUpQueue]);
 
   // Roll "is he home?" once per visit for sometimes-present characters, and
   // snapshot who was already in the party on arrival — members recruited here on
@@ -1948,14 +2010,8 @@ export default function MiddleEarthMap() {
       return;
     }
     entryPartyRef.current = new Set(partyRef.current);
-    setRandomPresence(() => {
-      const rolled: Record<string, boolean> = {};
-      for (const [id, chance] of Object.entries(RANDOM_PRESENCE)) {
-        rolled[id] = Math.random() < chance;
-      }
-      return rolled;
-    });
-  }, [visitedLocation]);
+    rollPresence(visitedLocation.id);
+  }, [visitedLocation, rollPresence]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
   // per member for 2 food while anyone is hurt, or starve (−1 health/day) when
@@ -1974,6 +2030,18 @@ export default function MiddleEarthMap() {
     let encounterChance = hasCloaks ? ENCOUNTER_CHANCE_PER_DAY / 2 : ENCOUNTER_CHANCE_PER_DAY;
     if (members.includes("aragorn")) {
       encounterChance *= ARAGORN_ENCOUNTER_MULTIPLIER;
+    }
+    // A wiser ring-bearer picks safer paths: −5% encounters per intelligence
+    // point above 4, but never less than half (smarts don't make you invisible).
+    const bearer = CHARACTERS.find((c) => c.id === bearerId);
+    const bearerInt = bearer
+      ? effectiveStats(bearer, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(bearer, party)))
+          .intelligence
+      : 0;
+    encounterChance *= Math.max(0.5, 1 - Math.max(0, bearerInt - 4) * 0.05);
+    const onEagles = transport === "eagle";
+    if (onEagles) {
+      encounterChance = 0; // eagles fly above any trouble
     }
     let wildEncounter = false;
     let pendingTraitor: string | null = null;
@@ -2014,7 +2082,7 @@ export default function MiddleEarthMap() {
           TRAITORS.has(id) &&
           day + 1 - (joinDayRef.current[id] ?? day + 1) >= BETRAYAL_GRACE_DAYS,
       );
-      if (!pendingTraitor && traitors.length > 0 && Math.random() < BETRAYAL_CHANCE) {
+      if (!onEagles && !pendingTraitor && traitors.length > 0 && Math.random() < BETRAYAL_CHANCE) {
         pendingTraitor = traitors[Math.floor(Math.random() * traitors.length)];
       }
       if (!visitedLocation && Math.random() < encounterChance) {
@@ -2060,6 +2128,18 @@ export default function MiddleEarthMap() {
       setParty((prev) => prev.filter((id) => id !== "bombadil"));
       showRecruitRefusal(t("refuse.bombadilLeaves"), "bombadil");
     }
+    // Eagles tire of carrying you after a month — but they won't drop you over
+    // the sea: they only leave once you're over walkable land.
+    if (
+      transport === "eagle" &&
+      eagleSince !== null &&
+      journeyDay - eagleSince >= EAGLE_STAY_DAYS &&
+      !onWater
+    ) {
+      setTransport(null);
+      setEagleSince(null);
+      setEaglesLeft(true);
+    }
     if (pendingTraitor) {
       setPendingBetrayal(pendingTraitor);
     } else if (wildEncounter && !onWater) {
@@ -2072,7 +2152,7 @@ export default function MiddleEarthMap() {
         ),
       );
     }
-  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal]);
+  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   useEffect(() => {
@@ -2460,7 +2540,7 @@ export default function MiddleEarthMap() {
           onTakeCloaks={() => setHasCloaks(true)}
           onTakeTransport={() => {
             if (locationTransport) {
-              setTransport(locationTransport);
+              requestTransport(locationTransport);
             }
           }}
           onWait={waitOneDay}
@@ -2577,6 +2657,15 @@ export default function MiddleEarthMap() {
         />
 
         <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+        <TransportConfirmModal
+          from={transport}
+          to={pendingTransport}
+          onConfirm={() => pendingTransport && applyTransport(pendingTransport)}
+          onCancel={() => setPendingTransport(null)}
+        />
+
+        <EaglesLeftModal open={eaglesLeft} onClose={() => setEaglesLeft(false)} />
 
         <LevelUpModal
           hero={autoPlay ? null : levelUpHero}
