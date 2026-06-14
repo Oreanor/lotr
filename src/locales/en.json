@@ -42,7 +42,8 @@
     "supplies": "🍞 Take {{n}} days of supplies",
     "suppliesFull": "🍞 Supplies full ({{n}} days)",
     "cloaksTake": "🧥 Take elven cloaks",
-    "cloaksHave": "🧥 Cloaks taken"
+    "cloaksHave": "🧥 Cloaks taken",
+    "waitDay": "Wait a day"
   },
   "recruit": {
     "call": "Recruit",
@@ -143,7 +144,8 @@
     "title": "Create your hero",
     "pointsLeft": "Points left: {{n}}",
     "random": "Randomize",
-    "start": "Begin the journey"
+    "start": "Begin the journey",
+    "autoPlay": "Auto-play"
   },
   "levelUp": {
     "title": "Level up!",

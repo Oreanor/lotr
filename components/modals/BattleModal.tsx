@@ -1,0 +1,215 @@
+import { useTranslation } from "react-i18next";
+import { Gauge } from "lucide-react";
+import type { CSSProperties } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { BALROG_DAMAGERS, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
+import type { BattleState } from "@/game";
+
+// Auto-battle screen: ally vs enemy rosters with hit-flashes, plus the
+// outcome banner or the ring/flee/speed controls while fighting.
+export function BattleModal({
+  battle,
+  battleSpeed,
+  onCycleSpeed,
+  charName,
+  monsterName,
+  onPutRing,
+  onTakeRing,
+  onFlee,
+  onContinue,
+}: {
+  battle: BattleState | null;
+  battleSpeed: number;
+  onCycleSpeed: () => void;
+  charName: (id: string) => string;
+  monsterName: (icon: string) => string;
+  onPutRing: () => void;
+  onTakeRing: () => void;
+  onFlee: () => void;
+  onContinue: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      open={battle !== null}
+      overlayClassName="bg-black/80"
+      className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-red-800 p-5"
+    >
+      {battle && (
+        <>
+          <div className="relative mb-4">
+            <h2 className="text-center font-serif text-xl text-red-300">
+              {battle.betrayalBy ? t("battle.betrayalTitle") : t("battle.title")}
+            </h2>
+            {!battle.outcome && (
+              <button
+                type="button"
+                onClick={onCycleSpeed}
+                aria-label={t("ui.speedValue", { n: battleSpeed })}
+                title={t("ui.speed")}
+                className="absolute right-0 top-0 flex items-center gap-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-sm text-neutral-200 transition hover:bg-neutral-700"
+              >
+                <Gauge className="size-4" />
+                {battleSpeed}×
+              </button>
+            )}
+          </div>
+          <div className="flex items-start justify-center gap-3">
+            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
+              {battle.allies.map((ally) => {
+                const invisible = battle.ringOn && ally.key === battle.bearerKey;
+                return (
+                  <div key={ally.key} className="flex w-20 flex-col items-center gap-1">
+                    <div
+                      className={`relative size-20 overflow-hidden border bg-parchment ${
+                        battle.attacker === ally.key
+                          ? "border-amber-400 ring-2 ring-amber-400"
+                          : "border-neutral-700"
+                      }`}
+                    >
+                      <img
+                        src={
+                          battle.lastHit === ally.key && ally.icon
+                            ? iconVariant(ally.icon, "pain")
+                            : (ally.icon ?? "")
+                        }
+                        alt=""
+                        className={`size-full object-cover ${
+                          ally.hp <= 0 ? "opacity-30 grayscale" : invisible ? "opacity-40" : ""
+                        }`}
+                      />
+                      {invisible && (
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                          <img src={ringImage} alt="" className="size-7 object-contain" />
+                        </span>
+                      )}
+                      {battle.lastHit === ally.key && (
+                        <span
+                          key={battle.tick}
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                        >
+                          <span
+                            className="hit-sweep block h-2 w-[140%] bg-white/70"
+                            style={{ "--sweep-angle": SWEEP_ANGLES[battle.hitDir] } as CSSProperties}
+                          />
+                        </span>
+                      )}
+                      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/50">
+                        <span
+                          className="block h-full bg-green-500"
+                          style={{ width: `${(ally.hp / ally.maxHp) * 100}%` }}
+                        />
+                      </span>
+                    </div>
+                    <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
+                      {charName(ally.key)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="self-center text-2xl text-neutral-500">⚔️</div>
+
+            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
+              {battle.enemies.map((enemy) => (
+                <div key={enemy.key} className="flex w-20 flex-col items-center gap-1">
+                  <div
+                    className={`relative flex size-20 items-center justify-center overflow-hidden border bg-parchment text-4xl ${
+                      battle.attacker === enemy.key
+                        ? "border-amber-400 ring-2 ring-amber-400"
+                        : "border-neutral-700"
+                    }`}
+                  >
+                    {enemy.icon ? (
+                      <img
+                        src={battle.lastHit === enemy.key ? iconVariant(enemy.icon, "pain") : enemy.icon}
+                        alt=""
+                        className={`size-full object-cover ${enemy.hp <= 0 ? "opacity-30 grayscale" : ""}`}
+                      />
+                    ) : (
+                      <span className={enemy.hp <= 0 ? "opacity-30" : ""}>👹</span>
+                    )}
+                    {battle.lastHit === enemy.key && (
+                      <span
+                        key={battle.tick}
+                        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                      >
+                        <span
+                          className="hit-sweep block h-2 w-[140%] bg-white/70"
+                          style={{ "--sweep-angle": SWEEP_ANGLES[battle.hitDir] } as CSSProperties}
+                        />
+                      </span>
+                    )}
+                    <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/50">
+                      <span
+                        className="block h-full bg-red-500"
+                        style={{ width: `${(enemy.hp / enemy.maxHp) * 100}%` }}
+                      />
+                    </span>
+                  </div>
+                  <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
+                    {enemy.icon ? monsterName(enemy.icon) : enemy.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {battle.outcome ? (
+            <div className="mt-5 text-center">
+              <p
+                className={`font-serif text-xl ${
+                  battle.outcome === "win" ? "text-emerald-400" : "text-red-400"
+                }`}
+              >
+                {battle.outcome === "win" ? t("battle.victory", { n: battle.exp }) : t("battle.defeat")}
+              </p>
+              <button
+                type="button"
+                className="mt-3 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+                onClick={onContinue}
+              >
+                {t("battle.continue")}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-5 flex flex-col gap-2">
+              {battle.ringIneffective && (
+                <p className="text-center text-xs text-amber-400">{t("battle.ringNote")}</p>
+              )}
+              {battle.gandalfOnly && !battle.allies.some((a) => BALROG_DAMAGERS.has(a.key)) && (
+                <p className="text-center text-xs text-amber-400">{t("battle.balrogNote")}</p>
+              )}
+              {battle.betrayalBy && battle.betrayalBy !== "saruman" && (
+                <p className="text-center text-xs text-amber-400">{t("battle.betrayalNote")}</p>
+              )}
+              {(!battle.betrayalBy || battle.betrayalBy === "saruman") &&
+                battle.bearerKey &&
+                battle.allies.some((a) => a.key === battle.bearerKey && a.hp > 0) && (
+                  <button
+                    type="button"
+                    onClick={battle.ringOn ? onTakeRing : onPutRing}
+                    className="flex items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
+                    title={t("battle.ringTitle")}
+                  >
+                    <img src={ringImage} alt="" className="size-4 object-contain" />
+                    {battle.ringOn ? t("battle.takeRing") : t("battle.putRing")}
+                  </button>
+                )}
+              {(!battle.betrayalBy || battle.betrayalBy === "saruman") && (
+                <button
+                  type="button"
+                  onClick={onFlee}
+                  className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+                >
+                  {t("battle.flee")}
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
