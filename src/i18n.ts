@@ -11,8 +11,8 @@ void i18n.use(initReactI18next).init({
     ru: { translation: ru },
     en: { translation: en },
   },
-  lng: saved === "en" || saved === "ru" ? saved : "ru",
-  fallbackLng: "ru",
+  lng: saved === "en" || saved === "ru" ? saved : "en",
+  fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
 
