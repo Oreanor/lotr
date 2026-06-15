@@ -8,17 +8,19 @@ import {
   Eye,
   EyeOff,
   Gauge,
-  Hourglass,
   LocateFixed,
   Play,
   RotateCcw,
   Route,
+  Settings,
   Split,
   Square,
-  Users,
   Wheat,
+  ZoomIn,
 } from "lucide-react";
 import { HoverHint } from "@/components/ui/HoverHint";
+import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
+import { TransportIcon } from "@/components/ui/TransportIcon";
 import { Modal } from "@/components/ui/Modal";
 import { HelpModal } from "@/components/modals/HelpModal";
 import { DeathNoticeModal, FarmResultModal, RecruitRefusalModal } from "@/components/modals/Notices";
@@ -27,6 +29,10 @@ import { RogueFledModal, BearerChooserModal } from "@/components/modals/RogueMod
 import { EncounterModal } from "@/components/modals/EncounterModal";
 import { BattleModal } from "@/components/modals/BattleModal";
 import { EscapeFailedModal } from "@/components/modals/EscapeFailedModal";
+import { ExploreResultModal } from "@/components/modals/ExploreResultModal";
+import type { ExploreResult } from "@/components/modals/ExploreResultModal";
+import { TalkResultModal } from "@/components/modals/TalkResultModal";
+import type { TalkResult } from "@/components/modals/TalkResultModal";
 import { OrodruinModal } from "@/components/modals/OrodruinModal";
 import { RecruitOfferModal } from "@/components/modals/RecruitOfferModal";
 import { LevelUpModal } from "@/components/modals/LevelUpModal";
@@ -80,6 +86,7 @@ import {
   EAGLE_STAY_DAYS,
   effectiveStats,
   ENCOUNTER_CHANCE_PER_DAY,
+  BOMBADIL_SLOW_FACTOR,
   EOMER_SPEED_MULTIPLIER,
   fitZoom,
   FOLLOW_MARGIN_RATIO,
@@ -97,6 +104,8 @@ import {
   INITIAL_HERO_PROGRESS,
   isCharacterRecruitableHere,
   ISENGARD_ID,
+  ERECH_ID,
+  WEATHERTOP_ID,
   levelForExp,
   loadSave,
   locationData,
@@ -121,11 +130,24 @@ import {
   RING_BEARER_ID,
   ROGUE_CHASE_DAYS,
   ROGUE_ENCOUNTER_CHANCE,
+  ROGUE_MIN_CHASE_DAYS,
   type RecruitRefusalNotice,
   ringImage,
   rollEncounter,
   rollEscape,
   escapeChance,
+  partyLuck,
+  ITEMS,
+  ITEM_BY_ID,
+  GIFTS_BY_CHARACTER,
+  CLOAK_GIVERS,
+  EXPLORE_ITEM_BY_LOCATION,
+  WRAITH_FOES,
+  ORC_FOES,
+  SHELOB_NAME,
+  WIGHT_NAME,
+  HOBBIT_IDS,
+  LOFTY_TALKERS,
   rollStatBonus,
   SAM_FARM_BONUS,
   seasonAt,
@@ -232,6 +254,11 @@ export default function MiddleEarthMap() {
   // Current transport, mirrored into a ref so the rAF loop reads it live.
   const transportRef = useRef<TransportId | null>(null);
   const partyRef = useRef<string[]>(DEFAULT_PARTY);
+  // Bearer's current corruption (0-100), mirrored so callbacks defined before it
+  // is computed (auto-play) can still read it.
+  const bearerCorruptionRef = useRef(0);
+  // Equipped items mirrored for the rAF travel loop (item speed bonuses).
+  const equippedItemsRef = useRef<Record<string, string>>({});
   // Party members present when the current location was entered; used to hide
   // already-recruited companions on repeat visits.
   const [entryParty, setEntryParty] = useState<Set<string>>(
@@ -300,8 +327,20 @@ export default function MiddleEarthMap() {
   // "X fled with the Ring" notice, shown once when the flight begins.
   const [rogueFledNotice, setRogueFledNotice] = useState<string | null>(null);
   const [lordClaimed, setLordClaimed] = useState(false);
+  // Set when the bearer overrode a choice to destroy the Ring and claimed it.
+  const [doomBetrayal, setDoomBetrayal] = useState(false);
   const [party, setParty] = useState<string[]>(initialSave?.party ?? DEFAULT_PARTY);
-  const [partyOpen, setPartyOpen] = useState(false);
+  // Special items: found pool and who carries what.
+  const [foundItems, setFoundItems] = useState<string[]>(initialSave?.foundItems ?? []);
+  const [equippedItems, setEquippedItems] = useState<Record<string, string>>(
+    initialSave?.equippedItems ?? {},
+  );
+  // Result of the last location search, shown in a modal (null = closed).
+  const [exploreResult, setExploreResult] = useState<ExploreResult | null>(null);
+  // Aragorn summoned the Dead at Erech — the undead no longer assail the party.
+  const [deadSummoned, setDeadSummoned] = useState<boolean>(initialSave?.deadSummoned ?? false);
+  // Result of talking to a companion: a greeting or items handed over.
+  const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [bearerId, setBearerId] = useState(initialSave?.bearerId ?? RING_BEARER_ID);
   const [transport, setTransport] = useState<TransportId | null>(initialSave?.transport ?? null);
@@ -330,6 +369,8 @@ export default function MiddleEarthMap() {
   const [peacefulOffer, setPeacefulOffer] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Settings dropdown (terrain / hero-path / speed / language / help / restart).
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Restart-the-game confirmation dialog (wipes the save and reloads).
   const [restartConfirm, setRestartConfirm] = useState(false);
   // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
@@ -577,6 +618,7 @@ export default function MiddleEarthMap() {
         gandalfOnly: false,
         rogueId: null,
         invisibleEnemy: false,
+        phialBlinded: false,
       };
       if (autoPlayRef.current) {
         battleState = resolveBattleInstantly(battleState);
@@ -642,17 +684,34 @@ export default function MiddleEarthMap() {
     if (!encounter) {
       return;
     }
+    // Carried items lend bonus attack against the right foes here.
+    const packHasUndead = encounter.pack.some((mm) => WRAITH_FOES.has(mm.name));
+    const packHasOrcs = encounter.pack.some((mm) => ORC_FOES.has(mm.name));
+    // The Phial of Galadriel blinds Shelob — her strength is halved.
+    const partyHasPhial = party.some((id) => equippedItems[id] === "phial");
+    const phialBlinded = partyHasPhial && encounter.pack.some((mm) => mm.name === SHELOB_NAME);
     const allies: Combatant[] = party
       .map((id): Combatant | null => {
         const character = CHARACTERS.find((c) => c.id === id);
         if (!character) {
           return null;
         }
+        const item = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
+        const flatItemBonus: StatBonus = item
+          ? {
+              strength: item.strength ?? 0,
+              defense: item.defense ?? 0,
+              intelligence: item.intelligence ?? 0,
+              luck: item.luck ?? 0,
+            }
+          : ZERO_BONUS;
         const s = effectiveStats(
           character,
-          addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
+          addBonus(addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)), flatItemBonus),
         );
         const maxHp = s.strength * HEALTH_PER_STR;
+        const undeadBonus = packHasUndead ? (item?.strengthVsUndead ?? 0) : 0;
+        const orcBonus = packHasOrcs ? (item?.strengthVsOrcs ?? 0) : 0;
         return {
           key: id,
           name: character.name,
@@ -660,7 +719,7 @@ export default function MiddleEarthMap() {
           hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
           maxHp,
           strength: s.strength,
-          attack: s.strength,
+          attack: s.strength + undeadBonus + orcBonus,
           defense: s.defense,
           luck: s.luck,
         };
@@ -669,15 +728,17 @@ export default function MiddleEarthMap() {
     const m = encounter.monster;
     const pack = encounter.pack;
     const enemies: Combatant[] = pack.map((mm, i) => {
-      const hp = mm.strength * HEALTH_PER_STR;
+      const str =
+        phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
+      const hp = str * HEALTH_PER_STR;
       return {
         key: `enemy-${i}`,
         name: mm.name,
         icon: mm.icon,
         hp,
         maxHp: hp,
-        strength: mm.strength,
-        attack: mm.strength,
+        strength: str,
+        attack: str,
         defense: mm.defense,
         luck: mm.luck,
       };
@@ -705,12 +766,13 @@ export default function MiddleEarthMap() {
       gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
       rogueId: null,
       invisibleEnemy: false,
+      phialBlinded,
     };
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
     }
     setBattle(battleState);
-  }, [encounter, party, statBonusById, damageById, bearerId]);
+  }, [encounter, party, statBonusById, damageById, bearerId, equippedItems]);
 
   // Flee before the fight: succeed and the foe is left behind; fail and there's
   // no slipping away — the battle begins anyway.
@@ -797,9 +859,17 @@ export default function MiddleEarthMap() {
       const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
       return { ...prev, [levelUpCharacterId]: addBonus(current, levelUpDraft) };
     });
-    setLevelUpCharacterId(null);
     setLevelUpDraft(ZERO_BONUS);
-  }, [levelUpCharacterId, levelUpDraft, expById, statBonusById]);
+    // Swap in the next queued hero without closing the modal; only close when the
+    // queue is empty.
+    if (levelUpQueue.length > 0) {
+      const [next, ...rest] = levelUpQueue;
+      setLevelUpCharacterId(next);
+      setLevelUpQueue(rest);
+    } else {
+      setLevelUpCharacterId(null);
+    }
+  }, [levelUpCharacterId, levelUpDraft, expById, statBonusById, levelUpQueue]);
 
   // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
   const adjustCreation = useCallback((stat: keyof StatBonus, delta: number) => {
@@ -1000,6 +1070,7 @@ export default function MiddleEarthMap() {
         gandalfOnly: false,
         rogueId,
         invisibleEnemy: true,
+        phialBlinded: false,
       };
       if (autoPlayRef.current) {
         battleState = resolveBattleInstantly(battleState);
@@ -1041,7 +1112,11 @@ export default function MiddleEarthMap() {
       return;
     }
     const bearer = CHARACTERS.find((character) => character.id === bearerId);
-    const luck = bearer?.luck ?? 0;
+    // Effective luck — creation/level-up bonuses and party auras, not the raw stat.
+    const luck = bearer
+      ? effectiveStats(bearer, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(bearer, party)))
+          .luck
+      : 0;
     const samBonus = party.includes("sam") ? SAM_FARM_BONUS : 0;
     const gained =
       1 +
@@ -1056,7 +1131,7 @@ export default function MiddleEarthMap() {
     journeyDayRef.current = nextDay;
     journeyMilesRef.current += MILES_PER_DAY;
     setJourneyDay(nextDay);
-  }, [isMoving, bearerId, party, transport]);
+  }, [isMoving, bearerId, party, transport, statBonusById]);
 
   // Flip to the previous/next party member while a stats modal is open.
   const showAdjacentCharacter = useCallback(
@@ -1101,6 +1176,9 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     partyRef.current = party;
   }, [party]);
+  useEffect(() => {
+    equippedItemsRef.current = equippedItems;
+  }, [equippedItems]);
   const animationPaused = useMemo(
     () =>
       !created ||
@@ -1115,7 +1193,7 @@ export default function MiddleEarthMap() {
       reclaimedFrom !== null ||
       (deathNotice !== null && ending === null) ||
       helpOpen ||
-      levelUpCharacterId !== null && !autoPlay ||
+      ((levelUpCharacterId !== null || levelUpQueue.length > 0) && !autoPlay) ||
       (encounter !== null && !autoPlay) ||
       (battle !== null && !autoPlay) ||
       (foodFarmed !== null && !autoPlay),
@@ -1133,6 +1211,7 @@ export default function MiddleEarthMap() {
       deathNotice,
       helpOpen,
       levelUpCharacterId,
+      levelUpQueue,
       encounter,
       battle,
       autoPlay,
@@ -1143,6 +1222,17 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     animationPausedRef.current = animationPaused;
   }, [animationPaused]);
+
+  // Close the settings dropdown when clicking anywhere outside it. The panel
+  // wrapper stops pointer propagation, so in-panel clicks never reach here.
+  useEffect(() => {
+    if (!settingsOpen) {
+      return undefined;
+    }
+    const close = () => setSettingsOpen(false);
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [settingsOpen]);
 
   // Ring corruption days accrue only for whoever currently carries it.
   useEffect(() => {
@@ -1189,6 +1279,9 @@ export default function MiddleEarthMap() {
       leftBehind,
       joinDay: joinDayRef.current,
       recruitAttempts: recruitAttemptsRef.current,
+      foundItems,
+      equippedItems,
+      deadSummoned,
     });
   }, [
     created,
@@ -1215,6 +1308,9 @@ export default function MiddleEarthMap() {
     slainRoamingRecruits,
     leftBehind,
     rogueBearerId,
+    foundItems,
+    equippedItems,
+    deadSummoned,
   ]);
 
   // Game over: drop the save so a reload starts a fresh quest.
@@ -1265,6 +1361,29 @@ export default function MiddleEarthMap() {
     offsetRef.current = next;
     setOffset(next);
   }, [clampOffset, view, zoom]);
+
+  // Step the zoom to the next preset (0.5× / 1× / 2× of the default fit) above
+  // the *current* zoom — so it stays in sync after a pinch — keeping the
+  // viewport centre fixed; wraps back to the smallest.
+  const cycleZoom = useCallback(() => {
+    const presets = [0.5, 1, 2];
+    const base = baseZoomRef.current || 1;
+    const current = zoom / base;
+    const nextPreset = presets.find((p) => p > current + 0.05) ?? presets[0];
+    const minZoom = coverZoom(view, mapSize);
+    const maxZoom = Math.max(minZoom, base * MAX_ZOOM_FACTOR);
+    const nextZoom = clamp(base * nextPreset, minZoom, maxZoom);
+    const center = { x: view.width / 2, y: view.height / 2 };
+    const anchor = screenToMap(center);
+    const nextOffset = clampOffset(
+      { x: center.x - anchor.x * nextZoom, y: center.y - anchor.y * nextZoom },
+      nextZoom,
+    );
+    zoomRef.current = nextZoom;
+    setZoom(nextZoom);
+    offsetRef.current = nextOffset;
+    setOffset(nextOffset);
+  }, [zoom, view, mapSize, screenToMap, clampOffset]);
 
 
   const { terrainReady, getTerrainAtPoint } = useTerrainGrid(mapSize);
@@ -1524,6 +1643,130 @@ export default function MiddleEarthMap() {
     followDisabledRef.current = false;
   }, []);
 
+  // Cast the Ring into the fire — but its hold may win out and the bearer puts it
+  // on instead. Chance is half the corruption %, so even a badly-corrupted bearer
+  // usually obeys: it's a nasty surprise, not the default.
+  const destroyRing = useCallback(() => {
+    if (Math.random() * 100 < bearerCorruptionRef.current / 2) {
+      setLordClaimed(true);
+      setDoomBetrayal(true);
+      setEnding("lord");
+    } else {
+      setEnding("victory");
+    }
+  }, []);
+
+  // Search the current location: chance = average party luck × 10% to turn up its
+  // hidden item. Once the item is found, further searches always come up empty.
+  const exploreLocation = useCallback(() => {
+    const loc = visitedLocation;
+    if (!loc) {
+      return;
+    }
+    // Weathertop: Gandalf's rune left on a stone (only reachable once the Nazgul
+    // is beaten). Pure lore note, nothing to pick up.
+    if (loc.id === WEATHERTOP_ID) {
+      setExploreResult({ found: true, message: "location.weathertopRune" });
+      return;
+    }
+    // Erech: only Aragorn, heir of Isildur, can rouse the Dead.
+    if (loc.id === ERECH_ID) {
+      if (party.includes("aragorn") && !deadSummoned) {
+        setDeadSummoned(true);
+        setExploreResult({ found: true, message: "location.erechSummon" });
+      } else {
+        setExploreResult({ found: false });
+      }
+      return;
+    }
+    const itemId = EXPLORE_ITEM_BY_LOCATION[loc.id];
+    if (!itemId) {
+      return;
+    }
+    const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+    const found = !foundItems.includes(itemId) && Math.random() < avgLuck / 10;
+    if (found) {
+      setFoundItems((prev) => [...prev, itemId]);
+      setExploreResult({ found: true, itemId });
+    } else {
+      setExploreResult({ found: false });
+    }
+  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned]);
+
+  // Talk to a companion: hand over their gift items (once, and only if their
+  // requirement is met — Bilbo needs Frodo along), else a random greeting.
+  const talkToCharacter = useCallback(
+    (charId: string) => {
+      const gifts = GIFTS_BY_CHARACTER[charId] ?? [];
+      const newItems = gifts
+        .filter(
+          (g) =>
+            (!g.requires || g.requires.every((r) => party.includes(r))) &&
+            !foundItems.includes(g.id),
+        )
+        .map((g) => g.id);
+      const givesCloaks = CLOAK_GIVERS.has(charId) && !hasCloaks;
+      if (newItems.length > 0 || givesCloaks) {
+        if (newItems.length > 0) {
+          setFoundItems((prev) => [...prev, ...newItems]);
+        }
+        if (givesCloaks) {
+          setHasCloaks(true);
+        }
+        setTalkResult({ charId, itemIds: newItems, greeting: null, cloaks: givesCloaks });
+      } else {
+        // Tone of the hello depends on who's speaking.
+        const tone = HOBBIT_IDS.has(charId)
+          ? "hobbit"
+          : LOFTY_TALKERS.has(charId)
+            ? "lofty"
+            : "serious";
+        const counts = { hobbit: 4, serious: 4, lofty: 3 };
+        const n = 1 + Math.floor(Math.random() * counts[tone]);
+        setTalkResult({
+          charId,
+          itemIds: [],
+          greeting: `talk.${tone}${n}`,
+          place: visitedLocation ? locName(visitedLocation) : undefined,
+        });
+      }
+    },
+    [party, foundItems, hasCloaks, visitedLocation, locName],
+  );
+
+  // Whether a companion still has something to hand over (items or cloaks).
+  const hasGifts = useCallback(
+    (charId: string) => {
+      const gifts = GIFTS_BY_CHARACTER[charId] ?? [];
+      const pendingItem = gifts.some(
+        (g) =>
+          (!g.requires || g.requires.every((r) => party.includes(r))) && !foundItems.includes(g.id),
+      );
+      const pendingCloaks = CLOAK_GIVERS.has(charId) && !hasCloaks;
+      return pendingItem || pendingCloaks;
+    },
+    [party, foundItems, hasCloaks],
+  );
+
+  // Assign an item to a character (it's unique — pulled off whoever held it), or
+  // null to unequip.
+  const equipItem = useCallback((charId: string, itemId: string | null) => {
+    setEquippedItems((prev) => {
+      const next = { ...prev };
+      if (itemId) {
+        for (const id of Object.keys(next)) {
+          if (next[id] === itemId) {
+            delete next[id];
+          }
+        }
+        next[charId] = itemId;
+      } else {
+        delete next[charId];
+      }
+      return next;
+    });
+  }, []);
+
   const autoPlayTick = useCallback(() => {
     if (!autoPlay || ending) {
       return;
@@ -1618,8 +1861,9 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    if (visitedLocation?.id === ORODRUIN_ID) {
-      setEnding("victory");
+    if (visitedLocation?.id === ORODRUIN_ID && bearerId && rogueBearerId === null) {
+      // Auto-play always tries to destroy it; the Ring's hold may still win out.
+      destroyRing();
       return;
     }
 
@@ -1729,6 +1973,7 @@ export default function MiddleEarthMap() {
     marchToLocation,
     waitOneDay,
     farmFood,
+    destroyRing,
   ]);
 
   useEffect(() => {
@@ -1880,11 +2125,17 @@ export default function MiddleEarthMap() {
       const sin = dy / routeRadius;
       const members = partyRef.current;
       const activeTransport = transportRef.current ? TRANSPORTS[transportRef.current] : null;
-      // Eomer speeds the march; Cirdan lets the party sail; Gollum ignores
-      // rough-terrain penalties.
+      // Eomer speeds the march; Bombadil dawdles (1.5× longer); Cirdan lets the
+      // party sail; Gollum ignores rough-terrain penalties; items may hasten too.
+      const itemSpeedMult = members.reduce((m, id) => {
+        const it = equippedItemsRef.current[id] ? ITEM_BY_ID[equippedItemsRef.current[id]] : undefined;
+        return it?.speed ? m * it.speed : m;
+      }, 1);
       const transportSpeed =
-        (activeTransport ? activeTransport.speed : 1) *
-        (members.includes("eomer") ? EOMER_SPEED_MULTIPLIER : 1);
+        ((activeTransport ? activeTransport.speed : 1) *
+          (members.includes("eomer") ? EOMER_SPEED_MULTIPLIER : 1) *
+          itemSpeedMult) /
+        (members.includes("bombadil") ? BOMBADIL_SLOW_FACTOR : 1);
       const canSail = (activeTransport ? activeTransport.sea : false) || members.includes("cirdan");
       const currentTerrain = getTerrainAtPoint(current);
       // Gollum ignores rough ground; Cirdan (or a ship) wipes the water penalty;
@@ -2111,9 +2362,21 @@ export default function MiddleEarthMap() {
   const journeyDate = useMemo(() => getJourneyDate(journeyDay, months), [journeyDay, months]);
 
   const bonusFor = (id: string): StatBonus => statBonusById[id] ?? ZERO_BONUS;
-  // Allocated level-up points plus party auras (Bombadil/Elrond/Galadriel).
+  // Flat (always-on) stat bonuses from a carried item.
+  const itemBonusFor = (id: string): StatBonus => {
+    const item = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
+    return item
+      ? {
+          strength: item.strength ?? 0,
+          defense: item.defense ?? 0,
+          intelligence: item.intelligence ?? 0,
+          luck: item.luck ?? 0,
+        }
+      : ZERO_BONUS;
+  };
+  // Allocated level-up points, party auras (Bombadil/Elrond/Galadriel), and items.
   const totalBonusFor = (character: Character): StatBonus =>
-    addBonus(bonusFor(character.id), auraBonus(character, party));
+    addBonus(addBonus(bonusFor(character.id), auraBonus(character, party)), itemBonusFor(character.id));
   const iconFor = (character: { id: string; icon: string }): string =>
     emote && emote.id === character.id ? iconVariant(character.icon, emote.kind) : character.icon;
   const partyCharacters = useMemo(
@@ -2122,8 +2385,6 @@ export default function MiddleEarthMap() {
   );
   const anyHurt = partyCharacters.some((character) => (damageById[character.id] ?? 0) > 0);
   const foodCapacity = foodCapacityFor(transport);
-  const transportEmoji =
-    transport === "ship" ? "⛵" : transport === "horse" ? "🐎" : transport === "pony" ? "🐴" : "🎒";
   // Saruman at Isengard is an ally only if the bearer is duller than him and no
   // Gandalf is along; otherwise he's a boss. Once fought, he can't be recruited.
   const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
@@ -2226,7 +2487,7 @@ export default function MiddleEarthMap() {
             type="button"
             title={locName(location)}
             aria-label={locName(location)}
-            className="absolute z-10 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-red-600 shadow-[0_0_0_2px_rgba(120,0,0,0.35)] transition-transform hover:scale-[1.8] hover:bg-red-500"
+            className="absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-600 shadow-[0_0_0_1px_rgba(60,0,0,0.85),0_0_0_2.5px_#ffffff] transition-transform hover:scale-[1.6] hover:bg-red-500"
             style={{ left: screen.x, top: screen.y }}
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
@@ -2269,6 +2530,7 @@ export default function MiddleEarthMap() {
     ? levelForExp(expById[levelUpCharacterId] ?? 0).level
     : 1;
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
+  const hasRing = !!bearerId && rogueBearerId === null;
   // The figure on the map is the bearer, or — while the Ring is fled — whoever
   // leads the chase.
   const figureCharacter = ringBearer ?? partyCharacters[0];
@@ -2281,6 +2543,7 @@ export default function MiddleEarthMap() {
         totalBonusFor(ringBearer),
       ).corruption
     : 0;
+  bearerCorruptionRef.current = bearerCorruption;
   const hasFallen = bearerCorruption >= 100;
   // Resilience exhausted before reaching Mount Doom: the bearer succumbs, slips
   // away with the Ring and bolts for Mount Doom. The party has two months to
@@ -2449,7 +2712,19 @@ export default function MiddleEarthMap() {
 
   // Show the next level-up allocation modal when the queue advances — but only
   // after the battle modal is dismissed, so it doesn't pop up over the fight.
+  // A short closed-gap between consecutive modals turns the swap from a flicker
+  // into a clear beat.
   useEffect(() => {
+    // The bearer has fallen / the quest is over — no point allocating level-ups.
+    if (ending) {
+      if (levelUpCharacterId || levelUpQueue.length > 0) {
+        setLevelUpCharacterId(null);
+        setLevelUpQueue([]);
+      }
+      return;
+    }
+    // Open the first queued level-up once the battle modal is gone. Subsequent
+    // heroes are swapped in by confirmLevelUp, so the modal never closes between.
     if (battle || levelUpCharacterId || levelUpQueue.length === 0) {
       return;
     }
@@ -2457,7 +2732,7 @@ export default function MiddleEarthMap() {
     setLevelUpCharacterId(next);
     setLevelUpDraft(ZERO_BONUS);
     setLevelUpQueue(rest);
-  }, [battle, levelUpCharacterId, levelUpQueue]);
+  }, [ending, battle, levelUpCharacterId, levelUpQueue]);
 
   // Roll "is he home?" once per visit for sometimes-present characters, and
   // snapshot who was already in the party on arrival — members recruited here on
@@ -2488,6 +2763,11 @@ export default function MiddleEarthMap() {
     if (members.includes("aragorn")) {
       encounterChance *= ARAGORN_ENCOUNTER_MULTIPLIER;
     }
+    // Stealth items lower the encounter chance too.
+    encounterChance *= members.reduce((m, id) => {
+      const it = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
+      return it?.stealth ? m * it.stealth : m;
+    }, 1);
     // A wiser ring-bearer picks safer paths: −5% encounters per intelligence
     // point above 4, but never less than half (smarts don't make you invisible).
     const bearer = CHARACTERS.find((c) => c.id === bearerId);
@@ -2537,7 +2817,15 @@ export default function MiddleEarthMap() {
       }
       if (ringless) {
         // No Ring to covet and no wild foes to bother with — just hunt the rogue.
-        if (!onEagles && !visitedLocation && Math.random() < ROGUE_ENCOUNTER_CHANCE) {
+        // The Ring hides him for weeks; only after ROGUE_MIN_CHASE_DAYS does a
+        // daily roll have any chance to corner him.
+        const daysSinceFled = rogueSinceDay !== null ? day - rogueSinceDay : 0;
+        if (
+          daysSinceFled >= ROGUE_MIN_CHASE_DAYS &&
+          !onEagles &&
+          !visitedLocation &&
+          Math.random() < ROGUE_ENCOUNTER_CHANCE
+        ) {
           rogueEncounter = true;
         }
       } else {
@@ -2623,11 +2911,15 @@ export default function MiddleEarthMap() {
         // With his kin along, Éomer meets the party peacefully and offers to join.
         setPeacefulOffer(true);
         setRecruitOffer("eomer");
+      } else if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
+        // The Dead are roused — barrow-wights no longer dare assail the party.
       } else {
-        setEncounter(createEncounter(rolled, party.length, position));
+        const enc = createEncounter(rolled, party.length, position);
+        const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
+        setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
       }
     }
-  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle]);
+  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   useEffect(() => {
@@ -2638,7 +2930,7 @@ export default function MiddleEarthMap() {
   }, [pendingBetrayal, startBetrayal]);
 
   return (
-    <section className="fixed inset-0 bg-white p-2 sm:p-[36px]">
+    <section className="fixed inset-0 bg-white p-1 sm:p-[18px]">
       <div
         ref={viewportRef}
         role="application"
@@ -2755,45 +3047,140 @@ export default function MiddleEarthMap() {
         </button>
 
         <div
-          className="absolute right-4 top-4 z-40 flex items-center gap-2"
+          className="absolute right-4 top-4 z-50"
           onPointerDown={(event) => event.stopPropagation()}
           onPointerUp={(event) => event.stopPropagation()}
         >
           <button
             type="button"
-            onClick={toggleLang}
-            aria-label="Language"
-            title="RU / EN"
-            className="flex h-9 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/90 px-3 text-sm font-bold text-neutral-200 transition hover:bg-neutral-800"
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            aria-label={t("ui.settings")}
+            title={t("ui.settings")}
+            aria-pressed={settingsOpen}
+            className="flex size-9 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 aria-pressed:bg-neutral-800"
           >
-            {lang === "en" ? "RU" : "EN"}
+            <Settings className="size-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => setHelpOpen(true)}
-            aria-label={t("ui.help")}
-            title={t("ui.help")}
-            className="flex size-9 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/90 text-lg font-bold text-neutral-200 transition hover:bg-neutral-800"
-          >
-            ?
-          </button>
-          <button
-            type="button"
-            onClick={() => setRestartConfirm(true)}
-            aria-label={t("ui.restart")}
-            title={t("ui.restart")}
-            className="flex size-9 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800"
-          >
-            <RotateCcw className="size-4" />
-          </button>
+          {settingsOpen && (
+            <div className="absolute right-0 top-full mt-2 flex w-52 flex-col gap-0.5 rounded border border-neutral-700 bg-neutral-900/95 p-1.5 shadow-2xl">
+              <button
+                type="button"
+                onClick={() => setShowTerrain((prev) => !prev)}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                {showTerrain ? <Eye className="size-4 shrink-0" /> : <EyeOff className="size-4 shrink-0" />}
+                <span className="flex-1">{t("ui.terrain")}</span>
+                <span className="text-xs text-neutral-400">{showTerrain ? t("ui.on") : t("ui.off")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHeroPath((prev) => !prev)}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <Route className="size-4 shrink-0" />
+                <span className="flex-1">{t("ui.heroPath")}</span>
+                <span className="text-xs text-neutral-400">{showHeroPath ? t("ui.on") : t("ui.off")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={cycleSpeed}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <Gauge className="size-4 shrink-0" />
+                <span className="flex-1">{t("ui.speed")}</span>
+                <span className="text-xs text-neutral-400">{animationSpeed}×</span>
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                type="button"
+                onClick={toggleLang}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <span className="flex size-4 shrink-0 items-center justify-center text-[11px] font-bold">
+                  {lang === "en" ? "RU" : "EN"}
+                </span>
+                <span className="flex-1">{lang === "en" ? "Русский" : "English"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpOpen(true);
+                  setSettingsOpen(false);
+                }}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <span className="flex size-4 shrink-0 items-center justify-center text-base font-bold">?</span>
+                <span className="flex-1">{t("ui.help")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRestartConfirm(true);
+                  setSettingsOpen(false);
+                }}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <RotateCcw className="size-4 shrink-0" />
+                <span className="flex-1">{t("ui.restart")}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* HUD overlay: date + controls + party float above the map, top-left */}
         <div className="pointer-events-none absolute left-0 top-0 z-40 flex flex-col gap-3 p-4 text-neutral-200">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <h1 className="w-fit whitespace-nowrap rounded border border-neutral-700 bg-neutral-900/90 px-2.5 py-2 font-serif text-xl leading-none text-neutral-100 sm:text-2xl">
-              {journeyDate}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="flex h-9 w-fit items-center whitespace-nowrap rounded border border-neutral-700 bg-neutral-900/90 px-2.5 font-serif text-sm leading-none text-neutral-100 sm:text-base">
+                {journeyDate}
+              </h1>
+              {/* Food + transport, kept beside the date (also on mobile). */}
+              <div
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
+                className={`pointer-events-auto flex h-9 w-fit items-center gap-2 rounded border px-2 text-sm ${
+                  food === 0
+                    ? "animate-pulse border-red-700 bg-red-950/80 text-red-300"
+                    : "border-neutral-700 bg-neutral-900/90 text-neutral-200"
+                }`}
+              >
+                <HoverHint label={t("ui.foodTitle")}>🍞 {food}</HoverHint>
+                {food === 0 && (
+                  <HoverHint label={t("ui.hungryTitle")} className="text-xs font-semibold">
+                    {t("ui.hungry")}
+                  </HoverHint>
+                )}
+                {anyHurt && food >= 2 && (
+                  <HoverHint
+                    label={t("ui.healingTitle")}
+                    className="text-xs font-semibold text-emerald-300"
+                  >
+                    {t("ui.healing")}
+                  </HoverHint>
+                )}
+                <HoverHint
+                  label={
+                    transport
+                      ? t(`transport.${transport}`)
+                      : party.includes("cirdan")
+                        ? t("transport.ship")
+                        : t("ui.onFoot")
+                  }
+                  className="inline-flex items-center"
+                >
+                  <TransportIcon
+                    transport={transport}
+                    sailingWithCirdan={party.includes("cirdan")}
+                    className="size-5 select-none object-contain"
+                  />
+                </HoverHint>
+                {hasCloaks && (
+                  <HoverHint label={t("ui.cloaksTitle")} className="text-base leading-none">
+                    🧥
+                  </HoverHint>
+                )}
+              </div>
+            </div>
             <div
               className="pointer-events-auto flex flex-wrap items-center gap-2 text-sm"
               onPointerDown={(event) => event.stopPropagation()}
@@ -2801,52 +3188,13 @@ export default function MiddleEarthMap() {
             >
               <button
                 type="button"
-                onClick={centerOnPlayer}
-                aria-label={t("ui.center")}
-                title={t("ui.center")}
-                className="rounded border border-neutral-700 bg-neutral-900/90 p-2 text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <LocateFixed className="size-4" />
-              </button>
-              <button
-                type="button"
                 onClick={() => setStopped((prev) => !prev)}
                 disabled={!target}
                 aria-label={stopped ? t("ui.resume") : t("ui.stop")}
                 title={stopped ? t("ui.resume") : t("ui.stop")}
-                className="rounded border border-neutral-700 bg-neutral-900/90 p-2 text-neutral-200 transition hover:bg-neutral-800 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-900/90"
-              >
-                {stopped ? <Play className="size-4" /> : <Square className="size-4" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowTerrain((prev) => !prev)}
-                aria-label={showTerrain ? t("ui.terrainHide") : t("ui.terrainShow")}
-                aria-pressed={showTerrain}
-                title={t("ui.terrain")}
-                className="rounded border border-neutral-700 bg-neutral-900/90 p-2 text-neutral-200 transition hover:bg-neutral-800"
-              >
-                {showTerrain ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-              </button>
-              <button
-                type="button"
-                onClick={cycleSpeed}
-                aria-label={t("ui.speedValue", { n: animationSpeed })}
-                title={t("ui.speed")}
-                className="flex items-center gap-1 rounded border border-neutral-700 bg-neutral-900/90 p-2 text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <Gauge className="size-4" />
-                {animationSpeed}×
-              </button>
-              <button
-                type="button"
-                onClick={waitOneDay}
-                disabled={isMoving}
-                aria-label={t("ui.waitAria")}
-                title={isMoving ? t("ui.waitBlocked") : t("ui.waitDay")}
                 className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-900/90"
               >
-                <Hourglass className="size-4" />
+                {stopped ? <Play className="size-4" /> : <Square className="size-4" />}
               </button>
               <button
                 type="button"
@@ -2860,16 +3208,6 @@ export default function MiddleEarthMap() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowHeroPath((prev) => !prev)}
-                aria-label={showHeroPath ? t("ui.heroPathHide") : t("ui.heroPathShow")}
-                aria-pressed={showHeroPath}
-                title={t("ui.heroPath")}
-                className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 aria-pressed:border-amber-700/80 aria-pressed:bg-amber-950/40"
-              >
-                <Route className="size-4" />
-              </button>
-              <button
-                type="button"
                 onClick={() => setSplitOpen(true)}
                 aria-label={t("ui.split")}
                 title={t("ui.split")}
@@ -2877,43 +3215,28 @@ export default function MiddleEarthMap() {
               >
                 <Split className="size-4" />
               </button>
-            </div>
-          </div>
-
-          <div
-            onPointerDown={(event) => event.stopPropagation()}
-            onPointerUp={(event) => event.stopPropagation()}
-            className={`pointer-events-auto flex w-fit items-center gap-2 rounded border px-2 py-1 text-sm ${
-              food === 0
-                ? "animate-pulse border-red-700 bg-red-950/80 text-red-300"
-                : "border-neutral-700 bg-neutral-900/90 text-neutral-200"
-            }`}
-          >
-            <HoverHint label={t("ui.foodTitle")}>🍞 {food}</HoverHint>
-            {food === 0 && (
-              <HoverHint label={t("ui.hungryTitle")} className="text-xs font-semibold">
-                {t("ui.hungry")}
-              </HoverHint>
-            )}
-            {anyHurt && food >= 2 && (
-              <HoverHint
-                label={t("ui.healingTitle")}
-                className="text-xs font-semibold text-emerald-300"
+              <button
+                type="button"
+                onClick={centerOnPlayer}
+                aria-label={t("ui.center")}
+                title={t("ui.center")}
+                className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800"
               >
-                {t("ui.healing")}
-              </HoverHint>
-            )}
-            <HoverHint
-              label={transport ? t(`transport.${transport}`) : t("ui.onFoot")}
-              className="text-base leading-none"
-            >
-              {transportEmoji}
-            </HoverHint>
-            {hasCloaks && (
-              <HoverHint label={t("ui.cloaksTitle")} className="text-base leading-none">
-                🧥
-              </HoverHint>
-            )}
+                <LocateFixed className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={cycleZoom}
+                aria-label={t("ui.zoom")}
+                title={t("ui.zoom")}
+                className="relative flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <ZoomIn className="size-4 -translate-x-[3px] -translate-y-[3px]" />
+                <span className="pointer-events-none absolute bottom-[3px] right-[5px] text-[10px] font-bold leading-none [text-shadow:0_0_2px_#000,0_0_2px_#000]">
+                  {(zoom / (baseZoomRef.current || 1)).toFixed(1)}
+                </span>
+              </button>
+            </div>
           </div>
 
           <div
@@ -2921,29 +3244,22 @@ export default function MiddleEarthMap() {
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setPartyOpen((open) => !open)}
-              aria-expanded={partyOpen}
-              aria-label={t("ui.party")}
-              title={t("ui.party")}
-              className="flex size-11 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 sm:hidden"
-            >
-              <Users className="size-5" />
-            </button>
-
             <div
               data-party-portraits
-              className={`${partyOpen ? "flex" : "hidden"} flex-col gap-1 sm:flex`}
+              className="grid grid-flow-col grid-rows-[repeat(9,auto)] gap-1"
             >
-                {partyCharacters.map((character) => (
+                {partyCharacters.map((character) => {
+                  const maxHp =
+                    effectiveStats(character, totalBonusFor(character)).strength * HEALTH_PER_STR;
+                  const hp = Math.max(0, maxHp - (damageById[character.id] ?? 0));
+                  return (
                   <button
                     key={character.id}
                     type="button"
                     onClick={() => openCharacterPanel(character.id, true)}
                     aria-label={t("recruit.statsAria", { name: charName(character.id) })}
                     data-character-portrait={character.id}
-                    className="group relative size-14 border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-16"
+                    className="group relative size-[52px] border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-16"
                   >
                     <img
                       src={iconFor(character)}
@@ -2969,20 +3285,23 @@ export default function MiddleEarthMap() {
                     )}
                     <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/50">
                       <span
-                        className="block h-full bg-green-500"
-                        style={{
-                          width: `${Math.max(0, 1 - (damageById[character.id] ?? 0) / (effectiveStats(character, totalBonusFor(character)).strength * HEALTH_PER_STR)) * 100}%`,
-                        }}
+                        className={`block h-full ${healthBarColorClass(hp, maxHp)}`}
+                        style={{ width: `${healthBarWidthPct(hp, maxHp)}%` }}
                       />
                     </span>
                   </button>
-                ))}
+                  );
+                })}
             </div>
           </div>
         </div>
 
         <LocationModal
-          location={visitedLocation && visitedLocation.id !== ORODRUIN_ID ? visitedLocation : null}
+          location={
+            visitedLocation && !ending && !(visitedLocation.id === ORODRUIN_ID && hasRing)
+              ? visitedLocation
+              : null
+          }
           locationName={visitedLocation ? locName(visitedLocation) : ""}
           imageSrc={visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null}
           imageInitiallyLoaded={
@@ -3001,12 +3320,24 @@ export default function MiddleEarthMap() {
           canRestock={visitedLocation ? FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id) : false}
           food={food}
           foodCapacity={foodCapacity}
-          showCloaks={visitedLocation?.id === LOTHLORIEN_ID}
-          hasCloaks={hasCloaks}
           transportOffer={locationTransport}
           transportActive={transport === locationTransport}
           isMoving={isMoving}
           refusalOpen={recruitRefusal !== null}
+          canExplore={
+            !!visitedLocation &&
+            (!!EXPLORE_ITEM_BY_LOCATION[visitedLocation.id] ||
+              visitedLocation.id === ERECH_ID ||
+              visitedLocation.id === WEATHERTOP_ID)
+          }
+          exploreLocked={
+            (visitedLocation?.id === ISENGARD_ID &&
+              !defeatedBosses.has(BOSSES_BY_LOCATION[ISENGARD_ID].name) &&
+              !party.includes("saruman")) ||
+            (visitedLocation?.id === WEATHERTOP_ID &&
+              !defeatedBosses.has(BOSSES_BY_LOCATION[WEATHERTOP_ID].name))
+          }
+          onExplore={exploreLocation}
           onFightBoss={() => {
             if (locationBoss) {
               setEncounter({ monster: locationBoss, dangerous: true, solo: true, pack: [locationBoss] });
@@ -3014,17 +3345,21 @@ export default function MiddleEarthMap() {
           }}
           onViewStats={(id) => openCharacterPanel(id, false)}
           onRecruit={attemptRecruit}
+          onTalk={(c) => talkToCharacter(c.id)}
+          hasGifts={hasGifts}
           onTakeSupplies={() => {
             setFood(foodCapacity);
             foodRef.current = foodCapacity;
           }}
-          onTakeCloaks={() => setHasCloaks(true)}
           onTakeTransport={() => {
             if (locationTransport) {
               requestTransport(locationTransport);
             }
           }}
           onWait={waitOneDay}
+          note={
+            visitedLocation?.id === ORODRUIN_ID && !hasRing ? t("orodruin.noRing") : null
+          }
           onLeave={() => {
             if (recruitRefusal) {
               setRecruitRefusal(null);
@@ -3068,6 +3403,23 @@ export default function MiddleEarthMap() {
             !NON_BEARERS.has(openCharacter.id)
           }
           isLeftBehind={!!openCharacter && leftBehind.some((m) => m.id === openCharacter.id)}
+          equippedItem={
+            openCharacter && equippedItems[openCharacter.id]
+              ? (ITEM_BY_ID[equippedItems[openCharacter.id]] ?? null)
+              : null
+          }
+          itemOptions={
+            openCharacter
+              ? ITEMS.filter(
+                  (it) =>
+                    foundItems.includes(it.id) &&
+                    !Object.entries(equippedItems).some(
+                      ([cid, iid]) => iid === it.id && cid !== openCharacter.id,
+                    ),
+                )
+              : []
+          }
+          onEquipItem={(itemId) => openCharacter && equipItem(openCharacter.id, itemId)}
           charName={charName}
           iconFor={iconFor}
           onPrev={() => showAdjacentCharacter(-1)}
@@ -3083,8 +3435,8 @@ export default function MiddleEarthMap() {
         />
 
         <OrodruinModal
-          open={visitedLocation?.id === ORODRUIN_ID && !ending && rogueBearerId === null}
-          onDestroy={() => setEnding("victory")}
+          open={visitedLocation?.id === ORODRUIN_ID && hasRing && !ending}
+          onDestroy={destroyRing}
           onClaim={() => {
             setLordClaimed(true);
             setEnding("lord");
@@ -3129,9 +3481,19 @@ export default function MiddleEarthMap() {
           }}
         />
 
+        <ExploreResultModal result={exploreResult} onClose={() => setExploreResult(null)} />
+
+        <TalkResultModal
+          result={talkResult}
+          charName={charName}
+          onClose={() => setTalkResult(null)}
+        />
+
         <RecruitOfferModal
           offered={
-            recruitOffer && !battle ? (CHARACTERS.find((c) => c.id === recruitOffer) ?? null) : null
+            recruitOffer && !battle && !levelUpCharacterId && levelUpQueue.length === 0
+              ? (CHARACTERS.find((c) => c.id === recruitOffer) ?? null)
+              : null
           }
           waiting={leftBehind.some((m) => m.id === recruitOffer)}
           peaceful={peacefulOffer}
@@ -3228,6 +3590,16 @@ export default function MiddleEarthMap() {
           candidates={partyCharacters.filter((c) => !NON_BEARERS.has(c.id))}
           charName={charName}
           iconFor={iconFor}
+          getStats={(id) => {
+            const c = CHARACTERS.find((ch) => ch.id === id)!;
+            return computeCharacterStats(
+              c,
+              bearerRingDays,
+              bearerId,
+              damageById[id] ?? 0,
+              totalBonusFor(c),
+            );
+          }}
           onChoose={(id) => {
             makeBearer(id);
             setReclaimedFrom(null);
@@ -3247,6 +3619,7 @@ export default function MiddleEarthMap() {
                   : t("character.bearer")
             }
             lordClaimed={lordClaimed}
+            doomBetrayal={doomBetrayal}
             onReplay={() => {
               clearSave();
               window.location.reload();

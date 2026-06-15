@@ -12,6 +12,7 @@ export function EndingModal({
   bearer,
   bearerName,
   lordClaimed,
+  doomBetrayal = false,
   onReplay,
 }: {
   open: boolean;
@@ -19,6 +20,7 @@ export function EndingModal({
   bearer: Character | undefined;
   bearerName: string;
   lordClaimed: boolean;
+  doomBetrayal?: boolean;
   onReplay: () => void;
 }) {
   const { t } = useTranslation();
@@ -63,6 +65,12 @@ export function EndingModal({
             {darkPortrait}
             <h2 className="font-serif text-2xl text-amber-400">{t("ending.rogueLordTitle", { name: bearerName })}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.rogueLordText", { name: bearerName })}</p>
+          </>
+        ) : doomBetrayal ? (
+          <>
+            {darkPortrait}
+            <h2 className="font-serif text-2xl text-amber-400">{t("ending.betrayTitle", { name: bearerName })}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.betrayText", { name: bearerName })}</p>
           </>
         ) : lordClaimed ? (
           <>

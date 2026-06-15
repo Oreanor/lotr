@@ -56,7 +56,7 @@ export interface Character {
   id: string;
   name: string;
   icon: string;
-  // Base RPG stats (1-10). Hunger scales strength/defense/intelligence down.
+  // Base RPG stats (1-10).
   strength: number;
   defense: number;
   intelligence: number;
@@ -103,6 +103,22 @@ export interface Monster {
   recruitId?: string;
   // Habitats this foe roams; undefined = anywhere (still tier-gated).
   regions?: RegionCode[];
+}
+
+// A special item a character can carry, found by exploring or gifted by NPCs.
+// Flat stat bonuses are always on; stealth/speed are party-wide multipliers
+// applied while anyone carries the item.
+export interface Item {
+  id: string;
+  icon: string; // emoji glyph
+  strength?: number;
+  defense?: number;
+  intelligence?: number;
+  luck?: number;
+  strengthVsUndead?: number; // bonus attack vs undead foes (wraiths/wights) only
+  strengthVsOrcs?: number; // bonus attack vs orc-kin only
+  stealth?: number; // multiplier on the random-encounter chance (e.g. 0.5)
+  speed?: number; // multiplier on travel speed (e.g. 1.5)
 }
 
 export interface EncounterState {
@@ -157,6 +173,7 @@ export interface BattleState {
   gandalfOnly: boolean; // only Gandalf can wound this foe (the Balrog)
   rogueId: string | null; // the fled ring-bearer being hunted (reclaim the Ring on win)
   invisibleEnemy: boolean; // foe wears the Ring — most strikes against it miss
+  phialBlinded: boolean; // Shelob recoiled from the Phial — her strength is halved
 }
 
 export type TransportId = "pony" | "horse" | "ship" | "eagle";

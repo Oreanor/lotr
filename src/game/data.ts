@@ -17,6 +17,7 @@ import {
 import type {
   Character,
   HeroInitialProgress,
+  Item,
   LocationData,
   Monster,
   RawRecruitmentEntry,
@@ -73,26 +74,26 @@ export const MONSTERS: Monster[] = [
   { name: "Бандит", icon: "/enemies/bandit.png", tier: 1, strength: 4, defense: 3, intelligence: 3, luck: 3 },
   { name: "Гигантский паук", icon: "/enemies/spider.png", tier: 1, strength: 4, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
   { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 6, defense: 5, intelligence: 6, luck: 2, regions: ["NW"] },
-  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 5, defense: 3, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
-  { name: "Орк-разведчик", icon: "/enemies/orc_scout.png", tier: 2, strength: 5, defense: 4, intelligence: 3, luck: 3 },
-  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 8, defense: 7, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
-  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 6, defense: 5, intelligence: 3, luck: 3 },
-  { name: "Варг", icon: "/enemies/varg.png", tier: 3, strength: 6, defense: 4, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
-  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 8, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
-  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 8, defense: 6, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
-  { name: "Мумак", icon: "/enemies/mumak.png", tier: 4, strength: 10, defense: 9, intelligence: 1, luck: 2, regions: ["SW", "SE"] },
-  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 11, defense: 9, intelligence: 2, luck: 2, regions: ["ME"] },
+  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 8, defense: 4, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
+  { name: "Орк-разведчик", icon: "/enemies/orc_scout.png", tier: 2, strength: 8, defense: 5, intelligence: 3, luck: 3 },
+  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 11, defense: 7, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 6, intelligence: 3, luck: 3 },
+  { name: "Варг", icon: "/enemies/varg.png", tier: 3, strength: 9, defense: 5, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
+  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 11, defense: 7, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
+  { name: "Мумак", icon: "/enemies/mumak.png", tier: 4, strength: 13, defense: 8, intelligence: 1, luck: 3, regions: ["SW", "SE"] },
+  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 14, defense: 9, intelligence: 3, luck: 3, regions: ["ME"] },
 ];
 
 // Named bosses fixed to their lairs — engageable when you reach the location.
 export const BOSSES_BY_LOCATION: Record<number, Monster> = {
-  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 4, strength: 10, defense: 8, intelligence: 8, luck: 4 },
-  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 12, defense: 10, intelligence: 8, luck: 5 },
-  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 10, defense: 8, intelligence: 9, luck: 5 },
-  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 12, defense: 10, intelligence: 10, luck: 6 },
-  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 11, defense: 9, intelligence: 5, luck: 4 },
-  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 11, defense: 9, intelligence: 9, luck: 5 },
-  [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 8, defense: 6, intelligence: 5, luck: 5 },
+  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 4, strength: 13, defense: 8, intelligence: 8, luck: 5 },
+  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 16, defense: 10, intelligence: 8, luck: 6 },
+  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 15, defense: 8, intelligence: 9, luck: 5 },
+  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 20, defense: 10, intelligence: 10, luck: 6 },
+  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 9, intelligence: 5, luck: 5 },
+  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 9, intelligence: 9, luck: 6 },
+  [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 6, intelligence: 5, luck: 5 },
 };
 // Unique boss names — a defeated boss never returns to its location.
 export const BOSS_NAMES = new Set(Object.values(BOSSES_BY_LOCATION).map((boss) => boss.name));
@@ -120,6 +121,55 @@ export const GOLLUM_ENEMY: Monster = {
 };
 
 // One passive ability per hero, active while they are in the party.
+// Special items found by exploring or gifted by companions.
+export const ITEMS: Item[] = [
+  { id: "numenor_dagger", icon: "🗡️", strengthVsUndead: 2 },
+  { id: "sting", icon: "⚔️", strength: 2 },
+  { id: "mithril_mail", icon: "🛡️", defense: 2 },
+  { id: "palantir", icon: "🔮", intelligence: 2 },
+  // Galadriel's gifts.
+  { id: "phial", icon: "🌟", luck: 2 },
+  { id: "galadriel_box", icon: "🌰", luck: 2 },
+  { id: "elessar", icon: "💚", strength: 2 },
+  { id: "golden_belt", icon: "🔶", defense: 2 },
+  { id: "silver_belt_1", icon: "⚪", defense: 1 },
+  { id: "silver_belt_2", icon: "⚪", defense: 1 },
+  { id: "galadhrim_bow", icon: "🏹", strength: 2 },
+  { id: "galadriel_hairs", icon: "💛", luck: 2 },
+  { id: "mithril_helmet", icon: "🪖", defense: 1 },
+  { id: "numenor_blade", icon: "🔪", strengthVsUndead: 2 },
+  { id: "elven_arrows", icon: "🎯", strengthVsOrcs: 3 },
+];
+export const ITEM_BY_ID: Record<string, Item> = Object.fromEntries(
+  ITEMS.map((item) => [item.id, item]),
+);
+
+// Companions who hand over items when you talk to them. Each gift may require a
+// member to be along (its intended recipient) — Bilbo passes his heirlooms to
+// Frodo; Galadriel gives a gift to each named companion present.
+export const GIFTS_BY_CHARACTER: Record<string, { id: string; requires?: string[] }[]> = {
+  bilbo: [
+    { id: "sting", requires: ["frodo"] },
+    { id: "mithril_mail", requires: ["frodo"] },
+  ],
+  galadriel: [
+    { id: "phial", requires: ["frodo"] },
+    // (also hands out elven cloaks to the whole party — see CLOAK_GIVERS)
+    { id: "galadriel_box", requires: ["sam"] },
+    { id: "elessar", requires: ["aragorn"] },
+    { id: "golden_belt", requires: ["boromir"] },
+    { id: "silver_belt_1", requires: ["merry"] },
+    { id: "silver_belt_2", requires: ["pippin"] },
+    { id: "galadhrim_bow", requires: ["legolas"] },
+    { id: "galadriel_hairs", requires: ["gimli"] },
+  ],
+  thranduil: [{ id: "elven_arrows" }],
+};
+
+// Companions who, on talking, hand the whole party elven cloaks (party-wide
+// stealth) — no recipient needed.
+export const CLOAK_GIVERS = new Set(["galadriel"]);
+
 export const ABILITIES: Record<string, string> = {
   gandalf: "Ускоряет лечение отряда на 50%",
   aragorn: "Скрытность: вдвое реже случайные бои",

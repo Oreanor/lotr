@@ -7,6 +7,7 @@ import {
   AUTO_SKIP_RECRUITS,
   AUTO_STORY_RECRUITS,
   BALROG_DAMAGERS,
+  BALROG_DAMAGER_BONUS,
   BREE_ID,
   CREATION_POINTS,
   DANGEROUS_ENCOUNTER_CHANCE,
@@ -28,6 +29,7 @@ import {
   LEVEL_BASE_XP,
   LEVEL_XP_STEP,
   MAP_GRID_COLS,
+  MAX_PACK_SIZE,
   MIN_DAMAGE_FRACTION,
   MORDOR_POINT,
   PATH_COLLINEAR_DOT,
@@ -235,7 +237,9 @@ export function buildEncounterPack(
   partySize: number,
   point: Point,
 ): Monster[] {
-  const count = solo ? 1 : Math.max(1, partySize + Math.floor(Math.random() * 5) - 2);
+  const count = solo
+    ? 1
+    : clamp(partySize + Math.floor(Math.random() * 5) - 2, 1, MAX_PACK_SIZE);
   const region = regionAt(point);
   const packPool = MONSTERS.filter(
     (mm) =>
@@ -563,18 +567,20 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     }
     const target = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
     const beastBonus = allies[i].key === "grimbeorn" && battle.enemyBeast ? GRIMBEORN_BEAST_BONUS : 0;
+    // Everyone can wound the Balrog, but only Gandalf/Bombadil/Saruman hit hard.
+    const balrogBonus =
+      battle.gandalfOnly && BALROG_DAMAGERS.has(allies[i].key) ? BALROG_DAMAGER_BONUS : 0;
     // An invisible foe (the rogue ring-bearer) shrugs off most strikes.
     const missesInvisible = battle.invisibleEnemy && Math.random() > ROGUE_HIT_CHANCE;
-    const cantHit = missesInvisible || (battle.gandalfOnly && !BALROG_DAMAGERS.has(allies[i].key));
     // Luck duel decides whether the blow connects; luck again rolls a crit.
-    const lands = !cantHit && rollHit(allies[i].luck, enemies[target].luck);
+    const lands = !missesInvisible && rollHit(allies[i].luck, enemies[target].luck);
     let dealt = 0;
     if (lands) {
       dealt = hitDamage(allies[i], enemies[target]);
       if (rollCrit(allies[i].luck)) {
         dealt *= 2;
       }
-      dealt += beastBonus;
+      dealt += beastBonus + balrogBonus;
     }
     enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
     if (battle.recruitId) {

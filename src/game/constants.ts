@@ -6,6 +6,24 @@ export const mapImage = "/map.jpg";
 export const terrainImage = "/map.gif";
 export const ringImage = "/ring.png";
 
+export const TRANSPORT_ICONS: Record<TransportId, string> = {
+  pony: "/ui/pony.png",
+  horse: "/ui/horse.png",
+  ship: "/ui/ship.png",
+  eagle: "/ui/eagle.png",
+};
+export const ON_FOOT_ICON = "/ui/foot.png";
+
+export function transportIconSrc(transport: TransportId | null, sailingWithCirdan = false): string {
+  if (transport) {
+    return TRANSPORT_ICONS[transport];
+  }
+  if (sailingWithCirdan) {
+    return TRANSPORT_ICONS.ship;
+  }
+  return ON_FOOT_ICON;
+}
+
 // View / camera.
 export const DEFAULT_VIEW_SIZE = 480;
 export const DEFAULT_ZOOM = 1;
@@ -46,6 +64,7 @@ export const FOLLOW_MARGIN_RATIO = 0.2;
 export const CARN_DUM_ID = 1;
 export const EREBOR_ID = 2;
 export const WOODLAND_REALM_ID = 3;
+export const FORNOST_ID = 4;
 export const BEORN_ID = 5;
 export const RIVENDELL_ID = 7;
 export const BREE_ID = 8;
@@ -58,6 +77,7 @@ export const LOTHLORIEN_ID = 15;
 export const ISENGARD_ID = 16;
 export const EDORAS_ID = 18;
 export const BARAD_DUR_ID = 19;
+export const ERECH_ID = 20;
 export const ORODRUIN_ID = 21;
 export const CIRITH_UNGOL_ID = 22;
 export const MINAS_MORGUL_ID = 23;
@@ -65,6 +85,15 @@ export const MINAS_TIRITH_ID = 24;
 export const UMBAR_ID = 29;
 export const BUCKLAND_ID = 30;
 export const ESGAROTH_ID = 31;
+
+// Locations that can be searched for a hidden item (location id → item id).
+// Isengard's palantír only turns up once Saruman is beaten there.
+export const EXPLORE_ITEM_BY_LOCATION: Record<number, string> = {
+  [FORNOST_ID]: "numenor_dagger",
+  [ISENGARD_ID]: "palantir",
+  [EREBOR_ID]: "mithril_helmet",
+  [OLD_FOREST_ID]: "numenor_blade",
+};
 
 // Auto-play march: Buckland → Bree → Rivendell → Moria → Lothlórien → Rohan → Minas Tirith → Doom.
 export const AUTO_ROUTE = [
@@ -117,6 +146,8 @@ export const CRIT_PER_LUCK = 0.02;
 export const CRIT_MAX_CHANCE = 0.2;
 export const RING_BEARER_ID = "frodo";
 export const DEFAULT_PARTY = ["frodo"];
+// Hard cap on enemies in a single encounter pack.
+export const MAX_PACK_SIZE = 9;
 // Terrain mask is 192 px wide; one "cell" of map = mapWidth / this.
 export const MAP_GRID_COLS = 192;
 
@@ -142,6 +173,8 @@ export const REGION_Y_SOUTH = 1290;
 export const GANDALF_HEAL_MULTIPLIER = 1.5;
 export const ARAGORN_ENCOUNTER_MULTIPLIER = 0.5;
 export const EOMER_SPEED_MULTIPLIER = 1.5;
+// Bombadil dawdles — the march takes 1.5× as long while he travels along.
+export const BOMBADIL_SLOW_FACTOR = 1.5;
 export const SAM_FARM_BONUS = 3;
 export const GRIMBEORN_BEAST_BONUS = 4;
 
@@ -162,10 +195,15 @@ export const BETRAYAL_CHANCE = 0.06;
 // If the Ring leaves your hands (the bearer breaks at 100% corruption, or a
 // betrayer wins and takes it), you have this many days to hunt the rogue down
 // before he reaches Mount Doom and crowns himself. He's invisible — only about
-// ROGUE_HIT_CHANCE of strikes against him land — and appears on some encounters.
+// ROGUE_HIT_CHANCE of strikes against him land — and only shows up on the trail
+// after ROGUE_MIN_CHASE_DAYS of marching, then rarely each day after.
 export const ROGUE_CHASE_DAYS = 60;
 export const ROGUE_HIT_CHANCE = 0.25;
-export const ROGUE_ENCOUNTER_CHANCE = 0.5;
+// No encounter rolls until the party has chased at least this long (~a month
+// of travel before the first cornering is even possible).
+export const ROGUE_MIN_CHASE_DAYS = 25;
+// Per travel day once the minimum is met; ~12 more days on average to catch him.
+export const ROGUE_ENCOUNTER_CHANCE = 0.08;
 
 // Leveling.
 export const LEVEL_BASE_XP = 300; // xp from level 1 to 2
@@ -174,14 +212,29 @@ export const LEVEL_XP_STEP = 120; // each further level needs this much more
 export const CREATION_POINTS = 10;
 export const ZERO_BONUS: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
 
-// Battle.
-export const BATTLE_TICK_MS = 550;
+// Battle. Base tick is 1.5× faster than before; the 1×/2×/4× speed control still
+// divides this further.
+export const BATTLE_TICK_MS = 367;
 // Four sweep directions for the hit-stripe, indexed by BattleState.hitDir.
 export const SWEEP_ANGLES = ["-45deg", "45deg", "135deg", "-135deg"];
 
 // Races / combat affinities.
 export const HOBBIT_IDS = new Set(["frodo", "sam", "merry", "pippin", "bilbo"]);
 export const DWARF_IDS = new Set(["gimli"]);
+// Lofty speakers (elves, wizards, Bombadil) — they greet in a grander register.
+export const LOFTY_TALKERS = new Set([
+  "elrond",
+  "galadriel",
+  "celeborn",
+  "arwen",
+  "cirdan",
+  "galdor",
+  "haldir",
+  "thranduil",
+  "gandalf",
+  "bombadil",
+  "saruman",
+]);
 // Elves who refuse to march with a dwarf in the party (Legolas excepted).
 export const ELF_IDS = new Set([
   "elrond",
@@ -195,11 +248,20 @@ export const ELF_IDS = new Set([
 ]);
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
 export const WRAITH_FOES = new Set(["Умертвие", "Назгул", "Король-чародей"]);
+// Orc-kin — targets of the elven arrows' bonus.
+export const ORC_FOES = new Set(["Гоблин", "Орк-разведчик", "Орк", "Урук-хай"]);
+// Shelob recoils from the Phial of Galadriel — her strength is halved.
+export const SHELOB_NAME = "Шелоб";
+// Barrow-wights — they stop assailing the party once Aragorn rouses the Dead.
+export const WIGHT_NAME = "Умертвие";
 export const BALROG_NAME = "Балрог";
 // Supernatural foes that pierce the Ring's invisibility (wraiths and the Balrog).
 export const RING_PIERCING_FOES = new Set([...WRAITH_FOES, BALROG_NAME]);
 // Only these beings can wound the Balrog.
 export const BALROG_DAMAGERS = new Set(["gandalf", "bombadil", "saruman"]);
+// Everyone can hit the Balrog now, but only these three land a serious blow —
+// enough to have a chance one-on-one.
+export const BALROG_DAMAGER_BONUS = 10;
 // Beast-type foes (Grimbeorn hits them harder).
 export const BEAST_MONSTERS = new Set([
   "Лис",
@@ -247,11 +309,12 @@ export const RELUCTANT_RECRUIT_ATTEMPTS: Record<string, number> = {
   denethor: 5,
 };
 
+// No ship at the Grey Havens — Cirdan grants passage by sea there. The southern
+// haven (Umbar) still hires out ships.
 export const TRANSPORT_BY_LOCATION: Record<number, TransportId> = {
   [CARN_DUM_ID]: "eagle",
   [BREE_ID]: "pony",
   [EDORAS_ID]: "horse",
-  [GREY_HAVENS_ID]: "ship",
   [UMBAR_ID]: "ship",
 };
 // Eagles of Manwë only happen to be at Carn Dûm on some visits, and tire of

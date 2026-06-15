@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Flame, Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { StatBar } from "@/components/ui/StatBar";
+import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { ABILITIES, ringImage } from "@/game";
-import type { Character, CharacterStats } from "@/game";
+import type { Character, CharacterStats, Item } from "@/game";
 
 // Hero details: portrait, level/XP, health, ring corruption, stat bars, ability,
 // and contextual actions (become lord / make bearer / call back / close).
@@ -15,6 +17,9 @@ export function CharacterModal({
   deadInBattle,
   canMakeBearer,
   isLeftBehind,
+  equippedItem,
+  itemOptions,
+  onEquipItem,
   charName,
   iconFor,
   onPrev,
@@ -30,6 +35,9 @@ export function CharacterModal({
   deadInBattle: boolean;
   canMakeBearer: boolean;
   isLeftBehind: boolean;
+  equippedItem: Item | null;
+  itemOptions: Item[];
+  onEquipItem: (itemId: string | null) => void;
   charName: (id: string) => string;
   iconFor: (c: Character) => string;
   onPrev: () => void;
@@ -39,6 +47,11 @@ export function CharacterModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // Close the item picker when switching to another character.
+  useEffect(() => {
+    setPickerOpen(false);
+  }, [character?.id]);
   return (
     <Modal
       open={character !== null && stats !== null}
@@ -130,8 +143,8 @@ export function CharacterModal({
             </div>
             <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
               <div
-                className="h-full bg-green-500"
-                style={{ width: `${Math.max(0, (stats.health / stats.maxHealth) * 100)}%` }}
+                className={`h-full ${healthBarColorClass(stats.health, stats.maxHealth)}`}
+                style={{ width: `${healthBarWidthPct(stats.health, stats.maxHealth)}%` }}
               />
             </div>
           </div>
@@ -158,17 +171,97 @@ export function CharacterModal({
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            {canMakeBearer && (
+          <div className="rounded border border-sky-800/60 bg-sky-950/30 px-3 py-2 text-left">
+            <p className="text-[10px] uppercase tracking-wide text-sky-400/80">{t("character.item")}</p>
+            <div className="mt-1 flex min-h-[40px] items-center">
+              {equippedItem ? (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="flex w-full items-center gap-2 rounded text-left transition hover:opacity-80"
+                >
+                  <span className="text-lg leading-none">{equippedItem.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-sky-100">{t(`item.${equippedItem.id}.name`)}</p>
+                    <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${equippedItem.id}.desc`)}</p>
+                  </div>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="w-full rounded border border-sky-800/70 bg-sky-900/40 px-3 py-1.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-800/60"
+                >
+                  {t("character.chooseItem")}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <Modal
+            open={pickerOpen}
+            z="z-[60]"
+            overlayClassName="bg-black/70"
+            className="w-full max-w-xs border-sky-800 p-5 text-center"
+          >
+            <h2 className="font-serif text-xl text-sky-200">{t("item.chooseTitle")}</h2>
+            <div className="mt-4 max-h-80 overflow-y-auto overscroll-contain">
+              <div className="flex flex-col gap-2 pr-1">
+                {itemOptions.length === 0 && !equippedItem && (
+                  <p className="text-sm text-neutral-400">{t("character.noItems")}</p>
+                )}
+                {itemOptions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onEquipItem(item.id);
+                      setPickerOpen(false);
+                    }}
+                    className={`flex flex-col items-center gap-1 rounded border px-3 py-2 transition ${
+                      equippedItem?.id === item.id
+                        ? "border-sky-500 bg-sky-900/50"
+                        : "border-sky-800/70 bg-sky-900/30 hover:bg-sky-800/50"
+                    }`}
+                  >
+                    <span className="text-3xl leading-none">{item.icon}</span>
+                    <span className="text-sm font-semibold text-sky-100">{t(`item.${item.id}.name`)}</span>
+                    <span className="text-xs text-sky-300/80">{t(`item.${item.id}.desc`)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {equippedItem && (
               <button
                 type="button"
-                className="flex w-full items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
-                onClick={onMakeBearer}
+                onClick={() => {
+                  onEquipItem(null);
+                  setPickerOpen(false);
+                }}
+                className="mt-3 w-full rounded border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
               >
-                <img src={ringImage} alt="" draggable="false" className="size-4 select-none object-contain" />
-                {t("character.makeBearer")}
+                {t("character.itemRemove")}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setPickerOpen(false)}
+              className="mt-4 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            >
+              {t("character.close")}
+            </button>
+          </Modal>
+
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={!canMakeBearer}
+              className="flex w-full items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
+              onClick={onMakeBearer}
+            >
+              <img src={ringImage} alt="" draggable="false" className="size-4 select-none object-contain" />
+              {t("character.makeBearer")}
+            </button>
             {isLeftBehind && (
               <button
                 type="button"

@@ -3,6 +3,7 @@ import { Hourglass } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { LocationPreview } from "@/components/ui/LocationPreview";
 import { ScrollRow } from "@/components/ui/ScrollRow";
+import { TransportIcon } from "@/components/ui/TransportIcon";
 import type { Character, MapLocation, Monster, TransportId } from "@/game";
 
 // Town/place screen: artwork, optional boss fight, recruits, supplies, cloaks,
@@ -22,20 +23,23 @@ export function LocationModal({
   canRestock,
   food,
   foodCapacity,
-  showCloaks,
-  hasCloaks,
   transportOffer,
   transportActive,
   isMoving,
   refusalOpen,
+  canExplore,
+  exploreLocked,
+  onExplore,
   onFightBoss,
   onViewStats,
   onRecruit,
+  onTalk,
+  hasGifts,
   onTakeSupplies,
-  onTakeCloaks,
   onTakeTransport,
   onWait,
   onLeave,
+  note,
 }: {
   location: MapLocation | null;
   locationName: string;
@@ -50,20 +54,23 @@ export function LocationModal({
   canRestock: boolean;
   food: number;
   foodCapacity: number;
-  showCloaks: boolean;
-  hasCloaks: boolean;
   transportOffer: TransportId | null;
   transportActive: boolean;
   isMoving: boolean;
   refusalOpen: boolean;
+  canExplore: boolean;
+  exploreLocked: boolean;
+  onExplore: () => void;
   onFightBoss: () => void;
   onViewStats: (id: string) => void;
   onRecruit: (c: Character) => void;
+  onTalk: (c: Character) => void;
+  hasGifts: (id: string) => boolean;
   onTakeSupplies: () => void;
-  onTakeCloaks: () => void;
   onTakeTransport: () => void;
   onWait: () => void;
   onLeave: () => void;
+  note?: string | null;
 }) {
   const { t } = useTranslation();
   const blocked = refusalOpen ? " pointer-events-none" : "";
@@ -85,6 +92,8 @@ export function LocationModal({
               initiallyLoaded={imageInitiallyLoaded}
             />
           )}
+
+          {note && <p className="mt-3 text-sm text-neutral-400">{note}</p>}
 
           {boss && (
             <button
@@ -116,14 +125,24 @@ export function LocationModal({
                     <span className="w-full truncate text-center text-xs text-neutral-200">
                       {charName(character.id)}
                     </span>
-                    <button
-                      type="button"
-                      disabled={inParty}
-                      onClick={() => onRecruit(character)}
-                      className="w-full rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
-                    >
-                      {inParty ? t("recruit.inParty") : t("recruit.call")}
-                    </button>
+                    {hasGifts(character.id) ? (
+                      <button
+                        type="button"
+                        onClick={() => onTalk(character)}
+                        className="w-full rounded border border-sky-800 bg-sky-900/30 px-2 py-1 text-xs font-semibold text-sky-200 transition hover:bg-sky-900/60"
+                      >
+                        {t("character.talk")}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={inParty}
+                        onClick={() => onRecruit(character)}
+                        className="w-full rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
+                      >
+                        {inParty ? t("recruit.inParty") : t("recruit.call")}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -144,27 +163,29 @@ export function LocationModal({
             </button>
           )}
 
-          {showCloaks && (
-            <button
-              type="button"
-              disabled={hasCloaks}
-              onClick={onTakeCloaks}
-              className="mt-4 w-full rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
-            >
-              {hasCloaks ? t("location.cloaksHave") : t("location.cloaksTake")}
-            </button>
-          )}
-
           {transportOffer && (
             <button
               type="button"
               disabled={transportActive}
               onClick={onTakeTransport}
-              className="mt-4 w-full rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
+              className="mt-4 flex w-full items-center justify-center gap-2.5 rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
             >
+              <TransportIcon transport={transportOffer} className="size-6 shrink-0 object-contain" />
               {transportActive
                 ? t("transport.active", { name: t(`transport.${transportOffer}`) })
-                : t(`transport.take${transportOffer.charAt(0).toUpperCase()}${transportOffer.slice(1)}`)}
+                : `${t(`transport.take${transportOffer.charAt(0).toUpperCase()}${transportOffer.slice(1)}`)} (${t(`transport.effect.${transportOffer}`)})`}
+            </button>
+          )}
+
+          {canExplore && (
+            <button
+              type="button"
+              onClick={onExplore}
+              disabled={isMoving || exploreLocked}
+              title={exploreLocked ? t("location.exploreLocked") : undefined}
+              className="mt-4 w-full rounded border border-sky-800 bg-sky-900/30 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-sky-900/30"
+            >
+              {t("location.explore")}
             </button>
           )}
 

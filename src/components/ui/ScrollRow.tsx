@@ -102,7 +102,9 @@ export function ScrollRow({ children }: { children: ReactNode }) {
             suppressClick.current = false;
           }
         }}
-        className="flex cursor-grab select-none gap-3 overflow-x-auto pb-1 active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={`flex cursor-grab select-none gap-3 overflow-x-auto pb-1 active:cursor-grabbing [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          !canLeft && !canRight ? "justify-center" : ""
+        }`}
       >
         {children}
       </div>

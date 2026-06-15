@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Gauge, FastForward } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { BALROG_DAMAGERS, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
 import type { BattleState } from "@/game";
 
@@ -74,14 +75,14 @@ export function BattleModal({
             )}
           </div>
           <div className="flex items-start justify-center gap-3">
-            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
+            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2.5 sm:gap-3">
               {battle.allies.map((ally) => {
                 const invisible =
                   battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
                 return (
-                  <div key={ally.key} className="flex w-24 flex-col items-center gap-1">
+                  <div key={ally.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                     <div
-                      className={`relative size-24 overflow-hidden border bg-parchment ${
+                      className={`relative size-14 overflow-hidden border bg-parchment sm:size-20 ${
                         battle.attacker === ally.key
                           ? "border-amber-400 ring-2 ring-amber-400"
                           : "border-neutral-700"
@@ -116,8 +117,8 @@ export function BattleModal({
                       )}
                       <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/50">
                         <span
-                          className="block h-full bg-green-500"
-                          style={{ width: `${(ally.hp / ally.maxHp) * 100}%` }}
+                          className={`block h-full ${healthBarColorClass(ally.hp, ally.maxHp)}`}
+                          style={{ width: `${healthBarWidthPct(ally.hp, ally.maxHp)}%` }}
                         />
                       </span>
                     </div>
@@ -131,11 +132,11 @@ export function BattleModal({
 
             <div className="self-center text-2xl text-neutral-500">⚔️</div>
 
-            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2">
+            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2.5 sm:gap-3">
               {battle.enemies.map((enemy) => (
-                <div key={enemy.key} className="flex w-24 flex-col items-center gap-1">
+                <div key={enemy.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                   <div
-                    className={`relative flex size-24 items-center justify-center overflow-hidden border bg-parchment text-4xl ${
+                    className={`relative flex size-14 items-center justify-center overflow-hidden border bg-parchment text-2xl sm:size-20 sm:text-3xl ${
                       battle.attacker === enemy.key
                         ? "border-amber-400 ring-2 ring-amber-400"
                         : "border-neutral-700"
@@ -170,8 +171,8 @@ export function BattleModal({
                     )}
                     <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/50">
                       <span
-                        className="block h-full bg-red-500"
-                        style={{ width: `${(enemy.hp / enemy.maxHp) * 100}%` }}
+                        className={`block h-full ${healthBarColorClass(enemy.hp, enemy.maxHp)}`}
+                        style={{ width: `${healthBarWidthPct(enemy.hp, enemy.maxHp)}%` }}
                       />
                     </span>
                   </div>
@@ -206,6 +207,9 @@ export function BattleModal({
             </div>
           ) : (
             <div className="mt-5 flex flex-col gap-2">
+              {battle.phialBlinded && (
+                <p className="text-center text-xs text-sky-300">{t("battle.phialNote")}</p>
+              )}
               {battle.ringIneffective && (
                 <p className="text-center text-xs text-amber-400">{t("battle.ringNote")}</p>
               )}

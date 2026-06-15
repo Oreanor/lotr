@@ -1,8 +1,9 @@
 import { useState } from "react";
 
-// Square location artwork shown on entering a town. A pulsing skeleton holds the
-// space until the image loads, then it fades in. Remount (via key) per town.
-// `initiallyLoaded` lets the caller skip the skeleton for already-preloaded art.
+// Landscape (4:3) location artwork shown on entering a town, cropped top/bottom
+// via object-cover. A pulsing skeleton holds the space until the image loads,
+// then it fades in. Remount (via key) per town. `initiallyLoaded` lets the
+// caller skip the skeleton for already-preloaded art.
 export function LocationPreview({
   src,
   alt,
@@ -14,7 +15,7 @@ export function LocationPreview({
 }) {
   const [loaded, setLoaded] = useState(initiallyLoaded);
   return (
-    <div className="relative mx-auto my-4 aspect-square w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800 sm:aspect-[4/3]">
+    <div className="relative mx-auto my-4 aspect-[4/3] w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800">
       {!loaded && <div className="absolute inset-0 animate-pulse bg-neutral-800" />}
       <img
         src={src}

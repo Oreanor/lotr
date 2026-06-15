@@ -27,6 +27,9 @@ export interface GameSave {
   leftBehind: { id: string; point: Point }[];
   joinDay: Record<string, number>;
   recruitAttempts: Record<string, number>;
+  foundItems?: string[];
+  equippedItems?: Record<string, string>;
+  deadSummoned?: boolean;
 }
 
 export function loadSave(): GameSave | null {
