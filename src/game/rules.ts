@@ -17,6 +17,9 @@ import {
   EOMER_ENCOUNTER_CHANCE,
   FOOD_DAYS_BASE,
   FOOD_DAYS_HORSE,
+  CRIT_LUCK_FLOOR,
+  CRIT_MAX_CHANCE,
+  CRIT_PER_LUCK,
   FOOD_DAYS_PONY,
   GOLLUM_ENCOUNTER_CHANCE,
   GRIMBEORN_BEAST_BONUS,
@@ -25,6 +28,7 @@ import {
   LEVEL_BASE_XP,
   LEVEL_XP_STEP,
   MAP_GRID_COLS,
+  MIN_DAMAGE_FRACTION,
   MORDOR_POINT,
   PATH_COLLINEAR_DOT,
   PATH_MIN_STEP,
@@ -373,6 +377,54 @@ export function autoPlayShouldFleeCombat(opts: {
   return false;
 }
 
+// Fleeing a fight is a 50/50 at evenly-matched luck, tilted by how the party's
+// *average* luck compares to the foes'. Every point the party out-lucks the
+// enemy adds ESCAPE_LUCK_STEP; every point it's out-lucked subtracts the same.
+// Clamped to [MIN, MAX] so escape is never certain and never hopeless.
+export const ESCAPE_BASE_CHANCE = 0.5;
+export const ESCAPE_LUCK_STEP = 0.06; // chance shift per point of average-luck edge
+export const ESCAPE_MIN_CHANCE = 0.05;
+export const ESCAPE_MAX_CHANCE = 0.95;
+
+// Sum of the party's effective luck (auras and level-up bonuses included).
+export function partyLuck(party: string[], statBonusById: Record<string, StatBonus>): number {
+  let total = 0;
+  for (const id of party) {
+    const character = CHARACTERS.find((entry) => entry.id === id);
+    if (!character) {
+      continue;
+    }
+    total += effectiveStats(
+      character,
+      addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
+    ).luck;
+  }
+  return total;
+}
+
+function mean(values: number[]): number {
+  return values.length ? values.reduce((sum, n) => sum + n, 0) / values.length : 0;
+}
+
+export function escapeChance(
+  party: string[],
+  statBonusById: Record<string, StatBonus>,
+  enemyLuck: number[],
+): number {
+  const partyAvg = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+  const enemyAvg = mean(enemyLuck);
+  const chance = ESCAPE_BASE_CHANCE + (partyAvg - enemyAvg) * ESCAPE_LUCK_STEP;
+  return Math.min(ESCAPE_MAX_CHANCE, Math.max(ESCAPE_MIN_CHANCE, chance));
+}
+
+export function rollEscape(
+  party: string[],
+  statBonusById: Record<string, StatBonus>,
+  enemyLuck: number[],
+): boolean {
+  return Math.random() < escapeChance(party, statBonusById, enemyLuck);
+}
+
 // Level (everyone starts at 1) plus progress within the current level.
 export function levelForExp(exp: number): { level: number; intoLevel: number; nextLevelXp: number } {
   let level = 1;
@@ -436,14 +488,45 @@ export function effectiveStats(character: Character, bonus: StatBonus) {
   };
 }
 
-// Auto-battle: allies strike one by one, then the enemy. Ally damage = strength
-// − defense (min 1). Enemy damage partly pierces defense (min 2). HP = 10×strength.
-export function hitDamage(attacker: Combatant, target: Combatant, side: "ally" | "enemy" = "ally"): number {
-  if (side === "enemy") {
-    // Defense only partly blocks; equal stats still deal 2+.
-    return Math.max(2, attacker.strength - Math.floor(target.defense * 0.5));
-  }
-  return Math.max(1, attacker.strength - target.defense);
+// Chance a blow crits for double damage, rising with the attacker's luck.
+export function critChance(luck: number): number {
+  return clamp((luck - CRIT_LUCK_FLOOR) * CRIT_PER_LUCK, 0, CRIT_MAX_CHANCE);
+}
+
+export function rollCrit(luck: number): boolean {
+  return Math.random() < critChance(luck);
+}
+
+// Auto-battle: allies strike one by one, then the enemy. Damage is symmetric on
+// both sides — attack − defense — so defense counts the same for everyone, but a
+// blow always pushes through at least MIN_DAMAGE_FRACTION of its attack so high
+// defense can't nullify it into an endless grind. HP = 10×strength.
+export function hitDamage(attacker: Combatant, target: Combatant): number {
+  return Math.max(
+    Math.ceil(attacker.attack * MIN_DAMAGE_FRACTION),
+    attacker.attack - target.defense,
+  );
+}
+
+// Whether a strike connects at all is a luck duel: the attacker's luck against
+// the target's. Evenly-matched luck lands HIT_BASE_CHANCE of the time; each
+// point of edge shifts it by HIT_LUCK_STEP. A low-luck foe whiffs about half its
+// swings — that's the "half-strength" dial for weak enemies.
+export const HIT_BASE_CHANCE = 0.7;
+export const HIT_LUCK_STEP = 0.06;
+export const HIT_MIN_CHANCE = 0.2; // even the hapless connect sometimes
+export const HIT_MAX_CHANCE = 0.95; // and a hit is never truly guaranteed
+
+export function hitChance(attackerLuck: number, targetLuck: number): number {
+  return clamp(
+    HIT_BASE_CHANCE + (attackerLuck - targetLuck) * HIT_LUCK_STEP,
+    HIT_MIN_CHANCE,
+    HIT_MAX_CHANCE,
+  );
+}
+
+export function rollHit(attackerLuck: number, targetLuck: number): boolean {
+  return Math.random() < hitChance(attackerLuck, targetLuck);
 }
 
 export function enemyBeatenInBattle(enemy: Combatant, battle: BattleState): boolean {
@@ -482,10 +565,17 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     const beastBonus = allies[i].key === "grimbeorn" && battle.enemyBeast ? GRIMBEORN_BEAST_BONUS : 0;
     // An invisible foe (the rogue ring-bearer) shrugs off most strikes.
     const missesInvisible = battle.invisibleEnemy && Math.random() > ROGUE_HIT_CHANCE;
-    const dealt =
-      missesInvisible || (battle.gandalfOnly && !BALROG_DAMAGERS.has(allies[i].key))
-        ? 0
-        : hitDamage(allies[i], enemies[target]) + beastBonus;
+    const cantHit = missesInvisible || (battle.gandalfOnly && !BALROG_DAMAGERS.has(allies[i].key));
+    // Luck duel decides whether the blow connects; luck again rolls a crit.
+    const lands = !cantHit && rollHit(allies[i].luck, enemies[target].luck);
+    let dealt = 0;
+    if (lands) {
+      dealt = hitDamage(allies[i], enemies[target]);
+      if (rollCrit(allies[i].luck)) {
+        dealt *= 2;
+      }
+      dealt += beastBonus;
+    }
     enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
     if (battle.recruitId) {
       const minHp = Math.max(1, Math.ceil(enemies[target].maxHp / 2));
@@ -497,7 +587,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
       enemies,
       index: i + 1,
       outcome: enemies.every((enemy) => enemyBeatenInBattle(enemy, battle)) ? "win" : null,
-      lastHit: enemies[target].key,
+      lastHit: lands ? enemies[target].key : null,
       attacker: allies[i].key,
       tick: battle.tick + 1,
       hitDir: Math.floor(Math.random() * 4),
@@ -521,7 +611,14 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   const ringProtected =
     battle.ringOn && !battle.ringIneffective && allies[target].key === battle.bearerKey;
   const missesRing = ringProtected && Math.random() > ROGUE_HIT_CHANCE;
-  const dealt = missesRing ? 0 : hitDamage(enemies[j], allies[target], "enemy");
+  const lands = !missesRing && rollHit(enemies[j].luck, allies[target].luck);
+  let dealt = 0;
+  if (lands) {
+    dealt = hitDamage(enemies[j], allies[target]);
+    if (rollCrit(enemies[j].luck)) {
+      dealt *= 2;
+    }
+  }
   allies[target].hp = Math.max(0, allies[target].hp - dealt);
   return {
     ...battle,
@@ -529,7 +626,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     enemies,
     index: j + 1,
     outcome: allies.every((ally) => ally.hp <= 0) ? "lose" : null,
-    lastHit: allies[target].key,
+    lastHit: lands ? allies[target].key : null,
     attacker: enemies[j].key,
     tick: battle.tick + 1,
     hitDir: Math.floor(Math.random() * 4),

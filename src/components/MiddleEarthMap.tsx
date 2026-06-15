@@ -10,9 +10,11 @@ import {
   Gauge,
   Hourglass,
   LocateFixed,
+  Play,
   RotateCcw,
   Route,
   Split,
+  Square,
   Users,
   Wheat,
 } from "lucide-react";
@@ -24,6 +26,7 @@ import { EndingModal } from "@/components/modals/EndingModal";
 import { RogueFledModal, BearerChooserModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
 import { BattleModal } from "@/components/modals/BattleModal";
+import { EscapeFailedModal } from "@/components/modals/EscapeFailedModal";
 import { OrodruinModal } from "@/components/modals/OrodruinModal";
 import { RecruitOfferModal } from "@/components/modals/RecruitOfferModal";
 import { LevelUpModal } from "@/components/modals/LevelUpModal";
@@ -121,6 +124,8 @@ import {
   type RecruitRefusalNotice,
   ringImage,
   rollEncounter,
+  rollEscape,
+  escapeChance,
   rollStatBonus,
   SAM_FARM_BONUS,
   seasonAt,
@@ -275,6 +280,9 @@ export default function MiddleEarthMap() {
   // Location card opens after its seasonal artwork has been preloaded.
   const [visitedLocation, setVisitedLocation] = useState<MapLocation | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  // Manually halted mid-journey: the destination (and its marker) is kept so the
+  // march can be resumed; only a fresh target clears it.
+  const [stopped, setStopped] = useState(false);
   const [showTerrain, setShowTerrain] = useState(false);
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
   // Whether the open details panel can page through the party (arrows). True
@@ -351,6 +359,9 @@ export default function MiddleEarthMap() {
   const [hasCloaks, setHasCloaks] = useState(initialSave?.hasCloaks ?? false);
   const [encounter, setEncounter] = useState<EncounterState | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
+  // A failed flee roll: "encounter" forces the fight on dismiss, "battle" just
+  // closes (the one in-fight attempt is already spent).
+  const [escapeFailed, setEscapeFailed] = useState<"encounter" | "battle" | null>(null);
   const [expById, setExpById] = useState<Record<string, number>>(initialSave?.expById ?? {});
   const [statBonusById, setStatBonusById] = useState<Record<string, StatBonus>>(
     initialSave?.statBonusById ?? {},
@@ -537,7 +548,9 @@ export default function MiddleEarthMap() {
           hp: Math.max(1, maxHp - (damageById[c.id] ?? 0)),
           maxHp,
           strength: s.strength,
+          attack: s.strength,
           defense: s.defense,
+          luck: s.luck,
         };
       };
       battleAppliedRef.current = false;
@@ -555,6 +568,7 @@ export default function MiddleEarthMap() {
         hitDir: 0,
         bearerKey: bearer.id,
         ringOn: false,
+        fleeUsed: false,
         recruitId: null,
         enemyBeast: false,
         // These betrayers are no wraiths — the Ring still hides the bearer.
@@ -595,6 +609,7 @@ export default function MiddleEarthMap() {
     setTarget({ x: member.point.x, y: member.point.y });
     setTargetMemberId(member.id);
     setTargetLocation(null);
+    setStopped(false);
     setVisitedLocation(null);
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
@@ -645,7 +660,9 @@ export default function MiddleEarthMap() {
           hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
           maxHp,
           strength: s.strength,
+          attack: s.strength,
           defense: s.defense,
+          luck: s.luck,
         };
       })
       .filter((c): c is Combatant => c !== null && c.hp > 0);
@@ -660,7 +677,9 @@ export default function MiddleEarthMap() {
         hp,
         maxHp: hp,
         strength: mm.strength,
+        attack: mm.strength,
         defense: mm.defense,
+        luck: mm.luck,
       };
     });
     battleAppliedRef.current = false;
@@ -678,6 +697,7 @@ export default function MiddleEarthMap() {
       hitDir: 0,
       bearerKey: allies.some((a) => a.key === bearerId) ? bearerId : null,
       ringOn: false,
+      fleeUsed: false,
       recruitId: m.recruitId ?? null,
       enemyBeast: pack.some((mm) => BEAST_MONSTERS.has(mm.name)),
       ringIneffective: pack.some((mm) => RING_PIERCING_FOES.has(mm.name)),
@@ -691,6 +711,36 @@ export default function MiddleEarthMap() {
     }
     setBattle(battleState);
   }, [encounter, party, statBonusById, damageById, bearerId]);
+
+  // Flee before the fight: succeed and the foe is left behind; fail and there's
+  // no slipping away — the battle begins anyway.
+  const fleeEncounter = useCallback(() => {
+    if (!encounter) {
+      return;
+    }
+    if (rollEscape(party, statBonusById, encounter.pack.map((mm) => mm.luck))) {
+      setEncounter(null);
+    } else {
+      setEscapeFailed("encounter");
+    }
+  }, [encounter, party, statBonusById]);
+
+  // Current escape chance (%) for each context, shown on the flee buttons so the
+  // player can weigh the gamble. Craftier (luckier) foes drag it down.
+  const encounterEscapePct = useMemo(
+    () =>
+      encounter
+        ? Math.round(escapeChance(party, statBonusById, encounter.pack.map((mm) => mm.luck)) * 100)
+        : 0,
+    [encounter, party, statBonusById],
+  );
+  const battleEscapePct = useMemo(
+    () =>
+      battle
+        ? Math.round(escapeChance(party, statBonusById, battle.enemies.map((e) => e.luck)) * 100)
+        : 0,
+    [battle, party, statBonusById],
+  );
 
   const adjustLevelUpDraft = useCallback(
     (stat: keyof StatBonus, delta: number) => {
@@ -824,9 +874,16 @@ export default function MiddleEarthMap() {
     [bearerId],
   );
 
-  // Flee: keep the wounds taken so far, no XP, leave the fight.
+  // Flee: a single luck-weighted attempt per battle. Succeed and you leave
+  // with the wounds taken so far (no XP); fail and the chance is spent — the
+  // button goes dead and the fight goes on.
   const fleeBattle = useCallback(() => {
-    if (!battle) {
+    if (!battle || battle.fleeUsed) {
+      return;
+    }
+    if (!rollEscape(party, statBonusById, battle.enemies.map((e) => e.luck))) {
+      setBattle((b) => (b ? { ...b, fleeUsed: true } : b));
+      setEscapeFailed("battle");
       return;
     }
     const nextDamage = { ...damageRef.current };
@@ -841,7 +898,7 @@ export default function MiddleEarthMap() {
     foodRef.current = nextFood;
     setFood(nextFood);
     setBattle(null);
-  }, [battle, applyBattleCasualties]);
+  }, [battle, party, statBonusById, applyBattleCasualties]);
 
   // Put on the Ring: the bearer turns invisible/untargetable for this fight,
   // at the cost of one extra day of Ring corruption.
@@ -902,7 +959,9 @@ export default function MiddleEarthMap() {
             hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
             maxHp,
             strength: s.strength,
+            attack: s.strength,
             defense: s.defense,
+            luck: s.luck,
           };
         })
         .filter((c): c is Combatant => c !== null && c.hp > 0);
@@ -915,7 +974,9 @@ export default function MiddleEarthMap() {
         hp: rogueMaxHp,
         maxHp: rogueMaxHp,
         strength: rs.strength,
+        attack: rs.strength,
         defense: rs.defense,
+        luck: rs.luck,
       };
       battleAppliedRef.current = false;
       let battleState: BattleState = {
@@ -931,6 +992,7 @@ export default function MiddleEarthMap() {
         hitDir: 0,
         bearerKey: null,
         ringOn: false,
+        fleeUsed: false,
         recruitId: null,
         enemyBeast: false,
         ringIneffective: false,
@@ -1268,6 +1330,7 @@ export default function MiddleEarthMap() {
       setTarget(clickPoint);
       setTargetLocation(null);
       setTargetMemberId(null);
+      setStopped(false);
       setVisitedLocation(null);
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
@@ -1435,6 +1498,7 @@ export default function MiddleEarthMap() {
       setTarget({ x: location.point.x, y: location.point.y });
       setTargetLocation(location);
       setTargetMemberId(null);
+      setStopped(false);
       setVisitedLocation(null);
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
@@ -1453,6 +1517,7 @@ export default function MiddleEarthMap() {
     setTarget({ x: location.point.x, y: location.point.y });
     setTargetLocation(location);
     setTargetMemberId(null);
+    setStopped(false);
     setVisitedLocation(null);
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
@@ -1750,7 +1815,10 @@ export default function MiddleEarthMap() {
 
 
   useEffect(() => {
-    if (!target) {
+    // No destination, or the march is manually halted: stay put. When `stopped`
+    // the target is deliberately left set so the marker stays and the journey
+    // can be resumed.
+    if (!target || stopped) {
       return undefined;
     }
 
@@ -1831,6 +1899,11 @@ export default function MiddleEarthMap() {
 
       function canMoveTo(point: Point): boolean {
         const terrain = getTerrainAtPoint(point);
+        // The black Mordor wall blocks everything on the ground — only Eagles,
+        // flying overhead, can pass it.
+        if (terrain.impassable && transportRef.current !== "eagle") {
+          return false;
+        }
         // Mountains are passable now (just slow); only wide water still blocks.
         if (terrain.name === "water" && !canSail) {
           const waterRun = waterRunRef.current;
@@ -2025,7 +2098,7 @@ export default function MiddleEarthMap() {
     // playerRef/mapSize are stable refs/memo; player is only the initial seed,
     // so it stays out of deps to avoid restarting the animation every frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animationSpeed, getTerrainAtPoint, recruitCharacter, target, targetLocation, targetMemberId]);
+  }, [animationSpeed, getTerrainAtPoint, recruitCharacter, target, targetLocation, targetMemberId, stopped]);
 
   const playerScreen = mapToScreen(player);
   const targetScreen = target ? mapToScreen(target) : null;
@@ -2737,6 +2810,16 @@ export default function MiddleEarthMap() {
               </button>
               <button
                 type="button"
+                onClick={() => setStopped((prev) => !prev)}
+                disabled={!target}
+                aria-label={stopped ? t("ui.resume") : t("ui.stop")}
+                title={stopped ? t("ui.resume") : t("ui.stop")}
+                className="rounded border border-neutral-700 bg-neutral-900/90 p-2 text-neutral-200 transition hover:bg-neutral-800 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-900/90"
+              >
+                {stopped ? <Play className="size-4" /> : <Square className="size-4" />}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowTerrain((prev) => !prev)}
                 aria-label={showTerrain ? t("ui.terrainHide") : t("ui.terrainShow")}
                 aria-pressed={showTerrain}
@@ -3022,6 +3105,7 @@ export default function MiddleEarthMap() {
           onPutRing={putOnRing}
           onTakeRing={takeOffRing}
           onFlee={fleeBattle}
+          fleeChance={battleEscapePct}
           onSkip={() => setBattle((b) => (b ? resolveBattleInstantly(b) : b))}
           onContinue={() => setBattle(null)}
         />
@@ -3030,7 +3114,19 @@ export default function MiddleEarthMap() {
           encounter={autoPlay ? null : encounter}
           monsterName={monsterName}
           onAccept={startBattle}
-          onFlee={() => setEncounter(null)}
+          onFlee={fleeEncounter}
+          fleeChance={encounterEscapePct}
+        />
+
+        <EscapeFailedModal
+          open={escapeFailed !== null}
+          onClose={() => {
+            const context = escapeFailed;
+            setEscapeFailed(null);
+            if (context === "encounter") {
+              startBattle();
+            }
+          }}
         />
 
         <RecruitOfferModal

@@ -99,6 +99,22 @@ export const AUTO_SKIP_RECRUITS = new Set([
 
 // RPG model. Max health = 10×strength.
 export const HEALTH_PER_STR = 10;
+// Combat is on equal terms: attack = strength and defense subtracts the same
+// for heroes and foes alike. Enemies are a threat through their stats and
+// numbers, not a hidden damage multiplier.
+//
+// A landed blow always deals at least this fraction of its attack, even against
+// very high defense. Without it, attack ≈ defense collapses to 1 damage and
+// fights turn into 100-swing grinds; with it, defense still cuts damage by up to
+// two-thirds but can never fully nullify a hit.
+export const MIN_DAMAGE_FRACTION = 0.34;
+// A landed blow can crit for double damage; the chance climbs with the
+// attacker's luck (~1 in 10 for a luck-9 hero, capped at CRIT_MAX_CHANCE), and
+// is nil at or below CRIT_LUCK_FLOOR. Rewards luck-built / leveled heroes; most
+// foes have low luck and rarely crit.
+export const CRIT_LUCK_FLOOR = 4;
+export const CRIT_PER_LUCK = 0.02;
+export const CRIT_MAX_CHANCE = 0.2;
 export const RING_BEARER_ID = "frodo";
 export const DEFAULT_PARTY = ["frodo"];
 // Terrain mask is 192 px wide; one "cell" of map = mapWidth / this.
@@ -263,6 +279,9 @@ export const TERRAIN_TYPES: TerrainType[] = [
   { name: "road", cost: 0.5 },
   { name: "mountain", cost: 4 }, // passable, but four times slower than plains
   { name: "water", cost: 2 },
+  // The black-painted Mordor mountain wall: a hard barrier nothing crosses on
+  // foot — only the Eagles fly over it.
+  { name: "barrier", cost: 4, impassable: true },
 ];
 export const TERRAIN = {
   plain: TERRAIN_TYPES[0],
@@ -271,6 +290,7 @@ export const TERRAIN = {
   road: TERRAIN_TYPES[3],
   mountain: TERRAIN_TYPES[4],
   water: TERRAIN_TYPES[5],
+  barrier: TERRAIN_TYPES[6],
 };
 // map.gif is an 8-color indexed image; every color maps to one terrain type.
 export const TERRAIN_PALETTE: { rgb: [number, number, number]; id: number }[] = [
@@ -280,4 +300,5 @@ export const TERRAIN_PALETTE: { rgb: [number, number, number]; id: number }[] = 
   { rgb: [255, 255, 0], id: 3 }, //   yellow -> road
   { rgb: [116, 48, 48], id: 4 }, //   brown  -> mountain
   { rgb: [48, 48, 209], id: 5 }, //   blue   -> water
+  { rgb: [0, 0, 0], id: 6 }, //       black  -> barrier (Mordor wall)
 ];

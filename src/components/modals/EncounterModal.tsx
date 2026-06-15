@@ -9,11 +9,13 @@ export function EncounterModal({
   monsterName,
   onAccept,
   onFlee,
+  fleeChance,
 }: {
   encounter: EncounterState | null;
   monsterName: (icon: string) => string;
   onAccept: () => void;
   onFlee: () => void;
+  fleeChance: number;
 }) {
   const { t } = useTranslation();
   return (
@@ -60,7 +62,7 @@ export function EncounterModal({
             className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
             onClick={onFlee}
           >
-            {t("encounter.flee")}
+            {t("encounter.flee")} ({fleeChance}%)
           </button>
         </div>
         </>

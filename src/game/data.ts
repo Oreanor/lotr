@@ -63,31 +63,35 @@ export const PLAYER_ICON = CHARACTERS[0].icon;
 // Iconic foes from the gazetteer, spread across tiers. `regions` pins each to
 // its homeland; undefined = roams widely.
 export const MONSTERS: Monster[] = [
-  { name: "Лис", icon: "/enemies/fox.png", tier: 0, strength: 1, defense: 1, intelligence: 1, luck: 3, regions: ["NW", "NE", "MW"] },
-  { name: "Крыса-переросток", icon: "/enemies/rat.png", tier: 0, strength: 2, defense: 1, intelligence: 1, luck: 2 },
-  { name: "Волк", icon: "/enemies/wolf.png", tier: 1, strength: 4, defense: 2, intelligence: 2, luck: 4, regions: ["NW", "NE", "MW"] },
+  // Equal-terms combat (attack = strength). Difficulty is a steep gradient by
+  // tier: early foes a small hobbit party can handle, far foes that wall an
+  // unleveled party and need a leveled 5-7 to clear. Luck is mostly low, so
+  // foes seldom crit.
+  { name: "Лис", icon: "/enemies/fox.png", tier: 0, strength: 3, defense: 1, intelligence: 1, luck: 2, regions: ["NW", "NE", "MW"] },
+  { name: "Крыса-переросток", icon: "/enemies/rat.png", tier: 0, strength: 3, defense: 1, intelligence: 1, luck: 2 },
+  { name: "Волк", icon: "/enemies/wolf.png", tier: 1, strength: 4, defense: 2, intelligence: 2, luck: 3, regions: ["NW", "NE", "MW"] },
   { name: "Бандит", icon: "/enemies/bandit.png", tier: 1, strength: 4, defense: 3, intelligence: 3, luck: 3 },
-  { name: "Гигантский паук", icon: "/enemies/spider.png", tier: 1, strength: 5, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
+  { name: "Гигантский паук", icon: "/enemies/spider.png", tier: 1, strength: 4, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
   { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 6, defense: 5, intelligence: 6, luck: 2, regions: ["NW"] },
-  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 4, defense: 3, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
+  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 5, defense: 3, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
   { name: "Орк-разведчик", icon: "/enemies/orc_scout.png", tier: 2, strength: 5, defense: 4, intelligence: 3, luck: 3 },
-  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 9, defense: 8, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
+  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 8, defense: 7, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
   { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 6, defense: 5, intelligence: 3, luck: 3 },
   { name: "Варг", icon: "/enemies/varg.png", tier: 3, strength: 6, defense: 4, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 8, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
   { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 8, defense: 6, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
   { name: "Мумак", icon: "/enemies/mumak.png", tier: 4, strength: 10, defense: 9, intelligence: 1, luck: 2, regions: ["SW", "SE"] },
-  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 10, defense: 9, intelligence: 2, luck: 2, regions: ["ME"] },
+  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 11, defense: 9, intelligence: 2, luck: 2, regions: ["ME"] },
 ];
 
 // Named bosses fixed to their lairs — engageable when you reach the location.
 export const BOSSES_BY_LOCATION: Record<number, Monster> = {
-  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 4, strength: 9, defense: 7, intelligence: 8, luck: 4 },
-  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 10, defense: 10, intelligence: 8, luck: 5 },
-  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 9, defense: 7, intelligence: 9, luck: 5 },
-  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 10, defense: 10, intelligence: 10, luck: 6 },
-  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 10, defense: 8, intelligence: 5, luck: 4 },
-  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 10, defense: 8, intelligence: 9, luck: 5 },
+  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 4, strength: 10, defense: 8, intelligence: 8, luck: 4 },
+  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 12, defense: 10, intelligence: 8, luck: 5 },
+  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 10, defense: 8, intelligence: 9, luck: 5 },
+  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 12, defense: 10, intelligence: 10, luck: 6 },
+  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 11, defense: 9, intelligence: 5, luck: 4 },
+  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 11, defense: 9, intelligence: 9, luck: 5 },
   [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 8, defense: 6, intelligence: 5, luck: 5 },
 };
 // Unique boss names — a defeated boss never returns to its location.

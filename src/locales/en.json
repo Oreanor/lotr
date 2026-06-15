@@ -1,6 +1,8 @@
 {
   "ui": {
     "center": "Center on the figure",
+    "stop": "Stop",
+    "resume": "Keep going",
     "terrainShow": "Show terrain layer",
     "terrainHide": "Hide terrain layer",
     "terrain": "Terrain layer",
@@ -125,6 +127,7 @@
     "takeRing": "Take off the Ring",
     "ringTitle": "The Ring hides the bearer — most blows miss, but +1 day of corruption",
     "flee": "Flee",
+    "fleeSpent": "Escape failed",
     "ringNote": "These foes see through the Ring — invisibility won't save you.",
     "balrogNote": "Only Gandalf, Bombadil or Saruman can wound the Balrog — flee without them.",
     "betrayalNote": "Nowhere to run — fight for the Ring.",
@@ -136,6 +139,11 @@
     "dangerous": "⚠ Strong — better flee and return later",
     "accept": "Fight",
     "flee": "Flee"
+  },
+  "escape": {
+    "failedTitle": "Couldn't escape",
+    "failedText": "The enemy was too quick — there was no getting away.",
+    "close": "Close"
   },
   "death": {
     "title": "💀 {{names}}",

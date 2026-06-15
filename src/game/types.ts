@@ -25,6 +25,7 @@ export interface LocationData {
 export interface TerrainType {
   name: string;
   cost: number;
+  impassable?: boolean; // a hard wall (Mordor's black mountains) — only Eagles cross
 }
 
 export interface TerrainSample extends TerrainType {
@@ -94,10 +95,10 @@ export interface Monster {
   name: string;
   icon: string;
   tier: number;
-  strength: number;
+  strength: number; // drives HP (×10) and, on equal terms with heroes, attack
   defense: number;
   intelligence: number;
-  luck: number;
+  luck: number; // low luck = whiffs often and rarely crits; see hitChance/critChance
   // If set, defeating this foe may recruit the given character.
   recruitId?: string;
   // Habitats this foe roams; undefined = anywhere (still tier-gated).
@@ -129,8 +130,10 @@ export interface Combatant {
   icon: string | null;
   hp: number;
   maxHp: number;
-  strength: number;
+  strength: number; // drives max HP
+  attack: number; // damage stat; equals strength for heroes, boosted for monsters
   defense: number;
+  luck: number; // used when weighing escape odds
 }
 
 export interface BattleState {
@@ -146,6 +149,7 @@ export interface BattleState {
   hitDir: number; // 0–3: which of four directions the hit-sweep stripe runs
   bearerKey: string | null; // the ring bearer among the allies, if present
   ringOn: boolean; // bearer wears the Ring: invisible & untargetable
+  fleeUsed: boolean; // the single in-battle escape attempt has been spent
   recruitId: string | null; // character who may join if this foe is defeated
   enemyBeast: boolean; // foes are beasts (Grimbeorn hits them harder)
   ringIneffective: boolean; // wraiths and the Balrog see through the Ring's invisibility

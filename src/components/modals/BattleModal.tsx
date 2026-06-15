@@ -16,6 +16,7 @@ export function BattleModal({
   onPutRing,
   onTakeRing,
   onFlee,
+  fleeChance,
   onSkip,
   onContinue,
 }: {
@@ -27,6 +28,7 @@ export function BattleModal({
   onPutRing: () => void;
   onTakeRing: () => void;
   onFlee: () => void;
+  fleeChance: number;
   onSkip: () => void;
   onContinue: () => void;
 }) {
@@ -234,9 +236,10 @@ export function BattleModal({
                 <button
                   type="button"
                   onClick={onFlee}
-                  className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+                  disabled={battle.fleeUsed}
+                  className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-neutral-800"
                 >
-                  {t("battle.flee")}
+                  {battle.fleeUsed ? t("battle.fleeSpent") : `${t("battle.flee")} (${fleeChance}%)`}
                 </button>
               )}
             </div>
