@@ -3213,7 +3213,7 @@ export default function MiddleEarthMap() {
         <div className="pointer-events-none absolute left-0 top-0 z-40 flex flex-col gap-3 p-4 text-neutral-200">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2">
-              <h1 className="flex h-9 w-fit items-center whitespace-nowrap rounded border border-neutral-700 bg-neutral-900/90 px-2.5 font-serif text-sm leading-none text-neutral-100 sm:text-base">
+              <h1 className="flex h-9 w-[150px] items-center justify-center whitespace-nowrap rounded border border-neutral-700 bg-neutral-900/90 px-2.5 font-serif text-sm leading-none text-neutral-100 sm:w-[172px] sm:text-base">
                 {journeyDate}
               </h1>
               {/* Food + transport, kept beside the date (also on mobile). */}
