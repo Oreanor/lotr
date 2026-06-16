@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import MiddleEarthMap from "@/components/MiddleEarthMap";
+import App from "@/App";
 import "./i18n";
 import "./index.css";
 
@@ -11,6 +11,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <MiddleEarthMap />
+    <App />
   </StrictMode>,
 );

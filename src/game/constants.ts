@@ -185,6 +185,9 @@ export const EDORAS_POINT = { x: 909, y: 1062 };
 export const ROHAN_RADIUS = 280;
 export const GOLLUM_ENCOUNTER_CHANCE = 0.033;
 export const EOMER_ENCOUNTER_CHANCE = 0.2;
+// Rare roaming Nazgul patrols: about one in five road encounters.
+export const NAZGUL_ENCOUNTER_CHANCE = 0.2;
+export const NAZGUL_PACK_MAX = 3;
 export const ROAMING_RECRUIT_IDS = new Set(["gollum", "eomer"]);
 export const BOMBADIL_LEAVE_CHANCE = 1 / 40;
 
@@ -236,6 +239,7 @@ export const LOFTY_TALKERS = new Set([
   "gandalf",
   "bombadil",
   "saruman",
+  "king_dead",
 ]);
 // Elves who refuse to march with a dwarf in the party (Legolas excepted).
 export const ELF_IDS = new Set([
@@ -249,7 +253,10 @@ export const ELF_IDS = new Set([
   "galdor",
 ]);
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
-export const WRAITH_FOES = new Set(["Умертвие", "Назгул", "Король-чародей"]);
+export const NAZGUL_NAME = "Назгул";
+export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, "Король-чародей"]);
+// Nazgul are driven off at half strength instead of slain outright.
+export const FLEE_AT_HALF_FOES = new Set([NAZGUL_NAME]);
 // Orc-kin — targets of the elven arrows' bonus.
 export const ORC_FOES = new Set(["Гоблин", "Орк-разведчик", "Орк", "Урук-хай"]);
 // Shelob recoils from the Phial of Galadriel — her strength is halved.
@@ -303,7 +310,7 @@ export const RANDOM_PRESENCE: Record<string, number> = {
   grimbeorn: 1 / 2,
 };
 // The One Ring has no hold on these — they can never become its bearer.
-export const NON_BEARERS = new Set<string>(["bombadil", "boromir", "saruman", "gollum"]);
+export const NON_BEARERS = new Set<string>(["bombadil", "boromir", "saruman", "gollum", "king_dead"]);
 // Bilbo only relents after much pestering — he gives in on this many tries.
 // Reluctant recruits who only relent after this many pestering attempts.
 export const RELUCTANT_RECRUIT_ATTEMPTS: Record<string, number> = {

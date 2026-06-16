@@ -22,6 +22,7 @@ import {
   CRIT_MAX_CHANCE,
   CRIT_PER_LUCK,
   FOOD_DAYS_PONY,
+  FLEE_AT_HALF_FOES,
   GOLLUM_ENCOUNTER_CHANCE,
   GRIMBEORN_BEAST_BONUS,
   HEALTH_PER_STR,
@@ -32,6 +33,9 @@ import {
   MAX_PACK_SIZE,
   MIN_DAMAGE_FRACTION,
   MORDOR_POINT,
+  NAZGUL_ENCOUNTER_CHANCE,
+  NAZGUL_NAME,
+  NAZGUL_PACK_MAX,
   PATH_COLLINEAR_DOT,
   PATH_MIN_STEP,
   ROGUE_HIT_CHANCE,
@@ -56,6 +60,7 @@ import {
   LOCATION_IMAGE_FILE,
   locationData,
   MONSTERS,
+  NAZGUL_ENEMY,
   RECRUITMENT_SCHEDULES,
 } from "@/game/data";
 import type {
@@ -197,6 +202,18 @@ export function slainRoamingRecruitIds(ids: string[]): string[] {
   return ids.filter((id) => ROAMING_RECRUIT_IDS.has(id));
 }
 
+function nazgulForTier(localTier: number): Monster {
+  const tier = clamp(localTier, 0, 5);
+  return {
+    ...NAZGUL_ENEMY,
+    tier,
+    strength: 9 + Math.floor(tier * 1.8),
+    attack: 13 + Math.floor(tier * 2.5),
+    defense: 5 + Math.floor((tier + 1) / 2),
+    luck: tier >= 2 ? 5 : 4,
+  };
+}
+
 // Choose what a triggered encounter is. Specials (Gollum/Eomer) come alone;
 // ordinary foes arrive as a mixed pack (rolled once, shown before the fight).
 export function rollEncounter(
@@ -219,6 +236,9 @@ export function rollEncounter(
   ) {
     return { monster: EOMER_ENEMY, dangerous: false, solo: true };
   }
+  if (Math.random() < NAZGUL_ENCOUNTER_CHANCE) {
+    return { monster: nazgulForTier(tierAt(point)), dangerous: true, solo: false };
+  }
   return { ...pickMonster(tierAt(point), point), solo: false };
 }
 
@@ -237,6 +257,11 @@ export function buildEncounterPack(
   partySize: number,
   point: Point,
 ): Monster[] {
+  if (!solo && lead.name === NAZGUL_NAME) {
+    const maxCount = clamp(1 + Math.floor(lead.tier / 2), 1, NAZGUL_PACK_MAX);
+    const count = 1 + Math.floor(Math.random() * maxCount);
+    return Array.from({ length: count }, () => lead);
+  }
   const count = solo
     ? 1
     : clamp(partySize + Math.floor(Math.random() * 5) - 2, 1, MAX_PACK_SIZE);
@@ -541,6 +566,9 @@ export function enemyBeatenInBattle(enemy: Combatant, battle: BattleState): bool
     return enemy.hp <= 0;
   }
   if (battle.betrayalBy) {
+    return enemy.hp <= enemy.maxHp / 2;
+  }
+  if (FLEE_AT_HALF_FOES.has(enemy.name)) {
     return enemy.hp <= enemy.maxHp / 2;
   }
   return enemy.hp <= 0;

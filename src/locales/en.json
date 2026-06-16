@@ -68,7 +68,7 @@
     "exploreEmpty": "You searched the surroundings but found nothing.",
     "exploreLocked": "Defeat this place's guardian first.",
     "weathertopRune": "Atop Weathertop you find a flat stone scratched with signs: a rune 'G' and three strokes beneath it — Gandalf's mark. He was here on the third. Press on east, to Rivendell.",
-    "erechSummon": "At the Stone of Erech, Aragorn, heir of Isildur, summons the Oathbreakers — the Dead of Dunharrow who once swore to Isildur and broke their oath. He bids them fulfil it at last, and the Grey Host follows him. From now on the undead dare not assail your company.",
+    "erechSummon": "At the Stone of Erech, Aragorn, heir of Isildur, summons the Oathbreakers — the Dead of Dunharrow who once swore to Isildur and broke their oath. He bids them fulfil it at last. The King of the Dead bows and agrees to follow until the oath is fulfilled. From now on the undead dare not assail your company.",
     "fight": "⚔️ Fight: {{name}}",
     "supplies": "🍞 Take {{n}} days of supplies",
     "suppliesFull": "🍞 Supplies full ({{n}} days)",
@@ -191,6 +191,8 @@
     "lordText": "Darkness took the bearer. {{name}} proclaims himself the new Lord. Game over.",
     "nothingTitle": "All for nothing",
     "nothingText": "{{name}} bested you and vanished with the Ring. No one is left to give chase. The quest ends with nothing.",
+    "sauronTitle": "The Eye of Sauron",
+    "sauronText": "{{name}} entered Barad-dur with the Ring. The Eye of Sauron found the bearer, reached for the Ring, and took it. The quest is over.",
     "rogueLordTitle": "{{name}} put on the Ring",
     "rogueLordText": "You were too late. {{name}} reached Mount Doom first and proclaimed himself the new Lord. Game over.",
     "replay": "Play again"
@@ -344,7 +346,8 @@
     "sam": "Forages more food",
     "eomer": "Speeds travel on the map",
     "elrond": "Elves' strength +1",
-    "galadriel": "Elves' defense +1"
+    "galadriel": "Elves' defense +1",
+    "king_dead": "Double damage against the undead"
   },
   "char": {
     "frodo": "Frodo",
@@ -373,7 +376,8 @@
     "eomer": "Éomer",
     "faramir": "Faramir",
     "denethor": "Denethor",
-    "gollum": "Gollum"
+    "gollum": "Gollum",
+    "king_dead": "King of the Dead"
   },
   "monster": {
     "fox": "Fox",

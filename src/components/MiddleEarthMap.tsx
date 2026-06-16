@@ -68,6 +68,7 @@ import {
   bonusPoints,
   BOSS_NAMES,
   BOSSES_BY_LOCATION,
+  BARAD_DUR_ID,
   buildRecruitmentCalendar,
   CARN_DUM_ID,
   clearSave,
@@ -118,8 +119,10 @@ import {
   MAX_ZOOM_FACTOR,
   MEMBER_PICKUP_RANGE,
   MILES_PER_DAY,
+  MINAS_MORGUL_ID,
   monsterExp,
   MOVE_SUBSTEPS,
+  NAZGUL_ENEMY,
   NON_BEARERS,
   ORODRUIN_ID,
   PLAYER_ICON,
@@ -319,7 +322,7 @@ export default function MiddleEarthMap() {
   // only when opened from the party HUD or by clicking the hero on the map.
   const [openCharacterPaging, setOpenCharacterPaging] = useState(false);
   const [ending, setEnding] = useState<
-    "victory" | "lord" | "starved" | "battle" | "nothing" | "rogueLord" | null
+    "victory" | "lord" | "starved" | "battle" | "nothing" | "rogueLord" | "sauron" | null
   >(null);
   // The Ring fled with this companion (bearer broke at 100% or a betrayer won);
   // null means the party holds the Ring. While set, the party is "ringless".
@@ -368,6 +371,7 @@ export default function MiddleEarthMap() {
   const [recruitRefusal, setRecruitRefusal] = useState<RecruitRefusalNotice | null>(null);
   // After defeating a recruitable foe: offer to invite them.
   const [recruitOffer, setRecruitOffer] = useState<string | null>(null);
+  const [pendingExploreRecruit, setPendingExploreRecruit] = useState<string | null>(null);
   // The current offer is a peaceful "wants to join" (no battle, joins at full HP).
   const [peacefulOffer, setPeacefulOffer] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
@@ -424,6 +428,7 @@ export default function MiddleEarthMap() {
   const processedDayRef = useRef(initialSave?.journeyDay ?? 0);
   // Movement halts while any modal is open; the rAF loop reads this.
   const animationPausedRef = useRef(false);
+  const baradDurGazeCheckedRef = useRef(false);
 
   const openVisitedLocation = useCallback((location: MapLocation) => {
     // Snapshot who's already in the party as we arrive, so companions recruited
@@ -433,6 +438,34 @@ export default function MiddleEarthMap() {
       setEntryParty(new Set(partyRef.current));
       setCurrentLocation(location);
       setVisitedLocation(location);
+      if (
+        location.id === BARAD_DUR_ID &&
+        bearerId &&
+        rogueBearerId === null &&
+        !baradDurGazeCheckedRef.current
+      ) {
+        baradDurGazeCheckedRef.current = true;
+        const bearer = CHARACTERS.find((character) => character.id === bearerId);
+        if (bearer) {
+          const item = equippedItems[bearer.id] ? ITEM_BY_ID[equippedItems[bearer.id]] : undefined;
+          const itemBonus: StatBonus = item
+            ? {
+                strength: item.strength ?? 0,
+                defense: item.defense ?? 0,
+                intelligence: item.intelligence ?? 0,
+                luck: item.luck ?? 0,
+              }
+            : ZERO_BONUS;
+          const luck = effectiveStats(
+            bearer,
+            addBonus(addBonus(statBonusById[bearer.id] ?? ZERO_BONUS, auraBonus(bearer, party)), itemBonus),
+          ).luck;
+          const unseenChance = clamp(luck * 0.06, 0.12, 0.72);
+          if (Math.random() >= unseenChance) {
+            setEnding((prev) => prev ?? "sauron");
+          }
+        }
+      }
     };
     const src = locationImage(location.id, seasonAt(journeyDayRef.current));
     if (!src) {
@@ -440,7 +473,7 @@ export default function MiddleEarthMap() {
       return;
     }
     void preloadLocationImage(src).then(open);
-  }, []);
+  }, [bearerId, equippedItems, party, rogueBearerId, statBonusById]);
 
   useEffect(() => {
     openVisitedLocationRef.current = openVisitedLocation;
@@ -658,6 +691,7 @@ export default function MiddleEarthMap() {
     setStopped(false);
     setVisitedLocation(null);
     setCurrentLocation(null);
+    baradDurGazeCheckedRef.current = false;
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
@@ -717,6 +751,7 @@ export default function MiddleEarthMap() {
         const maxHp = s.strength * HEALTH_PER_STR;
         const undeadBonus = packHasUndead ? (item?.strengthVsUndead ?? 0) : 0;
         const orcBonus = packHasOrcs ? (item?.strengthVsOrcs ?? 0) : 0;
+        const undeadMultiplier = packHasUndead && id === "king_dead" ? 2 : 1;
         return {
           key: id,
           name: character.name,
@@ -724,7 +759,7 @@ export default function MiddleEarthMap() {
           hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
           maxHp,
           strength: s.strength,
-          attack: s.strength + undeadBonus + orcBonus,
+          attack: s.strength * undeadMultiplier + undeadBonus + orcBonus,
           defense: s.defense,
           luck: s.luck,
         };
@@ -743,7 +778,7 @@ export default function MiddleEarthMap() {
         hp,
         maxHp: hp,
         strength: str,
-        attack: str,
+        attack: mm.attack ?? str,
         defense: mm.defense,
         luck: mm.luck,
       };
@@ -1457,6 +1492,7 @@ export default function MiddleEarthMap() {
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
+      baradDurGazeCheckedRef.current = false;
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
@@ -1626,6 +1662,7 @@ export default function MiddleEarthMap() {
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
+      baradDurGazeCheckedRef.current = false;
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
@@ -1646,6 +1683,7 @@ export default function MiddleEarthMap() {
     setStopped(false);
     setVisitedLocation(null);
     setCurrentLocation(null);
+    baradDurGazeCheckedRef.current = false;
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
@@ -1682,6 +1720,9 @@ export default function MiddleEarthMap() {
       if (party.includes("aragorn") && !deadSummoned) {
         setDeadSummoned(true);
         setExploreResult({ found: true, message: "location.erechSummon" });
+        if (!party.includes("king_dead") && !leftBehind.some((member) => member.id === "king_dead")) {
+          setPendingExploreRecruit("king_dead");
+        }
       } else {
         setExploreResult({ found: false });
       }
@@ -1699,7 +1740,7 @@ export default function MiddleEarthMap() {
     } else {
       setExploreResult({ found: false });
     }
-  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned]);
+  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, leftBehind]);
 
   // Talk to a companion: hand over their gift items (once, and only if their
   // requirement is met — Bilbo needs Frodo along), else a random greeting.
@@ -1819,6 +1860,14 @@ export default function MiddleEarthMap() {
       setFoodFarmed(null);
       return;
     }
+    if (talkResult) {
+      setTalkResult(null);
+      return;
+    }
+    if (exploreResult) {
+      setExploreResult(null);
+      return;
+    }
 
     const capacity = foodCapacityFor(transport);
     const stopThreshold = autoFarmStopThreshold(capacity);
@@ -1881,6 +1930,17 @@ export default function MiddleEarthMap() {
       const nextRecruit = autoPlayNextStoryRecruit(loc.id, journeyDay, party);
       if (nextRecruit) {
         attemptRecruit(nextRecruit);
+        return;
+      }
+
+      const giftGiver = CHARACTERS.find(
+        (character) =>
+          isCharacterRecruitableHere(character.id, loc.id, journeyDay) &&
+          (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
+          hasGifts(character.id),
+      );
+      if (giftGiver) {
+        talkToCharacter(giftGiver.id);
         return;
       }
 
@@ -1965,6 +2025,8 @@ export default function MiddleEarthMap() {
     recruitOffer,
     acceptRecruitOffer,
     foodFarmed,
+    talkResult,
+    exploreResult,
     battle,
     encounter,
     visitedLocation,
@@ -1976,7 +2038,10 @@ export default function MiddleEarthMap() {
     isMoving,
     target,
     locations,
+    randomPresence,
     attemptRecruit,
+    hasGifts,
+    talkToCharacter,
     startBattle,
     marchToLocation,
     waitOneDay,
@@ -2090,6 +2155,7 @@ export default function MiddleEarthMap() {
       } else {
         setVisitedLocation(null);
         setCurrentLocation(null);
+        baradDurGazeCheckedRef.current = false;
       }
       setTarget(null);
       setTargetLocation(null);
@@ -2713,11 +2779,12 @@ export default function MiddleEarthMap() {
       }
       // A defeated boss never returns to its lair.
       const foe = battle.enemies[0];
-      if (foe && BOSS_NAMES.has(foe.name)) {
+      const activeBoss = visitedLocation ? BOSSES_BY_LOCATION[visitedLocation.id] : null;
+      if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
       }
     }
-  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal]);
+  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation]);
 
   // Show the next level-up allocation modal when the queue advances — but only
   // after the battle modal is dismissed, so it doesn't pop up over the fight.
@@ -3369,7 +3436,16 @@ export default function MiddleEarthMap() {
           onExplore={exploreLocation}
           onFightBoss={() => {
             if (locationBoss) {
-              setEncounter({ monster: locationBoss, dangerous: true, solo: true, pack: [locationBoss] });
+              const bossPack =
+                visitedLocation?.id === MINAS_MORGUL_ID
+                  ? [locationBoss, ...Array.from({ length: 8 }, () => NAZGUL_ENEMY)]
+                  : [locationBoss];
+              setEncounter({
+                monster: locationBoss,
+                dangerous: true,
+                solo: bossPack.length === 1,
+                pack: bossPack,
+              });
             }
           }}
           onViewStats={(id) => openCharacterPanel(id, false)}
@@ -3511,7 +3587,17 @@ export default function MiddleEarthMap() {
           }}
         />
 
-        <ExploreResultModal result={exploreResult} onClose={() => setExploreResult(null)} />
+        <ExploreResultModal
+          result={exploreResult}
+          onClose={() => {
+            setExploreResult(null);
+            if (pendingExploreRecruit) {
+              setRecruitOffer(pendingExploreRecruit);
+              setPeacefulOffer(true);
+              setPendingExploreRecruit(null);
+            }
+          }}
+        />
 
         <TalkResultModal
           result={talkResult}
@@ -3594,6 +3680,9 @@ export default function MiddleEarthMap() {
           onRandomize={randomizeLevelUpDraft}
           onConfirm={confirmLevelUp}
         />
+
+        {/* Solid cover so the map never flashes behind the creation modal's fade-in. */}
+        {!created && <div className="absolute inset-0 z-[55] bg-[#020202]" />}
 
         <CreationModal
           open={!created}

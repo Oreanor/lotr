@@ -96,6 +96,7 @@ export interface Monster {
   icon: string;
   tier: number;
   strength: number; // drives HP (×10) and, on equal terms with heroes, attack
+  attack?: number; // optional override for damage without inflating HP
   defense: number;
   intelligence: number;
   luck: number; // low luck = whiffs often and rarely crits; see hitChance/critChance

@@ -57,6 +57,7 @@ export const CHARACTERS: Character[] = [
   { id: "faramir", name: "Фарамир", icon: "/icons/faramir.png", strength: 8, defense: 7, intelligence: 8, luck: 6, resilience: 160 },
   { id: "denethor", name: "Денетор", icon: "/icons/denethor.png", strength: 6, defense: 6, intelligence: 8, luck: 4, resilience: 25 },
   { id: "gollum", name: "Голлум", icon: "/icons/gollum.png", strength: 4, defense: 3, intelligence: 5, luck: 9, resilience: 20, ringExposure: 0.6 },
+  { id: "king_dead", name: "Король Мёртвых", icon: "/icons/wight.png", strength: 8, defense: 8, intelligence: 6, luck: 4, resilience: 999 },
 ];
 
 export const PLAYER_ICON = CHARACTERS[0].icon;
@@ -87,8 +88,8 @@ export const MONSTERS: Monster[] = [
 
 // Named bosses fixed to their lairs — engageable when you reach the location.
 export const BOSSES_BY_LOCATION: Record<number, Monster> = {
-  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 4, strength: 13, defense: 8, intelligence: 8, luck: 5 },
-  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 16, defense: 10, intelligence: 8, luck: 6 },
+  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 2, strength: 12, attack: 18, defense: 7, intelligence: 8, luck: 5 },
+  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 24, attack: 32, defense: 10, intelligence: 8, luck: 6 },
   [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 15, defense: 8, intelligence: 9, luck: 5 },
   [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 20, defense: 10, intelligence: 10, luck: 6 },
   [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 9, intelligence: 5, luck: 5 },
@@ -97,6 +98,16 @@ export const BOSSES_BY_LOCATION: Record<number, Monster> = {
 };
 // Unique boss names — a defeated boss never returns to its location.
 export const BOSS_NAMES = new Set(Object.values(BOSSES_BY_LOCATION).map((boss) => boss.name));
+
+export const NAZGUL_ENEMY: Monster = {
+  name: "Назгул",
+  icon: "/enemies/nazgul.png",
+  tier: 4,
+  strength: 18,
+  defense: 8,
+  intelligence: 8,
+  luck: 5,
+};
 
 // Roaming foes who join on defeat. Eomer only in Rohan; Gollum anywhere, rare.
 export const EOMER_ENEMY: Monster = {
@@ -181,6 +192,7 @@ export const ABILITIES: Record<string, string> = {
   eomer: "Ускоряет передвижение по карте",
   elrond: "Сила эльфов в отряде +1",
   galadriel: "Защита эльфов в отряде +1",
+  king_dead: "Двойной урон по нежити",
 };
 
 // Artwork filename per location id. Same names live in each season folder; the
