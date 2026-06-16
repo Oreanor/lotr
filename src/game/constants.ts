@@ -42,6 +42,7 @@ export const SPEED_STORAGE_KEY = "lotr-speed";
 // Travel / movement.
 export const MILES_PER_DAY = 30;
 export const INITIAL_FOOD_DAYS = 3;
+export const SAM_CATCH_UP_FOOD_DAYS = 14;
 // Trail is stored as line segments: a new vertex is added only when the heading
 // changes (dot of consecutive directions ≤ PATH_COLLINEAR_DOT). Sub-pixel moves
 // are ignored. On touch devices the vertex count is capped (MAX_PATH_POINTS).

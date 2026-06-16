@@ -162,6 +162,7 @@ import {
   LOFTY_TALKERS,
   rollStatBonus,
   SAM_FARM_BONUS,
+  SAM_CATCH_UP_FOOD_DAYS,
   seasonAt,
   slainRoamingRecruitIds,
   SLIDE_DEFLECTIONS,
@@ -1067,6 +1068,15 @@ export default function MiddleEarthMap() {
     setBearerId(id);
   }, []);
 
+  const acceptSamCatchUp = useCallback(() => {
+    const capacity = foodCapacityFor(transport);
+    const nextFood = Math.min(capacity, foodRef.current + SAM_CATCH_UP_FOOD_DAYS);
+    foodRef.current = nextFood;
+    setFood(nextFood);
+    recruitCharacter("sam");
+    setSamCatchUpOpen(false);
+  }, [recruitCharacter, transport]);
+
   // The Ring slips away with a companion (the bearer broke at 100%, or a betrayer
   // bested the party). He drops out and runs for Mount Doom; the party is left
   // ringless with ROGUE_CHASE_DAYS to hunt him down.
@@ -1936,8 +1946,7 @@ export default function MiddleEarthMap() {
       return;
     }
     if (samCatchUpOpen) {
-      recruitCharacter("sam");
-      setSamCatchUpOpen(false);
+      acceptSamCatchUp();
       return;
     }
     if (recruitOffer) {
@@ -2147,6 +2156,7 @@ export default function MiddleEarthMap() {
     samCatchUpOpen,
     recruitOffer,
     acceptRecruitOffer,
+    acceptSamCatchUp,
     foodFarmed,
     talkResult,
     exploreResult,
@@ -2165,7 +2175,6 @@ export default function MiddleEarthMap() {
     randomPresence,
     banishedTraitors,
     attemptRecruit,
-    recruitCharacter,
     makeBearer,
     hasGifts,
     talkToCharacter,
@@ -3919,10 +3928,7 @@ export default function MiddleEarthMap() {
         <SamCatchUpModal
           open={samCatchUpOpen && !ending}
           sam={CHARACTERS.find((character) => character.id === "sam") ?? null}
-          onContinue={() => {
-            recruitCharacter("sam");
-            setSamCatchUpOpen(false);
-          }}
+          onContinue={acceptSamCatchUp}
         />
 
         <LevelUpModal
