@@ -23,7 +23,7 @@ export function EncounterModal({
       {encounter && (
         <>
       <h2 className="font-serif text-2xl text-red-300">{t("encounter.title")}</h2>
-        <div className="mt-3 flex flex-wrap justify-center gap-3">
+        <div className="my-6 flex flex-wrap justify-center gap-3">
           {uniquePackTypes(encounter.pack).map((mm) => (
             <div key={mm.icon} className="flex w-24 flex-col items-center gap-1">
               <img

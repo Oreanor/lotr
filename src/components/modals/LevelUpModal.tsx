@@ -1,6 +1,9 @@
 import { useTranslation } from "react-i18next";
+import { Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { StatAllocator } from "@/components/ui/StatAllocator";
+import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
+import { HEALTH_PER_STR } from "@/game";
 import type { Character, StatBonus } from "@/game";
 
 // Spend the points earned on level-up across the hero's four stats.
@@ -28,6 +31,9 @@ export function LevelUpModal({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
+  const maxHealth = hero
+    ? (hero.strength + existingBonus.strength + draft.strength) * HEALTH_PER_STR
+    : 0;
   return (
     <Modal
       open={hero !== null}
@@ -37,19 +43,38 @@ export function LevelUpModal({
     >
       {hero && (
         <>
-          <img
-            src={hero.icon}
-            alt=""
-            draggable="false"
-            className="mx-auto size-24 select-none border border-neutral-700 bg-parchment object-cover"
-          />
-          <h2 className="mt-3 font-serif text-2xl text-neutral-100">{t("levelUp.title")}</h2>
-          <p className="mt-1 text-sm text-neutral-300">
-            {charName(hero.id)} · {t("character.level", { n: level })}
-          </p>
-          <p className="mt-3 text-xs text-amber-300">
-            {t("levelUp.pointsLeft", { n: totalPoints - draftSpent })}
-          </p>
+          <h2 className="font-serif text-2xl text-neutral-100">{t("levelUp.title")}</h2>
+          <div className="mx-auto mt-4 flex w-24 flex-col items-center gap-1">
+            <div className="size-20 border border-neutral-700 bg-parchment">
+              <img
+                src={hero.icon}
+                alt=""
+                draggable="false"
+                className="size-full select-none object-cover"
+              />
+            </div>
+            <span className="w-full truncate text-center text-xs text-neutral-200">
+              {charName(hero.id)} · {t("character.level", { n: level })}
+            </span>
+          </div>
+
+          <div className="mt-3 text-left">
+            <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
+              <span className="flex items-center gap-1">
+                <Heart className="size-3.5 text-emerald-500" />
+                {t("character.health")}
+              </span>
+              <span className="tabular-nums text-neutral-200">
+                {maxHealth}/{maxHealth}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
+              <div
+                className={`h-full ${healthBarColorClass(maxHealth, maxHealth)}`}
+                style={{ width: `${healthBarWidthPct(maxHealth, maxHealth)}%` }}
+              />
+            </div>
+          </div>
 
           <StatAllocator
             statValue={(stat) => hero[stat] + existingBonus[stat] + draft[stat]}
@@ -57,7 +82,11 @@ export function LevelUpModal({
             canDecrement={(stat) => draft[stat] > 0}
             canIncrement={draftSpent < totalPoints}
             strengthValue={hero.strength + existingBonus.strength + draft.strength}
+            showHealth={false}
           />
+          <p className="my-4 text-center text-xs text-amber-300">
+            {t("levelUp.pointsLeft", { n: totalPoints - draftSpent })}
+          </p>
 
           <button
             type="button"

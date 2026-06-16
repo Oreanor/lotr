@@ -157,6 +157,8 @@ export const FOOD_DAYS_PONY = 50;
 export const FOOD_DAYS_HORSE = 60;
 // Double rations (2 food/day) heal this much health per day while damaged.
 export const HEAL_PER_DAY = 10;
+// Starvation damage per day as a share of each character's max health.
+export const HUNGER_DAMAGE_FRACTION = 0.05;
 
 // Encounters & difficulty gradient (distance to Mordor, south-east).
 export const ENCOUNTER_CHANCE_PER_DAY = 1 / 6;

@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Hourglass } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { LocationPreview } from "@/components/ui/LocationPreview";
@@ -12,6 +14,7 @@ import type { Character, MapLocation, Monster, TransportId } from "@/game";
 export function LocationModal({
   location,
   locationName,
+  journeyDate,
   imageSrc,
   imageInitiallyLoaded,
   boss,
@@ -43,6 +46,7 @@ export function LocationModal({
 }: {
   location: MapLocation | null;
   locationName: string;
+  journeyDate: string;
   imageSrc: string | null;
   imageInitiallyLoaded: boolean;
   boss: Monster | null;
@@ -73,7 +77,12 @@ export function LocationModal({
   note?: string | null;
 }) {
   const { t } = useTranslation();
+  const [imageOpen, setImageOpen] = useState(false);
   const blocked = refusalOpen ? " pointer-events-none" : "";
+  useEffect(() => {
+    setImageOpen(false);
+  }, [imageSrc, location]);
+
   return (
     <Modal
       open={location !== null}
@@ -81,8 +90,19 @@ export function LocationModal({
       className={`max-h-[88vh] w-full max-w-sm overflow-y-auto border-neutral-700 p-5 text-center${blocked}`}
     >
       {location && (
-        <div data-location-modal>
-          <h2 className="font-serif text-2xl text-neutral-100">{locationName}</h2>
+        <div data-location-modal className="relative">
+          <h2 className="px-9 font-serif text-2xl text-neutral-100">{locationName}</h2>
+          <p className="mt-1 px-9 text-xs text-neutral-100">{journeyDate}</p>
+          <button
+            type="button"
+            onClick={onWait}
+            disabled={isMoving}
+            aria-label={t("location.waitAria")}
+            title={t("location.waitDay")}
+            className="absolute right-0 top-0 flex size-8 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
+          >
+            <Hourglass className="size-4" />
+          </button>
 
           {imageSrc && (
             <LocationPreview
@@ -90,8 +110,32 @@ export function LocationModal({
               src={imageSrc}
               alt={locationName}
               initiallyLoaded={imageInitiallyLoaded}
+              onOpen={() => setImageOpen(true)}
             />
           )}
+
+          {imageOpen &&
+            imageSrc &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
+                onClick={() => setImageOpen(false)}
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
+              >
+                <div
+                  className="inline-flex max-h-[calc(100dvh-2rem)] max-w-[calc(100dvw-2rem)] overflow-hidden rounded border-2 border-amber-700 bg-neutral-950 p-1 shadow-2xl shadow-black/60"
+                >
+                  <img
+                    src={imageSrc}
+                    alt={locationName}
+                    draggable="false"
+                    className="max-h-[calc(100dvh-2.75rem)] max-w-[calc(100dvw-2.75rem)] select-none object-contain md:h-[calc(100dvh-2.75rem)] md:w-auto"
+                  />
+                </div>
+              </div>,
+              document.body,
+            )}
 
           {note && <p className="mt-3 text-sm text-neutral-400">{note}</p>}
 
@@ -188,16 +232,6 @@ export function LocationModal({
               {t("location.explore")}
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={onWait}
-            disabled={isMoving}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
-          >
-            <Hourglass className="size-4 shrink-0" />
-            {t("location.waitDay")}
-          </button>
 
           <button
             type="button"

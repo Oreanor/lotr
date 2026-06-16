@@ -15,6 +15,7 @@ export function CharacterModal({
   paging,
   level,
   deadInBattle,
+  isInParty,
   canMakeBearer,
   isLeftBehind,
   equippedItem,
@@ -33,6 +34,7 @@ export function CharacterModal({
   paging: boolean;
   level: { level: number; intoLevel: number; nextLevelXp: number };
   deadInBattle: boolean;
+  isInParty: boolean;
   canMakeBearer: boolean;
   isLeftBehind: boolean;
   equippedItem: Item | null;
@@ -51,7 +53,7 @@ export function CharacterModal({
   // Close the item picker when switching to another character.
   useEffect(() => {
     setPickerOpen(false);
-  }, [character?.id]);
+  }, [character?.id, isInParty]);
   return (
     <Modal
       open={character !== null && stats !== null}
@@ -171,32 +173,34 @@ export function CharacterModal({
             </p>
           </div>
 
-          <div className="rounded border border-sky-800/60 bg-sky-950/30 px-3 py-2 text-left">
-            <p className="text-[10px] uppercase tracking-wide text-sky-400/80">{t("character.item")}</p>
-            <div className="mt-1 flex min-h-[40px] items-center">
-              {equippedItem ? (
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen(true)}
-                  className="flex w-full items-center gap-2 rounded text-left transition hover:opacity-80"
-                >
-                  <span className="text-lg leading-none">{equippedItem.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-sky-100">{t(`item.${equippedItem.id}.name`)}</p>
-                    <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${equippedItem.id}.desc`)}</p>
-                  </div>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen(true)}
-                  className="w-full rounded border border-sky-800/70 bg-sky-900/40 px-3 py-1.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-800/60"
-                >
-                  {t("character.chooseItem")}
-                </button>
-              )}
+          {isInParty && (
+            <div className="rounded border border-sky-800/60 bg-sky-950/30 px-3 py-2 text-left">
+              <p className="text-[10px] uppercase tracking-wide text-sky-400/80">{t("character.item")}</p>
+              <div className="mt-1 flex min-h-[40px] items-center">
+                {equippedItem ? (
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    className="flex w-full items-center gap-2 rounded text-left transition hover:opacity-80"
+                  >
+                    <span className="text-lg leading-none">{equippedItem.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-sky-100">{t(`item.${equippedItem.id}.name`)}</p>
+                      <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${equippedItem.id}.desc`)}</p>
+                    </div>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    className="w-full rounded border border-sky-800/70 bg-sky-900/40 px-3 py-1.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-800/60"
+                  >
+                    {t("character.chooseItem")}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <Modal
             open={pickerOpen}
@@ -253,15 +257,17 @@ export function CharacterModal({
           </Modal>
 
           <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              disabled={!canMakeBearer}
-              className="flex w-full items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
-              onClick={onMakeBearer}
-            >
-              <img src={ringImage} alt="" draggable="false" className="size-4 select-none object-contain" />
-              {t("character.makeBearer")}
-            </button>
+            {isInParty && (
+              <button
+                type="button"
+                disabled={!canMakeBearer}
+                className="flex w-full items-center justify-center gap-2 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
+                onClick={onMakeBearer}
+              >
+                <img src={ringImage} alt="" draggable="false" className="size-4 select-none object-contain" />
+                {t("character.makeBearer")}
+              </button>
+            )}
             {isLeftBehind && (
               <button
                 type="button"

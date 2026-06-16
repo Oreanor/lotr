@@ -98,6 +98,7 @@ import {
   getStartPosition,
   HEAL_PER_DAY,
   HEALTH_PER_STR,
+  HUNGER_DAMAGE_FRACTION,
   HOBBITON_ID,
   iconVariant,
   INITIAL_FOOD_DAYS,
@@ -306,6 +307,8 @@ export default function MiddleEarthMap() {
   const [targetMemberId, setTargetMemberId] = useState<string | null>(null);
   // Location card opens after its seasonal artwork has been preloaded.
   const [visitedLocation, setVisitedLocation] = useState<MapLocation | null>(null);
+  // Location the party is physically standing in, even if its card was closed.
+  const [currentLocation, setCurrentLocation] = useState<MapLocation | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   // Manually halted mid-journey: the destination (and its marker) is kept so the
   // march can be resumed; only a fresh target clears it.
@@ -428,6 +431,7 @@ export default function MiddleEarthMap() {
     // this visit shows "in party".
     const open = () => {
       setEntryParty(new Set(partyRef.current));
+      setCurrentLocation(location);
       setVisitedLocation(location);
     };
     const src = locationImage(location.id, seasonAt(journeyDayRef.current));
@@ -653,6 +657,7 @@ export default function MiddleEarthMap() {
     setTargetLocation(null);
     setStopped(false);
     setVisitedLocation(null);
+    setCurrentLocation(null);
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
@@ -1451,6 +1456,7 @@ export default function MiddleEarthMap() {
       setTargetMemberId(null);
       setStopped(false);
       setVisitedLocation(null);
+      setCurrentLocation(null);
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
@@ -1619,6 +1625,7 @@ export default function MiddleEarthMap() {
       setTargetMemberId(null);
       setStopped(false);
       setVisitedLocation(null);
+      setCurrentLocation(null);
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
@@ -1638,6 +1645,7 @@ export default function MiddleEarthMap() {
     setTargetMemberId(null);
     setStopped(false);
     setVisitedLocation(null);
+    setCurrentLocation(null);
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
@@ -2081,6 +2089,7 @@ export default function MiddleEarthMap() {
         openVisitedLocationRef.current(visitLocation);
       } else {
         setVisitedLocation(null);
+        setCurrentLocation(null);
       }
       setTarget(null);
       setTargetLocation(null);
@@ -2746,8 +2755,8 @@ export default function MiddleEarthMap() {
   }, [visitedLocation, rollPresence]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
-  // per member for 2 food while anyone is hurt, or starve (−1 health/day) when
-  // out of food. Damage is tracked per current party member.
+  // per member for 2 food while anyone is hurt, or starve (5% max health/day)
+  // when out of food. Damage is tracked per current party member.
   useEffect(() => {
     if (journeyDay <= processedDayRef.current) {
       processedDayRef.current = journeyDay;
@@ -2801,7 +2810,6 @@ export default function MiddleEarthMap() {
       } else {
         for (const id of members) {
           const prev = nextDamage[id] ?? 0;
-          nextDamage[id] = prev + 1;
           const character = CHARACTERS.find((c) => c.id === id);
           if (character) {
             const maxHp =
@@ -2809,9 +2817,12 @@ export default function MiddleEarthMap() {
                 character,
                 addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, members)),
               ).strength * HEALTH_PER_STR;
+            nextDamage[id] = prev + Math.round(maxHp * HUNGER_DAMAGE_FRACTION);
             if (nextDamage[id] >= maxHp && prev < maxHp) {
               hungerDead.push(id);
             }
+          } else {
+            nextDamage[id] = prev + 1;
           }
         }
       }
@@ -3033,6 +3044,10 @@ export default function MiddleEarthMap() {
           onPointerUp={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
+            if (!isMoving && !target && currentLocation) {
+              openVisitedLocation(currentLocation);
+              return;
+            }
             if (figureCharacter) {
               openCharacterPanel(figureCharacter.id, true);
             }
@@ -3135,49 +3150,62 @@ export default function MiddleEarthMap() {
                 {journeyDate}
               </h1>
               {/* Food + transport, kept beside the date (also on mobile). */}
-              <div
-                onPointerDown={(event) => event.stopPropagation()}
-                onPointerUp={(event) => event.stopPropagation()}
-                className={`pointer-events-auto flex h-9 w-fit items-center gap-2 rounded border px-2 text-sm ${
-                  food === 0
-                    ? "animate-pulse border-red-700 bg-red-950/80 text-red-300"
-                    : "border-neutral-700 bg-neutral-900/90 text-neutral-200"
-                }`}
-              >
-                <HoverHint label={t("ui.foodTitle")}>🍞 {food}</HoverHint>
-                {food === 0 && (
-                  <HoverHint label={t("ui.hungryTitle")} className="text-xs font-semibold">
-                    {t("ui.hungry")}
+              <div className="relative h-9 w-fit">
+                <div
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onPointerUp={(event) => event.stopPropagation()}
+                  className="pointer-events-auto flex h-9 w-fit items-center gap-2 rounded border border-neutral-700 bg-neutral-900/90 px-2 text-sm text-neutral-200"
+                >
+                  <HoverHint label={t("ui.foodTitle")}>🍞 {food}</HoverHint>
+                  <HoverHint
+                    label={
+                      transport
+                        ? t(`transport.${transport}`)
+                        : party.includes("cirdan")
+                          ? t("transport.ship")
+                          : t("ui.onFoot")
+                    }
+                    className="inline-flex items-center"
+                  >
+                    <TransportIcon
+                      transport={transport}
+                      sailingWithCirdan={party.includes("cirdan")}
+                      className="size-5 select-none object-contain"
+                    />
                   </HoverHint>
+                  {hasCloaks && (
+                    <HoverHint label={t("ui.cloaksTitle")} className="text-base leading-none">
+                      🧥
+                    </HoverHint>
+                  )}
+                </div>
+                {food === 0 && (
+                  <span
+                    className="pointer-events-auto absolute left-0 top-full z-10 mt-0.5 w-full"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
+                  >
+                    <HoverHint
+                      label={t("ui.hungryTitle")}
+                      className="w-full animate-pulse justify-center rounded border border-red-800 bg-red-950/85 px-1.5 py-1 text-[11px] font-semibold leading-none text-red-300 shadow-lg"
+                    >
+                      {t("ui.hungry")}
+                    </HoverHint>
+                  </span>
                 )}
                 {anyHurt && food >= 2 && (
-                  <HoverHint
-                    label={t("ui.healingTitle")}
-                    className="text-xs font-semibold text-emerald-300"
+                  <span
+                    className="pointer-events-auto absolute left-0 top-full z-10 mt-0.5 w-full"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
                   >
-                    {t("ui.healing")}
-                  </HoverHint>
-                )}
-                <HoverHint
-                  label={
-                    transport
-                      ? t(`transport.${transport}`)
-                      : party.includes("cirdan")
-                        ? t("transport.ship")
-                        : t("ui.onFoot")
-                  }
-                  className="inline-flex items-center"
-                >
-                  <TransportIcon
-                    transport={transport}
-                    sailingWithCirdan={party.includes("cirdan")}
-                    className="size-5 select-none object-contain"
-                  />
-                </HoverHint>
-                {hasCloaks && (
-                  <HoverHint label={t("ui.cloaksTitle")} className="text-base leading-none">
-                    🧥
-                  </HoverHint>
+                    <HoverHint
+                      label={t("ui.healingTitle")}
+                      className="w-full animate-pulse justify-center rounded border border-emerald-800 bg-emerald-950/85 px-1.5 py-1 text-[11px] font-semibold leading-none text-emerald-300 shadow-lg"
+                    >
+                      {t("ui.healing")}
+                    </HoverHint>
+                  </span>
                 )}
               </div>
             </div>
@@ -3303,6 +3331,7 @@ export default function MiddleEarthMap() {
               : null
           }
           locationName={visitedLocation ? locName(visitedLocation) : ""}
+          journeyDate={journeyDate}
           imageSrc={visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null}
           imageInitiallyLoaded={
             visitedLocation
@@ -3393,6 +3422,7 @@ export default function MiddleEarthMap() {
           paging={openCharacterPaging}
           level={openLevel}
           deadInBattle={openCharacter ? deathCauseById[openCharacter.id] === "battle" : false}
+          isInParty={!!openCharacter && party.includes(openCharacter.id)}
           canMakeBearer={
             !!openCharacter &&
             !!openStats &&

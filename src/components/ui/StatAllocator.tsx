@@ -13,12 +13,14 @@ export function StatAllocator({
   canDecrement,
   canIncrement,
   strengthValue,
+  showHealth = true,
 }: {
   statValue: (stat: keyof StatBonus) => number;
   onAdjust: (stat: keyof StatBonus, delta: number) => void;
   canDecrement: (stat: keyof StatBonus) => boolean;
   canIncrement: boolean;
   strengthValue: number;
+  showHealth?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -53,10 +55,12 @@ export function StatAllocator({
           </div>
         ))}
       </div>
-      <p className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-400">
-        <Heart className="size-3 text-emerald-500" />
-        {strengthValue * HEALTH_PER_STR}
-      </p>
+      {showHealth && (
+        <p className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-400">
+          <Heart className="size-3 text-emerald-500" />
+          {strengthValue * HEALTH_PER_STR}
+        </p>
+      )}
     </>
   );
 }

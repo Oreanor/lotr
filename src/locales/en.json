@@ -27,7 +27,7 @@
     "help": "How to play",
     "foodTitle": "Food supply (days)",
     "hungry": "⚠ starving",
-    "hungryTitle": "The party is starving — health drops 1/day",
+    "hungryTitle": "The party is starving — health drops 5%/day",
     "healing": "+healing",
     "healingTitle": "Healing: spends 2 food/day, +10 health",
     "onFoot": "On foot",

@@ -38,7 +38,7 @@ export function BattleModal({
     <Modal
       open={battle !== null}
       overlayClassName="bg-black/80"
-      className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-red-800 p-5"
+      className="max-h-[90vh] w-fit min-w-72 max-w-[calc(100vw-3rem)] overflow-y-auto border-red-800 p-5"
     >
       {battle && (
         <>
@@ -74,7 +74,7 @@ export function BattleModal({
               </div>
             )}
           </div>
-          <div className="flex items-start justify-center gap-3">
+          <div className="my-6 flex items-start justify-center gap-3">
             <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2.5 sm:gap-3">
               {battle.allies.map((ally) => {
                 const invisible =

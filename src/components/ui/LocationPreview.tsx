@@ -8,14 +8,21 @@ export function LocationPreview({
   src,
   alt,
   initiallyLoaded = false,
+  onOpen,
 }: {
   src: string;
   alt: string;
   initiallyLoaded?: boolean;
+  onOpen?: () => void;
 }) {
   const [loaded, setLoaded] = useState(initiallyLoaded);
   return (
-    <div className="relative mx-auto my-4 aspect-[4/3] w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="relative mx-auto my-4 block aspect-[4/3] w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800 text-left transition hover:border-amber-700"
+      aria-label={alt}
+    >
       {!loaded && <div className="absolute inset-0 animate-pulse bg-neutral-800" />}
       <img
         src={src}
@@ -26,6 +33,6 @@ export function LocationPreview({
           loaded ? "opacity-100" : "opacity-0"
         }`}
       />
-    </div>
+    </button>
   );
 }
