@@ -1,6 +1,7 @@
 {
   "ui": {
     "center": "Center on the figure",
+    "loading": "Loading…",
     "zoom": "Zoom",
     "stop": "Stop",
     "resume": "Keep going",

@@ -90,7 +90,7 @@ export function BattleModal({
                     >
                       <img
                         src={
-                          battle.lastHit === ally.key && ally.icon
+                          (ally.hp <= 0 || battle.lastHit === ally.key) && ally.icon
                             ? iconVariant(ally.icon, "pain")
                             : (ally.icon ?? "")
                         }
@@ -144,7 +144,11 @@ export function BattleModal({
                   >
                     {enemy.icon ? (
                       <img
-                        src={battle.lastHit === enemy.key ? iconVariant(enemy.icon, "pain") : enemy.icon}
+                        src={
+                          enemy.hp <= 0 || battle.lastHit === enemy.key
+                            ? iconVariant(enemy.icon, "pain")
+                            : enemy.icon
+                        }
                         alt=""
                         className={`size-full object-cover ${
                           enemy.hp <= 0 ? "opacity-30 grayscale" : battle.invisibleEnemy ? "opacity-40" : ""

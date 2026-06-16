@@ -37,6 +37,7 @@ import { OrodruinModal } from "@/components/modals/OrodruinModal";
 import { RecruitOfferModal } from "@/components/modals/RecruitOfferModal";
 import { LevelUpModal } from "@/components/modals/LevelUpModal";
 import { CreationModal } from "@/components/modals/CreationModal";
+import { Preloader } from "@/components/modals/Preloader";
 import { CalendarModal } from "@/components/modals/CalendarModal";
 import { SplitModal } from "@/components/modals/SplitModal";
 import { LocationModal } from "@/components/modals/LocationModal";
@@ -3683,6 +3684,9 @@ export default function MiddleEarthMap() {
 
         {/* Solid cover so the map never flashes behind the creation modal's fade-in. */}
         {!created && <div className="absolute inset-0 z-[55] bg-[#020202]" />}
+
+        {/* Resuming a save: hold the intro art until the map terrain is ready. */}
+        <Preloader hidden={terrainReady || !created} />
 
         <CreationModal
           open={!created}
