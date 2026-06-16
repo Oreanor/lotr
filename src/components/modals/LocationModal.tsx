@@ -42,6 +42,7 @@ export function LocationModal({
   onTakeTransport,
   onWait,
   onLeave,
+  canLeave = true,
   note,
 }: {
   location: MapLocation | null;
@@ -74,6 +75,7 @@ export function LocationModal({
   onTakeTransport: () => void;
   onWait: () => void;
   onLeave: () => void;
+  canLeave?: boolean;
   note?: string | null;
 }) {
   const { t } = useTranslation();
@@ -235,7 +237,8 @@ export function LocationModal({
 
           <button
             type="button"
-            className="mt-3 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            disabled={!canLeave}
+            className="mt-3 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
             onClick={onLeave}
           >
             {t("location.leave")}

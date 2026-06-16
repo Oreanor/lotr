@@ -21,15 +21,18 @@ export interface GameSave {
   statBonusById: Record<string, StatBonus>;
   ringWear: number;
   bearerRingDays: number;
+  ringDaysById?: Record<string, number>;
   hasCloaks: boolean;
   defeatedBosses: string[];
   slainRoamingRecruits: string[];
+  banishedTraitors?: string[];
   leftBehind: { id: string; point: Point }[];
   joinDay: Record<string, number>;
   recruitAttempts: Record<string, number>;
   foundItems?: string[];
   equippedItems?: Record<string, string>;
   deadSummoned?: boolean;
+  samCaughtUp?: boolean;
 }
 
 export function loadSave(): GameSave | null {

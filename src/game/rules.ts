@@ -724,10 +724,11 @@ export function autoPlayNextStoryRecruit(
   locationId: number,
   journeyDay: number,
   party: string[],
+  blockedIds: ReadonlySet<string> = new Set(),
 ): Character | null {
   const storyIds = AUTO_STORY_RECRUITS[locationId] ?? [];
   for (const id of storyIds) {
-    if (party.includes(id) || AUTO_SKIP_RECRUITS.has(id)) {
+    if (party.includes(id) || AUTO_SKIP_RECRUITS.has(id) || blockedIds.has(id)) {
       continue;
     }
     if (recruitRefusalKey(id, party)) {
@@ -912,7 +913,7 @@ export function nearestTerrainId(r: number, g: number, b: number): number {
 // Derive current stats from a character and how many days have been travelled.
 export function computeCharacterStats(
   character: Character,
-  bearerRingDays: number,
+  ringDays: number,
   bearerId: string,
   damage: number,
   bonus: StatBonus,
@@ -923,7 +924,7 @@ export function computeCharacterStats(
   const health = Math.max(0, maxHealth - damage);
 
   const accumulated = (character.ringExposure ?? 0) * 100;
-  const journeyCorruption = isBearer ? (bearerRingDays / character.resilience) * 100 : 0;
+  const journeyCorruption = (ringDays / character.resilience) * 100;
 
   return {
     strength: s.strength,

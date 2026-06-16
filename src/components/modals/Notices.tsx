@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import type { DeathCause, RecruitRefusalNotice } from "@/game";
+import { iconVariant } from "@/game";
+import type { Character, DeathCause, RecruitRefusalNotice } from "@/game";
 
 const REFUSAL_GAP_PX = 12;
 
@@ -161,6 +162,40 @@ export function DeathNoticeModal({
       >
         {t("death.continue")}
       </button>
+    </Modal>
+  );
+}
+
+export function SamCatchUpModal({
+  open,
+  sam,
+  onContinue,
+}: {
+  open: boolean;
+  sam: Character | null;
+  onContinue: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal open={open} overlayClassName="bg-black/70" className="w-full max-w-sm border-amber-700 p-6 text-center">
+      {sam && (
+        <>
+          <img
+            src={iconVariant(sam.icon, "joy")}
+            alt=""
+            className="mx-auto size-24 border border-amber-700 bg-parchment object-cover"
+          />
+          <h2 className="mt-3 font-serif text-2xl text-amber-200">{t("samCatchUp.title")}</h2>
+          <p className="mt-3 text-sm text-neutral-200">{t("samCatchUp.text")}</p>
+          <button
+            type="button"
+            className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            onClick={onContinue}
+          >
+            {t("samCatchUp.continue")}
+          </button>
+        </>
+      )}
     </Modal>
   );
 }

@@ -26,6 +26,21 @@ export function writeSavedSpeed(kind: keyof SavedSpeeds, value: number) {
 }
 
 export const preloadedLocationImages = new Set<string>();
+const preloadedImages = new Set<string>();
+
+export function preloadImage(src: string): void {
+  if (preloadedImages.has(src)) {
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    preloadedImages.add(src);
+  };
+  img.onerror = () => {
+    preloadedImages.add(src);
+  };
+  img.src = src;
+}
 
 export function preloadLocationImage(src: string): Promise<void> {
   if (preloadedLocationImages.has(src)) {

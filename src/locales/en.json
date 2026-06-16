@@ -202,9 +202,9 @@
     "fledTitle": "The Ring is gone",
     "fledText": "{{name}} could not resist the Ring and fled with it. His trail will take weeks to pick up — keep marching. You have two months before he reaches Mount Doom.",
     "fledContinue": "Give chase",
-    "reclaimedTitle": "The Ring is yours again",
-    "reclaimedText": "You overcame {{name}} and reclaimed the Ring.",
     "chooseBearer": "Who shall carry it now?",
+    "chooseNewTitle": "Choose a new Ring-bearer",
+    "chooseNewBearer": "Who shall carry the Ring?",
     "giveRing": "Give the Ring to {{name}}"
   },
   "creation": {
@@ -234,6 +234,11 @@
     "dismiss": "Dismiss",
     "empty": "There is no one in the party besides the bearer.",
     "done": "Done"
+  },
+  "samCatchUp": {
+    "title": "Sam Catches Up",
+    "text": "\"Master Frodo, you didn't think you'd go alone and I'd leave you, did you?\"",
+    "continue": "Walk together"
   },
   "refuse": {
     "gollumHobbits": "Gollum hisses: \"No! Gollum goes only with hobbitses, no strangers, gollum!\"",

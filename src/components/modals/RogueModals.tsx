@@ -46,14 +46,14 @@ export function RogueFledModal({
 
 // After beating the rogue and reclaiming the Ring: pick who carries it now.
 export function BearerChooserModal({
-  fromId,
+  open,
   candidates,
   charName,
   iconFor,
   getStats,
   onChoose,
 }: {
-  fromId: string | null;
+  open: boolean;
   candidates: Character[];
   charName: (id: string) => string;
   iconFor: (c: Character) => string;
@@ -63,27 +63,24 @@ export function BearerChooserModal({
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   useEffect(() => {
-    if (fromId === null) {
+    if (!open) {
       setSelectedId(null);
     }
-  }, [fromId]);
+  }, [open]);
 
   const selected = selectedId ? (candidates.find((c) => c.id === selectedId) ?? null) : null;
   return (
     <Modal
-      open={fromId !== null}
+      open={open}
       overlayClassName="bg-black/85"
       className="w-full max-w-md border-amber-700 p-6 text-center"
     >
-      {fromId && (
+      {open && (
         <>
           <img src={ringImage} alt="" className="mx-auto mb-3 size-12 object-contain" />
-          <h2 className="font-serif text-2xl text-amber-400">{t("rogue.reclaimedTitle")}</h2>
-          <p className="mt-2 text-sm text-neutral-300">
-            {t("rogue.reclaimedText", { name: charName(fromId) })}
-          </p>
+          <h2 className="font-serif text-2xl text-amber-400">{t("rogue.chooseNewTitle")}</h2>
           <p className="mt-3 text-xs uppercase tracking-wide text-amber-500/80">
-            {t("rogue.chooseBearer")}
+            {t("rogue.chooseNewBearer")}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-3">
             {candidates.map((character) => {

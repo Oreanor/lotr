@@ -104,6 +104,7 @@ export const AUTO_ROUTE = [
   LOTHLORIEN_ID,
   EDORAS_ID,
   MINAS_TIRITH_ID,
+  MINAS_MORGUL_ID,
   ORODRUIN_ID,
 ] as const;
 // When auto-play stops gaining ground on impassable terrain, back off and turn

@@ -34,6 +34,30 @@ export function BattleModal({
   onContinue: () => void;
 }) {
   const { t } = useTranslation();
+  const allyIcon = (ally: BattleState["allies"][number]): string => {
+    if (!ally.icon) {
+      return "";
+    }
+    if (ally.hp <= 0) {
+      return iconVariant(ally.icon, "pain");
+    }
+    if (battle?.outcome === "win") {
+      return iconVariant(ally.icon, "joy");
+    }
+    return battle?.lastHit === ally.key ? iconVariant(ally.icon, "pain") : ally.icon;
+  };
+  const enemyIcon = (enemy: BattleState["enemies"][number]): string => {
+    if (!enemy.icon) {
+      return "";
+    }
+    if (enemy.hp <= 0) {
+      return iconVariant(enemy.icon, "pain");
+    }
+    if (battle?.outcome === "lose" && (battle.betrayalBy || battle.rogueId)) {
+      return iconVariant(enemy.icon, "joy");
+    }
+    return battle?.lastHit === enemy.key ? iconVariant(enemy.icon, "pain") : enemy.icon;
+  };
   return (
     <Modal
       open={battle !== null}
@@ -89,11 +113,7 @@ export function BattleModal({
                       }`}
                     >
                       <img
-                        src={
-                          (ally.hp <= 0 || battle.lastHit === ally.key) && ally.icon
-                            ? iconVariant(ally.icon, "pain")
-                            : (ally.icon ?? "")
-                        }
+                        src={allyIcon(ally)}
                         alt=""
                         className={`size-full object-cover ${
                           ally.hp <= 0 ? "opacity-30 grayscale" : invisible ? "opacity-40" : ""
@@ -144,11 +164,7 @@ export function BattleModal({
                   >
                     {enemy.icon ? (
                       <img
-                        src={
-                          enemy.hp <= 0 || battle.lastHit === enemy.key
-                            ? iconVariant(enemy.icon, "pain")
-                            : enemy.icon
-                        }
+                        src={enemyIcon(enemy)}
                         alt=""
                         className={`size-full object-cover ${
                           enemy.hp <= 0 ? "opacity-30 grayscale" : battle.invisibleEnemy ? "opacity-40" : ""

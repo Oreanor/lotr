@@ -125,8 +125,8 @@
     },
     {
       "id": 14,
-      "name": "Moria Gate",
-      "name_ru": "Врата Мории",
+      "name": "Moria",
+      "name_ru": "Мория",
       "point": {
         "x": 870,
         "y": 716
