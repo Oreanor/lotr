@@ -3583,7 +3583,7 @@ export default function MiddleEarthMap() {
                   }
                 }}
               >
-                <img src={lead.icon} alt="" className="size-full object-cover" />
+                <img src={lead.icon} alt="" className="size-full object-cover grayscale" />
                 {squad.members.length > 1 && (
                   <span className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full border border-amber-200 bg-neutral-900 text-[10px] font-bold leading-none text-amber-200">
                     {squad.members.length}
@@ -3625,7 +3625,7 @@ export default function MiddleEarthMap() {
             type="button"
             aria-label={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
             title={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
-            className="pointer-events-auto absolute z-30 size-12 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+            className="pointer-events-auto absolute z-30 size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
             style={{ left: playerLayer.x, top: playerLayer.y }}
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
@@ -3644,9 +3644,9 @@ export default function MiddleEarthMap() {
               src={figureCharacter?.icon ?? PLAYER_ICON}
               alt=""
               draggable="false"
-              // Gold silhouette outline marks the active group's figure; the last
-              // shadow keeps it lifted off the map.
-              className="size-full select-none object-contain [filter:drop-shadow(1px_0_0_#fcd34d)_drop-shadow(-1px_0_0_#fcd34d)_drop-shadow(0_1px_0_#fcd34d)_drop-shadow(0_-1px_0_#fcd34d)_drop-shadow(0_1px_3px_rgba(0,0,0,0.75))]"
+              // Thin gold silhouette outline marks the active group's figure (8
+              // directions for a solid edge); the last shadow lifts it off the map.
+              className="size-full select-none object-contain [filter:drop-shadow(1px_0_0_#fcd34d)_drop-shadow(-1px_0_0_#fcd34d)_drop-shadow(0_1px_0_#fcd34d)_drop-shadow(0_-1px_0_#fcd34d)_drop-shadow(1px_1px_0_#fcd34d)_drop-shadow(-1px_1px_0_#fcd34d)_drop-shadow(1px_-1px_0_#fcd34d)_drop-shadow(-1px_-1px_0_#fcd34d)_drop-shadow(0_1px_3px_rgba(0,0,0,0.75))]"
             />
           </button>
         </div>
