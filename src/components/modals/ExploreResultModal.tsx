@@ -1,8 +1,14 @@
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import { ITEM_BY_ID } from "@/game";
+import { ITEM_BY_ID, itemFamilyId } from "@/game";
 
-export type ExploreResult = { found: boolean; itemId?: string; message?: string };
+export type ExploreResult = {
+  found: boolean;
+  itemId?: string;
+  message?: string;
+  messageParams?: Record<string, number>;
+  emoji?: string;
+};
 
 // Shown after searching a location: the found item (icon + name + effect), or a
 // "nothing found" note.
@@ -24,15 +30,15 @@ export function ExploreResultModal({
     >
       {result?.message ? (
         <>
-          <div className="text-5xl leading-none">💀</div>
-          <p className="mt-3 text-sm text-sky-100">{t(result.message)}</p>
+          <div className="text-5xl leading-none">{result.emoji ?? "💀"}</div>
+          <p className="mt-3 text-sm text-sky-100">{t(result.message, result.messageParams)}</p>
         </>
       ) : result?.found && item ? (
         <>
           <div className="text-5xl leading-none">{item.icon}</div>
           <h2 className="mt-3 font-serif text-lg text-sky-200">{t("location.exploreFound")}</h2>
-          <p className="mt-2 text-sm font-semibold text-sky-100">{t(`item.${item.id}.name`)}</p>
-          <p className="mt-1 text-xs text-sky-300/80">{t(`item.${item.id}.desc`)}</p>
+          <p className="mt-2 text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(item.id)}.name`)}</p>
+          <p className="mt-1 text-xs text-sky-300/80">{t(`item.${itemFamilyId(item.id)}.desc`)}</p>
         </>
       ) : (
         <>

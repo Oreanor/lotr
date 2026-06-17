@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Flame, Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { StatBar } from "@/components/ui/StatBar";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { ABILITIES, ringImage } from "@/game";
+import { ABILITIES, itemFamilyId, ringImage } from "@/game";
 import type { Character, CharacterStats, Item } from "@/game";
 
 // Hero details: portrait, level/XP, health, ring corruption, stat bars, ability,
@@ -216,8 +216,8 @@ export function CharacterModal({
                   >
                     <span className="text-lg leading-none">{equippedItem.icon}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-sky-100">{t(`item.${equippedItem.id}.name`)}</p>
-                      <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${equippedItem.id}.desc`)}</p>
+                      <p className="truncate text-sm text-sky-100">{t(`item.${itemFamilyId(equippedItem.id)}.name`)}</p>
+                      <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${itemFamilyId(equippedItem.id)}.desc`)}</p>
                     </div>
                   </button>
                 ) : (
@@ -278,8 +278,8 @@ export function CharacterModal({
                       } disabled:cursor-default disabled:opacity-35 disabled:hover:bg-sky-900/30`}
                     >
                       <span className="text-3xl leading-none">{item.icon}</span>
-                      <span className="text-sm font-semibold text-sky-100">{t(`item.${item.id}.name`)}</span>
-                      <span className="text-xs text-sky-300/80">{t(`item.${item.id}.desc`)}</span>
+                      <span className="text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(item.id)}.name`)}</span>
+                      <span className="text-xs text-sky-300/80">{t(`item.${itemFamilyId(item.id)}.desc`)}</span>
                     </button>
                   );
                 })}

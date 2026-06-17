@@ -43,6 +43,9 @@ export interface GameSave {
   equippedItems?: Record<string, string>;
   deadSummoned?: boolean;
   samCaughtUp?: boolean;
+  grimaFled?: boolean;
+  grimaSlain?: boolean;
+  osgiliathCacheFound?: boolean;
 }
 
 export function loadSave(): GameSave | null {

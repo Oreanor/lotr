@@ -83,6 +83,7 @@ export const ORODRUIN_ID = 21;
 export const CIRITH_UNGOL_ID = 22;
 export const MINAS_MORGUL_ID = 23;
 export const MINAS_TIRITH_ID = 24;
+export const OSGILIATH_ID = 25;
 export const UMBAR_ID = 29;
 export const BUCKLAND_ID = 30;
 export const ESGAROTH_ID = 31;
@@ -147,6 +148,18 @@ export const MIN_DAMAGE_FRACTION = 0.34;
 export const CRIT_LUCK_FLOOR = 4;
 export const CRIT_PER_LUCK = 0.02;
 export const CRIT_MAX_CHANCE = 0.2;
+// How HARD a crit lands scales with the attacker's intelligence (luck only sets
+// how OFTEN). multiplier = 1 + max(0, intelligence − CRIT_INT_FLOOR) × CRIT_INT_MULT,
+// so a dolt (int 1) crits for ×1 — i.e. no crit at all — a hobbit (int 4) for
+// ~1.5×, and a sharp mind (int 10) for ~2.4×.
+export const CRIT_INT_FLOOR = 1;
+export const CRIT_INT_MULT = 0.16;
+// Whom a fighter strikes depends on wits: focus the most dangerous foe with
+// probability (intelligence − FOCUS_INT_FLOOR) × FOCUS_PER_INT (capped), else
+// flail at a random target. The dimmer the fighter, the wilder the swing.
+export const FOCUS_INT_FLOOR = 2;
+export const FOCUS_PER_INT = 0.12;
+export const FOCUS_MAX_CHANCE = 0.95;
 export const RING_BEARER_ID = "frodo";
 export const DEFAULT_PARTY = ["frodo"];
 // Hard cap on enemies in a single encounter pack.
@@ -189,6 +202,9 @@ export const EDORAS_POINT = { x: 909, y: 1062 };
 export const ROHAN_RADIUS = 280;
 export const GOLLUM_ENCOUNTER_CHANCE = 0.033;
 export const EOMER_ENCOUNTER_CHANCE = 0.2;
+// A masterless Gríma skulks the wilds if Isengard fell before he fled there —
+// uncommon, and no real threat to a couple of stout hobbits.
+export const GRIMA_ENCOUNTER_CHANCE = 0.04;
 // Rare roaming Nazgul patrols: about one in five road encounters.
 export const NAZGUL_ENCOUNTER_CHANCE = 0.2;
 export const NAZGUL_PACK_MAX = 3;
@@ -305,7 +321,7 @@ export const RECRUITS_BY_LOCATION: Record<number, string[]> = {
   [OLD_FOREST_ID]: ["bombadil"],
   [LOTHLORIEN_ID]: ["galadriel", "celeborn", "haldir"],
   [ISENGARD_ID]: ["saruman"],
-  [EDORAS_ID]: ["theoden", "eowyn"],
+  [EDORAS_ID]: ["theoden", "eowyn", "grima"],
   [MINAS_TIRITH_ID]: ["faramir", "denethor"],
 };
 // Characters who are only sometimes home; rolled once per visit.

@@ -151,7 +151,8 @@ export interface Combatant {
   strength: number; // drives max HP
   attack: number; // damage stat; equals strength for heroes, boosted for monsters
   defense: number;
-  luck: number; // used when weighing escape odds
+  luck: number; // used when weighing escape odds, and to roll crits
+  intelligence: number; // drives target choice (focus vs. flail) and crit size
 }
 
 export interface BattleState {
@@ -165,6 +166,7 @@ export interface BattleState {
   attacker: string | null; // key of the combatant striking this tick (outlined)
   tick: number; // increments on every strike so the flash re-triggers
   hitDir: number; // 0–3: which of four directions the hit-sweep stripe runs
+  crit?: boolean; // the last strike was a (meaningful) crit — show a double sweep
   bearerKey: string | null; // the ring bearer among the allies, if present
   ringOn: boolean; // bearer wears the Ring: invisible & untargetable
   fleeUsed: boolean; // the single in-battle escape attempt has been spent

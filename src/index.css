@@ -20,3 +20,36 @@
 .hit-sweep {
   animation: hit-sweep 0.4s ease-out forwards;
 }
+
+/* A crit lands as two quick strokes in rapid succession. */
+@keyframes hit-sweep-double {
+  0% {
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(-120%);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  38% {
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(120%);
+    opacity: 0;
+  }
+  46% {
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(-120%);
+    opacity: 0;
+  }
+  54% {
+    opacity: 0.9;
+  }
+  90% {
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(120%);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(var(--sweep-angle, -45deg)) translateX(120%);
+    opacity: 0;
+  }
+}
+.hit-sweep-crit {
+  animation: hit-sweep-double 0.44s ease-out forwards;
+}

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import { ITEM_BY_ID } from "@/game";
+import { ITEM_BY_ID, itemFamilyId } from "@/game";
 
 export type TalkResult = {
   charId: string;
@@ -44,8 +44,8 @@ export function TalkResultModal({
           <div className="mt-3 flex flex-col gap-2">
             {items.map((it) => (
               <div key={it.id}>
-                <p className="text-sm font-semibold text-sky-100">{t(`item.${it.id}.name`)}</p>
-                <p className="text-xs text-sky-300/80">{t(`item.${it.id}.desc`)}</p>
+                <p className="text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(it.id)}.name`)}</p>
+                <p className="text-xs text-sky-300/80">{t(`item.${itemFamilyId(it.id)}.desc`)}</p>
               </div>
             ))}
             {cloaks && (

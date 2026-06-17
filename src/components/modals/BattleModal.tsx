@@ -130,7 +130,7 @@ export function BattleModal({
                           className="pointer-events-none absolute inset-0 flex items-center justify-center"
                         >
                           <span
-                            className="hit-sweep block h-2 w-[140%] bg-white/70"
+                            className={`${battle.crit ? "hit-sweep-crit" : "hit-sweep"} block h-2 w-[140%] bg-white/70`}
                             style={{ "--sweep-angle": SWEEP_ANGLES[battle.hitDir] } as CSSProperties}
                           />
                         </span>
@@ -184,7 +184,7 @@ export function BattleModal({
                         className="pointer-events-none absolute inset-0 flex items-center justify-center"
                       >
                         <span
-                          className="hit-sweep block h-2 w-[140%] bg-white/70"
+                          className={`${battle.crit ? "hit-sweep-crit" : "hit-sweep"} block h-2 w-[140%] bg-white/70`}
                           style={{ "--sweep-angle": SWEEP_ANGLES[battle.hitDir] } as CSSProperties}
                         />
                       </span>

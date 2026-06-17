@@ -72,6 +72,7 @@
     "exploreLocked": "Defeat this place's guardian first.",
     "weathertopRune": "Atop Weathertop you find a flat stone scratched with signs: a rune 'G' and three strokes beneath it — Gandalf's mark. He was here on the third. Press on east, to Rivendell.",
     "erechSummon": "At the Stone of Erech, Aragorn, heir of Isildur, summons the Oathbreakers — the Dead of Dunharrow who once swore to Isildur and broke their oath. He bids them fulfil it at last. The King of the Dead bows and agrees to follow until the oath is fulfilled. From now on the undead dare not assail your company.",
+    "osgiliathCache": "In the ruins of Osgiliath you uncover a sealed Gondorian armoury cache: {{swords}} sword(s) and {{armor}} hauberk(s). Share them out among the company.",
     "fight": "⚔️ Fight: {{name}}",
     "supplies": "🍞 Take {{n}} days of supplies",
     "suppliesFull": "🍞 Supplies full ({{n}} days)",
@@ -244,6 +245,9 @@
   },
   "refuse": {
     "gollumHobbits": "Gollum hisses: \"No! Gollum goes only with hobbitses, no strangers, gollum!\"",
+    "grima": "Wormtongue sneers: \"I'll stay by the king — someone must guard his peace from the likes of you.\"",
+    "theodenGrima": "Wormtongue whispers in the king's ear: \"What need have you, lord, of these wanderers and their mad errand?\" — and Théoden turns away.",
+    "grimaFlees": "Wormtongue paled at the sight of Gandalf and slipped away into the gloom of the hall — and was never seen in Edoras again.",
     "elrondArwen": "Elrond: \"I will not let Arwen into that darkness.\"",
     "kinEowyn": "Eowyn: \"My kin will not let me go.\"",
     "sarumanGandalf": "Saruman: \"I will not walk beside that grey vagabond.\"",
@@ -267,6 +271,14 @@
   },
   "item": {
     "chooseTitle": "Choose an item",
+    "gondor_sword": {
+      "name": "Gondorian sword",
+      "desc": "+3 strength"
+    },
+    "gondor_armor": {
+      "name": "Gondorian hauberk",
+      "desc": "+3 defense"
+    },
     "numenor_dagger": {
       "name": "Númenórean dagger",
       "desc": "+3 strength against the undead"
@@ -389,9 +401,11 @@
     "faramir": "Faramir",
     "denethor": "Denethor",
     "gollum": "Gollum",
+    "grima": "Gríma Wormtongue",
     "king_dead": "King of the Dead"
   },
   "monster": {
+    "grima": "Gríma Wormtongue",
     "fox": "Fox",
     "rat": "Giant rat",
     "wolf": "Wolf",

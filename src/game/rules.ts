@@ -21,9 +21,15 @@ import {
   CRIT_LUCK_FLOOR,
   CRIT_MAX_CHANCE,
   CRIT_PER_LUCK,
+  CRIT_INT_FLOOR,
+  CRIT_INT_MULT,
+  FOCUS_INT_FLOOR,
+  FOCUS_PER_INT,
+  FOCUS_MAX_CHANCE,
   FOOD_DAYS_PONY,
   FLEE_AT_HALF_FOES,
   GOLLUM_ENCOUNTER_CHANCE,
+  GRIMA_ENCOUNTER_CHANCE,
   GRIMBEORN_BEAST_BONUS,
   HEALTH_PER_STR,
   HOBBIT_IDS,
@@ -57,6 +63,7 @@ import {
   CHARACTERS,
   EOMER_ENEMY,
   GOLLUM_ENEMY,
+  GRIMA_ENEMY,
   LOCATION_IMAGE_FILE,
   locationData,
   MONSTERS,
@@ -233,7 +240,12 @@ export function rollEncounter(
   party: string[],
   leftBehind: { id: string }[],
   slainRoamingRecruits: ReadonlySet<string>,
+  grimaRoaming = false,
 ): { monster: Monster; dangerous: boolean; solo: boolean } {
+  // A masterless Gríma, skulking the wilds — a rare, feeble foe.
+  if (grimaRoaming && Math.random() < GRIMA_ENCOUNTER_CHANCE) {
+    return { monster: GRIMA_ENEMY, dangerous: false, solo: true };
+  }
   if (
     !roamingRecruitBlocked("gollum", party, leftBehind, slainRoamingRecruits) &&
     Math.random() < GOLLUM_ENCOUNTER_CHANCE
@@ -541,6 +553,14 @@ export function itemStatBonus(item: Item | undefined): StatBonus {
     : ZERO_BONUS;
 }
 
+// Cache items (gondor_sword_3, gondor_armor_1, …) are many distinct ids that
+// share one display name/desc — collapse the numeric suffix for i18n lookups.
+// Only the Gondor armoury family is pooled this way, so other "_1/_2" items
+// (silver_belt_1, …) keep their own names.
+export function itemFamilyId(id: string): string {
+  return id.startsWith("gondor_") ? id.replace(/_\d+$/, "") : id;
+}
+
 // Conditional bonus attack a carried item adds against the foes in this fight.
 export function itemAttackBonus(
   item: Item | undefined,
@@ -563,6 +583,44 @@ export function critChance(luck: number): number {
 
 export function rollCrit(luck: number): boolean {
   return Math.random() < critChance(luck);
+}
+
+// A crit's bite scales with the attacker's wits (luck only sets how often it
+// lands). A dolt's "crit" is no crit at all (×1); a hobbit lands ~1.5×, a sharp
+// mind far heavier.
+export function critMultiplier(intelligence: number): number {
+  return 1 + Math.max(0, intelligence - CRIT_INT_FLOOR) * CRIT_INT_MULT;
+}
+
+// How likely a fighter is to coordinate on the team's focus target rather than
+// flail at a random foe — rising with intelligence.
+export function focusChance(intelligence: number): number {
+  return clamp((intelligence - FOCUS_INT_FLOOR) * FOCUS_PER_INT, 0, FOCUS_MAX_CHANCE);
+}
+
+// Choose which foe to strike. A clever fighter focuses the most dangerous one
+// (highest attack, finishing the frailest among equals) — and since that pick
+// is deterministic, all the clever ones converge on the same target. A dull one
+// just swings at a random foe; the duller, the likelier that random flail.
+export function chooseTargetIndex(
+  attacker: Combatant,
+  foes: Combatant[],
+  aliveIndices: number[],
+): number {
+  if (aliveIndices.length <= 1) {
+    return aliveIndices[0] ?? 0;
+  }
+  if (Math.random() < focusChance(attacker.intelligence)) {
+    return aliveIndices.reduce((best, idx) => {
+      const candidate = foes[idx];
+      const current = foes[best];
+      if (candidate.attack !== current.attack) {
+        return candidate.attack > current.attack ? idx : best;
+      }
+      return candidate.hp < current.hp ? idx : best;
+    }, aliveIndices[0]);
+  }
+  return aliveIndices[Math.floor(Math.random() * aliveIndices.length)];
 }
 
 // Auto-battle: allies strike one by one, then the enemy. Damage is symmetric on
@@ -628,11 +686,15 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     if (i >= allies.length) {
       return { ...battle, allies, enemies, turn: "enemies", index: 0, lastHit: null, attacker: null };
     }
-    const aliveEnemies = enemies.flatMap((enemy, idx) => (enemy.hp > 0 ? [idx] : []));
+    // Only foes still in the fight are targets — those that yield at half
+    // (fleeing Nazgûl, captives to recruit) drop out and take no more blows.
+    const aliveEnemies = enemies.flatMap((enemy, idx) =>
+      enemyBeatenInBattle(enemy, battle) ? [] : [idx],
+    );
     if (aliveEnemies.length === 0) {
       return { ...battle, allies, enemies, outcome: "win" };
     }
-    const target = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+    const target = chooseTargetIndex(allies[i], enemies, aliveEnemies);
     const beastBonus = allies[i].key === "grimbeorn" && battle.enemyBeast ? GRIMBEORN_BEAST_BONUS : 0;
     // Everyone can wound the Balrog, but only Gandalf/Bombadil/Saruman hit hard.
     const balrogBonus =
@@ -642,15 +704,22 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     // Luck duel decides whether the blow connects; luck again rolls a crit.
     const lands = !missesInvisible && rollHit(allies[i].luck, enemies[target].luck);
     let dealt = 0;
+    let didCrit = false;
     if (lands) {
       dealt = hitDamage(allies[i], enemies[target]);
       if (rollCrit(allies[i].luck)) {
-        dealt *= 2;
+        const mult = critMultiplier(allies[i].intelligence);
+        if (mult > 1) {
+          dealt = Math.round(dealt * mult);
+          didCrit = true;
+        }
       }
       dealt += beastBonus + balrogBonus;
     }
     enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
-    if (battle.recruitId) {
+    // A foe that yields at half is never beaten below it — one big blow can't
+    // overshoot and kill it; it simply drops out at half.
+    if (battle.recruitId || FLEE_AT_HALF_FOES.has(enemies[target].name)) {
       const minHp = Math.max(1, Math.ceil(enemies[target].maxHp / 2));
       enemies[target].hp = Math.max(minHp, enemies[target].hp);
     }
@@ -664,11 +733,14 @@ export function advanceBattleTick(battle: BattleState): BattleState {
       attacker: allies[i].key,
       tick: battle.tick + 1,
       hitDir: Math.floor(Math.random() * 4),
+      crit: didCrit,
     };
   }
 
   let j = battle.index;
-  while (j < enemies.length && enemies[j].hp <= 0) {
+  // A beaten foe is out of the fight — it doesn't strike back (a Nazgûl that
+  // yielded at half is inactive, not merely at 0 HP).
+  while (j < enemies.length && enemyBeatenInBattle(enemies[j], battle)) {
     j += 1;
   }
   if (j >= enemies.length) {
@@ -678,7 +750,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   if (aliveAllies.length === 0) {
     return { ...battle, allies, enemies, outcome: "lose" };
   }
-  const target = aliveAllies[Math.floor(Math.random() * aliveAllies.length)];
+  const target = chooseTargetIndex(enemies[j], allies, aliveAllies);
   // The Ring hides its bearer but isn't total cover — only about ROGUE_HIT_CHANCE
   // of blows find him.
   const ringProtected =
@@ -686,10 +758,15 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   const missesRing = ringProtected && Math.random() > ROGUE_HIT_CHANCE;
   const lands = !missesRing && rollHit(enemies[j].luck, allies[target].luck);
   let dealt = 0;
+  let didCrit = false;
   if (lands) {
     dealt = hitDamage(enemies[j], allies[target]);
     if (rollCrit(enemies[j].luck)) {
-      dealt *= 2;
+      const mult = critMultiplier(enemies[j].intelligence);
+      if (mult > 1) {
+        dealt = Math.round(dealt * mult);
+        didCrit = true;
+      }
     }
   }
   allies[target].hp = Math.max(0, allies[target].hp - dealt);
@@ -703,6 +780,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     attacker: enemies[j].key,
     tick: battle.tick + 1,
     hitDir: Math.floor(Math.random() * 4),
+    crit: didCrit,
   };
 }
 

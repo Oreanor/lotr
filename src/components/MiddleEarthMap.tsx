@@ -112,6 +112,7 @@ import {
   HOBBITON_ID,
   iconVariant,
   INITIAL_FOOD_DAYS,
+  EDORAS_ID,
   INITIAL_HERO_PROGRESS,
   isCharacterRecruitableHere,
   ISENGARD_ID,
@@ -130,11 +131,16 @@ import {
   MILES_PER_DAY,
   MINAS_MORGUL_ID,
   monsterExp,
+  GONDOR_ARMOR_IDS,
+  GONDOR_CACHE_MAX,
+  GONDOR_SWORD_IDS,
+  GRIMA_ENEMY,
   MORIA_GATE_ID,
   MOVE_SUBSTEPS,
   NAZGUL_ENEMY,
   NON_BEARERS,
   ORODRUIN_ID,
+  OSGILIATH_ID,
   PLAYER_ICON,
   preloadedLocationImages,
   preloadImage,
@@ -357,6 +363,14 @@ export default function MiddleEarthMap() {
   // Aragorn summoned the Dead at Erech — the undead no longer assail the party.
   const [deadSummoned, setDeadSummoned] = useState<boolean>(initialSave?.deadSummoned ?? false);
   const [samCaughtUp, setSamCaughtUp] = useState<boolean>(initialSave?.samCaughtUp ?? false);
+  // Gríma Wormtongue: sits at Edoras blocking Théoden until Gandalf scares him
+  // off (grimaFled), then turns up at Isengard or roams the wild until slain.
+  const [grimaFled, setGrimaFled] = useState<boolean>(initialSave?.grimaFled ?? false);
+  const [grimaSlain, setGrimaSlain] = useState<boolean>(initialSave?.grimaSlain ?? false);
+  // The Osgiliath ruins yield a Gondorian armoury cache exactly once.
+  const [osgiliathCacheFound, setOsgiliathCacheFound] = useState<boolean>(
+    initialSave?.osgiliathCacheFound ?? false,
+  );
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
   // Result of talking to a companion: a greeting or items handed over.
   const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
@@ -582,6 +596,18 @@ export default function MiddleEarthMap() {
         refuse(t(blockedKey));
         return;
       }
+      // Wormtongue will never leave the king's side — he only ever sneers you off.
+      if (character.id === "grima") {
+        refuse(t("refuse.grima"));
+        return;
+      }
+      // While Gríma still whispers in Edoras, Théoden won't stir for "these
+      // wanderers and their mad errand" — the king himself frowns you off
+      // (Wormtongue's words, Théoden's face). Only Gandalf breaks that hold.
+      if (character.id === "theoden" && !grimaFled) {
+        refuse(t("refuse.theodenGrima"));
+        return;
+      }
       // Círdan only follows a bearer at least as wise as himself.
       if (character.id === "cirdan") {
         const bearer = CHARACTERS.find((c) => c.id === bearerId);
@@ -604,7 +630,7 @@ export default function MiddleEarthMap() {
       }
       recruitCharacter(character.id);
     },
-    [bearerId, party, recruitCharacter, showRecruitRefusal, statBonusById, t],
+    [bearerId, party, grimaFled, recruitCharacter, showRecruitRefusal, statBonusById, t],
   );
 
   // Invite the foe defeated in battle (or decline).
@@ -665,6 +691,7 @@ export default function MiddleEarthMap() {
           attack: s.strength,
           defense: s.defense,
           luck: s.luck,
+          intelligence: s.intelligence,
         };
       };
       battleAppliedRef.current = false;
@@ -776,6 +803,7 @@ export default function MiddleEarthMap() {
           attack: s.strength * undeadMultiplier + attackBonus,
           defense: s.defense,
           luck: s.luck,
+          intelligence: s.intelligence,
         };
       })
       .filter((c): c is Combatant => c !== null && c.hp > 0);
@@ -795,6 +823,7 @@ export default function MiddleEarthMap() {
         attack: mm.attack ?? str,
         defense: mm.defense,
         luck: mm.luck,
+        intelligence: mm.intelligence,
       };
     });
     battleAppliedRef.current = false;
@@ -1102,6 +1131,7 @@ export default function MiddleEarthMap() {
             attack: s.strength,
             defense: s.defense,
             luck: s.luck,
+            intelligence: s.intelligence,
           };
         })
         .filter((c): c is Combatant => c !== null && c.hp > 0);
@@ -1117,6 +1147,7 @@ export default function MiddleEarthMap() {
         attack: rs.strength,
         defense: rs.defense,
         luck: rs.luck,
+        intelligence: rs.intelligence,
       };
       battleAppliedRef.current = false;
       let battleState: BattleState = {
@@ -1384,6 +1415,9 @@ export default function MiddleEarthMap() {
       equippedItems,
       deadSummoned,
       samCaughtUp,
+      grimaFled,
+      grimaSlain,
+      osgiliathCacheFound,
     });
   }, [
     created,
@@ -1416,6 +1450,9 @@ export default function MiddleEarthMap() {
     equippedItems,
     deadSummoned,
     samCaughtUp,
+    grimaFled,
+    grimaSlain,
+    osgiliathCacheFound,
   ]);
 
   // Game over: drop the save so a reload starts a fresh quest.
@@ -1854,7 +1891,7 @@ export default function MiddleEarthMap() {
     const itemId = EXPLORE_ITEM_BY_LOCATION[loc.id];
     // Nothing to search here (no special site, no hidden item) — do nothing, and
     // don't burn a day for it.
-    if (loc.id !== WEATHERTOP_ID && loc.id !== ERECH_ID && !itemId) {
+    if (loc.id !== WEATHERTOP_ID && loc.id !== ERECH_ID && loc.id !== OSGILIATH_ID && !itemId) {
       return;
     }
     // Searching a location costs a day (and runs that day's upkeep: rations,
@@ -1881,6 +1918,31 @@ export default function MiddleEarthMap() {
       }
       return;
     }
+    // Osgiliath ruins: a one-time Gondorian armoury cache, a touch rarer than a
+    // normal find (÷12 vs ÷10). It yields party-size pieces split roughly evenly
+    // between swords (+3 strength) and hauberks (+3 defense), the odd one going
+    // either way.
+    if (loc.id === OSGILIATH_ID) {
+      const cacheLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+      if (osgiliathCacheFound || Math.random() >= cacheLuck / 12) {
+        setExploreResult({ found: false });
+        return;
+      }
+      const total = Math.min(party.length, GONDOR_CACHE_MAX * 2);
+      const rawSwords = Math.random() < 0.5 ? Math.ceil(total / 2) : Math.floor(total / 2);
+      const swords = Math.min(rawSwords, GONDOR_CACHE_MAX);
+      const armor = Math.min(total - rawSwords, GONDOR_CACHE_MAX);
+      const cacheIds = [...GONDOR_SWORD_IDS.slice(0, swords), ...GONDOR_ARMOR_IDS.slice(0, armor)];
+      setFoundItems((prev) => [...prev, ...cacheIds.filter((id) => !prev.includes(id))]);
+      setOsgiliathCacheFound(true);
+      setExploreResult({
+        found: true,
+        message: "location.osgiliathCache",
+        messageParams: { swords, armor },
+        emoji: "⚔️",
+      });
+      return;
+    }
     const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
     const found = !foundItems.includes(itemId) && Math.random() < avgLuck / 10;
     if (found) {
@@ -1889,7 +1951,7 @@ export default function MiddleEarthMap() {
     } else {
       setExploreResult({ found: false });
     }
-  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, parkedMembers]);
+  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, parkedMembers, osgiliathCacheFound]);
 
   // Talk to a companion: hand over their gift items (once, and only if their
   // requirement is met — Bilbo needs Frodo along), else a random greeting.
@@ -2701,7 +2763,8 @@ export default function MiddleEarthMap() {
   // Gandalf is along; otherwise he's a boss. Once fought, he can't be recruited.
   const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
   const sarumanFriendly = (() => {
-    if (party.includes("gandalf") || defeatedBosses.has(sarumanBossName)) {
+    // Once Wormtongue has slunk to Isengard, Saruman is beyond parley.
+    if (party.includes("gandalf") || defeatedBosses.has(sarumanBossName) || grimaFled) {
       return false;
     }
     const bearer = CHARACTERS.find((c) => c.id === bearerId);
@@ -2711,6 +2774,9 @@ export default function MiddleEarthMap() {
     }
     return effectiveStats(bearer, totalBonusFor(bearer)).intelligence < saruman.intelligence;
   })();
+  // A fled Gríma with no Isengard left to run to (Saruman already beaten) skulks
+  // the wild until someone puts him down.
+  const grimaRoaming = grimaFled && !grimaSlain && defeatedBosses.has(sarumanBossName);
   const recruitsHere = visitedLocation
     ? CHARACTERS.filter(
         (character) =>
@@ -2719,6 +2785,8 @@ export default function MiddleEarthMap() {
           !banishedTraitors.has(character.id) &&
           (character.id !== "sam" || !samCaughtUp) &&
           (character.id !== "saruman" || sarumanFriendly) &&
+          // Wormtongue only lurks at Edoras until Gandalf drives him out.
+          (character.id !== "grima" || !grimaFled) &&
           // Hide companions already aboard when we arrived (recruited on an
           // earlier visit); the one just recruited this visit still shows.
           !entryParty.has(character.id),
@@ -3128,6 +3196,11 @@ export default function MiddleEarthMap() {
           setEnding((prev) => prev ?? "sauron");
         }
       }
+      // Wormtongue felled (at Isengard alongside Saruman, or cornered in the
+      // wild) is gone for good — he won't haunt the roads again.
+      if (battle.enemies.some((enemy) => enemy.icon === GRIMA_ENEMY.icon)) {
+        setGrimaSlain(true);
+      }
     }
   }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, banishTraitor]);
 
@@ -3165,6 +3238,15 @@ export default function MiddleEarthMap() {
     }
     rollPresence(visitedLocation.id);
   }, [visitedLocation, rollPresence]);
+
+  // Arriving at Edoras with Gandalf: he cows Wormtongue, who pales and slips
+  // away for good — freeing Théoden to ride out.
+  useEffect(() => {
+    if (visitedLocation?.id === EDORAS_ID && party.includes("gandalf") && !grimaFled) {
+      setGrimaFled(true);
+      showRecruitRefusal(t("refuse.grimaFlees"), "grima");
+    }
+  }, [visitedLocation, party, grimaFled, showRecruitRefusal, t]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
   // per member for 2 food while anyone is hurt, or starve (5% max health/day)
@@ -3398,6 +3480,7 @@ export default function MiddleEarthMap() {
         party,
         parkedMembers.map((id) => ({ id })),
         slainRoamingRecruits,
+        grimaRoaming,
       );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
       if (rolled.monster.recruitId === "eomer" && kinPresent) {
@@ -3412,7 +3495,7 @@ export default function MiddleEarthMap() {
         setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
       }
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -3465,6 +3548,7 @@ export default function MiddleEarthMap() {
       squad.members,
       others.map((id) => ({ id })),
       slainRoamingRecruits,
+      grimaRoaming,
     );
     if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
       return; // the roused Dead deter barrow-wights — no fight
@@ -3493,6 +3577,7 @@ export default function MiddleEarthMap() {
     parkedMembers,
     slainRoamingRecruits,
     deadSummoned,
+    grimaRoaming,
     focusSquad,
   ]);
 
@@ -3963,7 +4048,8 @@ export default function MiddleEarthMap() {
             !!visitedLocation &&
             (!!EXPLORE_ITEM_BY_LOCATION[visitedLocation.id] ||
               visitedLocation.id === ERECH_ID ||
-              visitedLocation.id === WEATHERTOP_ID)
+              visitedLocation.id === WEATHERTOP_ID ||
+              visitedLocation.id === OSGILIATH_ID)
           }
           exploreLocked={
             !!locationBoss ||
@@ -3979,7 +4065,9 @@ export default function MiddleEarthMap() {
               const bossPack =
                 visitedLocation?.id === MINAS_MORGUL_ID
                   ? [locationBoss, ...Array.from({ length: 8 }, () => NAZGUL_ENEMY)]
-                  : [locationBoss];
+                  : visitedLocation?.id === ISENGARD_ID && grimaFled
+                    ? [locationBoss, GRIMA_ENEMY]
+                    : [locationBoss];
               setEncounter({
                 monster: locationBoss,
                 dangerous: true,

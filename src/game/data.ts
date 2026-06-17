@@ -56,6 +56,7 @@ export const CHARACTERS: Character[] = [
   { id: "eomer", name: "Эомер", icon: "/icons/eomer.png", strength: 8, defense: 8, intelligence: 6, luck: 6, resilience: 100 },
   { id: "faramir", name: "Фарамир", icon: "/icons/faramir.png", strength: 8, defense: 7, intelligence: 8, luck: 6, resilience: 160 },
   { id: "denethor", name: "Денетор", icon: "/icons/denethor.png", strength: 6, defense: 6, intelligence: 8, luck: 4, resilience: 25 },
+  { id: "grima", name: "Грима Гнилоуст", icon: "/icons/grima.png", strength: 5, defense: 2, intelligence: 7, luck: 2, resilience: 10 },
   { id: "gollum", name: "Голлум", icon: "/icons/gollum.png", strength: 4, defense: 3, intelligence: 5, luck: 9, resilience: 20, ringExposure: 0.6 },
   { id: "king_dead", name: "Король Мёртвых", icon: "/icons/wight.png", strength: 8, defense: 8, intelligence: 6, luck: 4, resilience: 999 },
 ];
@@ -131,8 +132,33 @@ export const GOLLUM_ENEMY: Monster = {
   recruitId: "gollum",
 };
 
+// A cornered Gríma — wretched and feeble, no match for a couple of hobbits.
+export const GRIMA_ENEMY: Monster = {
+  name: "Грима Гнилоуст",
+  icon: "/enemies/grima.png",
+  tier: 1,
+  strength: 5,
+  defense: 2,
+  intelligence: 7,
+  luck: 2,
+};
+
 // One passive ability per hero, active while they are in the party.
 // Special items found by exploring or gifted by companions.
+// The Osgiliath ruins hide an armoury cache: a batch of identical Gondorian
+// swords (+3 strength) and hauberks (+3 defense). They share the "gondor_sword"
+// / "gondor_armor" name (see itemFamilyId) but need distinct ids so each can be
+// borne by a different companion. The pool caps how many a single cache yields.
+export const GONDOR_CACHE_MAX = 8;
+export const GONDOR_SWORD_IDS = Array.from(
+  { length: GONDOR_CACHE_MAX },
+  (_, i) => `gondor_sword_${i + 1}`,
+);
+export const GONDOR_ARMOR_IDS = Array.from(
+  { length: GONDOR_CACHE_MAX },
+  (_, i) => `gondor_armor_${i + 1}`,
+);
+
 export const ITEMS: Item[] = [
   { id: "numenor_dagger", icon: "🗡️", strengthVsUndead: 3 },
   { id: "sting", icon: "⚔️", strength: 3 },
@@ -151,6 +177,8 @@ export const ITEMS: Item[] = [
   { id: "numenor_blade", icon: "🔪", strengthVsUndead: 3 },
   { id: "book_of_mazarbul", icon: "📖", holders: ["gimli"], luck: 5 },
   { id: "elven_arrows", icon: "🎯", strengthVsOrcs: 4 },
+  ...GONDOR_SWORD_IDS.map((id): Item => ({ id, icon: "⚔️", strength: 3 })),
+  ...GONDOR_ARMOR_IDS.map((id): Item => ({ id, icon: "🛡️", defense: 3 })),
 ];
 export const ITEM_BY_ID: Record<string, Item> = Object.fromEntries(
   ITEMS.map((item) => [item.id, item]),
