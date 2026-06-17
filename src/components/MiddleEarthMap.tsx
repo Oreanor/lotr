@@ -415,6 +415,9 @@ export default function MiddleEarthMap() {
     () => new Set(initialSave?.banishedTraitors ?? []),
   );
   const [pendingBetrayal, setPendingBetrayal] = useState<string | null>(null);
+  // Splinter squads ambushed while idle, awaiting their turn in the single event
+  // queue (played one at a time, switching focus to each).
+  const [squadEncounterQueue, setSquadEncounterQueue] = useState<string[]>([]);
   // Splinter squads left waiting on the map. Each travels as a group; you can
   // take control of one via the squad switcher and walk it its own way. The
   // active squad is the live party/player; these are everyone else.
@@ -1179,12 +1182,25 @@ export default function MiddleEarthMap() {
     if (isMoving) {
       return;
     }
+    // Whoever's actually here forages, and food fills the shared store — so it
+    // doesn't matter which squad gathers it. Use the Ring-bearer's luck when
+    // they travel with this squad (keeps the tuned yield), otherwise the best
+    // forager in the active squad. Effective luck = base + bonuses + auras.
     const bearer = CHARACTERS.find((character) => character.id === bearerId);
-    // Effective luck — creation/level-up bonuses and party auras, not the raw stat.
-    const luck = bearer
-      ? effectiveStats(bearer, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(bearer, party)))
-          .luck
-      : 0;
+    const luck =
+      bearer && party.includes(bearerId)
+        ? effectiveStats(bearer, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(bearer, party)))
+            .luck
+        : party.reduce((best, id) => {
+            const c = CHARACTERS.find((character) => character.id === id);
+            if (!c) {
+              return best;
+            }
+            return Math.max(
+              best,
+              effectiveStats(c, addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(c, party))).luck,
+            );
+          }, 0);
     const samBonus = party.includes("sam") ? SAM_FARM_BONUS : 0;
     const gained =
       1 +
@@ -1292,6 +1308,14 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     animationPausedRef.current = animationPaused;
   }, [animationPaused]);
+
+  // While any modal/overlay is up, the map ignores input entirely — no panning,
+  // clicking-to-move, or zooming behind it.
+  const mapInputLocked =
+    animationPaused ||
+    escapeFailed !== null ||
+    exploreResult !== null ||
+    talkResult !== null;
 
   // Close the settings dropdown when clicking anywhere outside it. The panel
   // wrapper stops pointer propagation, so in-panel clicks never reach here.
@@ -1493,7 +1517,7 @@ export default function MiddleEarthMap() {
   // Cycle the active squad: front of the queue becomes live, the old active goes
   // to the back. Only meaningful when there's at least one splinter and nothing
   // in progress (a battle/encounter/move must finish first).
-  const canSwitchSquads = squads.length > 0 && !battle && !encounter && !isMoving && !target;
+  const canSwitchSquads = squads.length > 0 && !mapInputLocked && !isMoving && !target;
   const switchSquad = useCallback(() => {
     if (battle || encounter || isMoving || target || squadsRef.current.length === 0) {
       return;
@@ -1521,6 +1545,9 @@ export default function MiddleEarthMap() {
   // the *current* zoom — so it stays in sync after a pinch — keeping the
   // viewport centre fixed; wraps back to the smallest.
   const cycleZoom = useCallback(() => {
+    if (mapInputLocked) {
+      return;
+    }
     const presets = [0.5, 1, 2];
     const base = baseZoomRef.current || 1;
     const current = zoom / base;
@@ -1538,7 +1565,7 @@ export default function MiddleEarthMap() {
     setZoom(nextZoom);
     offsetRef.current = nextOffset;
     setOffset(nextOffset);
-  }, [zoom, view, mapSize, screenToMap, clampOffset]);
+  }, [mapInputLocked, zoom, view, mapSize, screenToMap, clampOffset]);
 
 
   const { terrainReady, getTerrainAtPoint } = useTerrainGrid(mapSize);
@@ -1546,7 +1573,7 @@ export default function MiddleEarthMap() {
   const handleWheel = useCallback(
     (event: WheelEvent) => {
       const viewport = viewportRef.current;
-      if (!viewport) {
+      if (!viewport || mapInputLocked) {
         return;
       }
 
@@ -1577,7 +1604,7 @@ export default function MiddleEarthMap() {
       setZoom(nextZoom);
       setOffset(nextOffset);
     },
-    [clampOffset, mapSize, screenToMap, view, zoom],
+    [mapInputLocked, clampOffset, mapSize, screenToMap, view, zoom],
   );
 
   useEffect(() => {
@@ -1630,6 +1657,10 @@ export default function MiddleEarthMap() {
 
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      // A modal is up: the map is inert (no pan, pinch, or click-to-move).
+      if (mapInputLocked) {
+        return;
+      }
       // Touch/pen always tracked; for mouse only the primary button drags.
       if (event.pointerType === "mouse" && event.button !== 0) {
         return;
@@ -1652,7 +1683,7 @@ export default function MiddleEarthMap() {
         startOffset: offset,
       };
     },
-    [beginPinch, offset],
+    [mapInputLocked, beginPinch, offset],
   );
 
   const handlePointerMove = useCallback(
@@ -1821,6 +1852,17 @@ export default function MiddleEarthMap() {
     if (!loc) {
       return;
     }
+    const itemId = EXPLORE_ITEM_BY_LOCATION[loc.id];
+    // Nothing to search here (no special site, no hidden item) — do nothing, and
+    // don't burn a day for it.
+    if (loc.id !== WEATHERTOP_ID && loc.id !== ERECH_ID && !itemId) {
+      return;
+    }
+    // Searching a location costs a day (and runs that day's upkeep: rations,
+    // and any ambushes that befall the idle splinters).
+    const nextDay = journeyDayRef.current + 1;
+    journeyDayRef.current = nextDay;
+    setJourneyDay(nextDay);
     // Weathertop: Gandalf's rune left on a stone (only reachable once the Nazgul
     // is beaten). Pure lore note, nothing to pick up.
     if (loc.id === WEATHERTOP_ID) {
@@ -1838,10 +1880,6 @@ export default function MiddleEarthMap() {
       } else {
         setExploreResult({ found: false });
       }
-      return;
-    }
-    const itemId = EXPLORE_ITEM_BY_LOCATION[loc.id];
-    if (!itemId) {
       return;
     }
     const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
@@ -2817,9 +2855,14 @@ export default function MiddleEarthMap() {
   // group off on its own can't destroy it at Mount Doom.
   const hasRing = !!bearerId && rogueBearerId === null && party.includes(bearerId);
   // The figure on the map is the bearer (when travelling with the active squad),
-  // or — for a splinter / while the Ring is fled — whoever leads this group.
+  // or — for a splinter / while the Ring is fled — the group's lead, i.e. the
+  // first member in party order (for a splinter, whoever was left first). Using
+  // party order (not CHARACTERS order) keeps the active figure and the parked
+  // squad marker, which both key off the lead, showing the same hero.
   const figureCharacter =
-    ringBearer && party.includes(ringBearer.id) ? ringBearer : partyCharacters[0];
+    ringBearer && party.includes(ringBearer.id)
+      ? ringBearer
+      : CHARACTERS.find((c) => c.id === party[0]);
   useEffect(() => {
     const currentIcons = new Set<string>();
     const addCharacter = (character: Character | null | undefined) => {
@@ -3149,29 +3192,32 @@ export default function MiddleEarthMap() {
     const heal = survivors.includes("gandalf")
       ? Math.round(HEAL_PER_DAY * GANDALF_HEAL_MULTIPLIER)
       : HEAL_PER_DAY;
-    let encounterChance = hasCloaks
-      ? ENCOUNTER_CHANCE_PER_DAY * CLOAKS_ENCOUNTER_MULTIPLIER
-      : ENCOUNTER_CHANCE_PER_DAY;
-    if (members.includes("aragorn")) {
-      encounterChance *= ARAGORN_ENCOUNTER_MULTIPLIER;
-    }
-    // Stealth items lower the encounter chance too.
-    encounterChance *= members.reduce((m, id) => {
-      const it = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
-      return it?.stealth ? m * it.stealth : m;
-    }, 1);
-    // A wiser ring-bearer picks safer paths: −5% encounters per intelligence
-    // point above 4, but never less than half (smarts don't make you invisible).
-    const bearer = CHARACTERS.find((c) => c.id === bearerId);
-    const bearerInt = bearer
-      ? effectiveStats(bearer, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(bearer, party)))
-          .intelligence
-      : 0;
-    encounterChance *= Math.max(0.5, 1 - Math.max(0, bearerInt - 4) * 0.05);
+    // Per-day encounter chance for any group: cloaks + Aragorn + stealth gear,
+    // and a wiser Ring-bearer (when travelling with that group) picks safer
+    // paths. Used for the active party and for each idle splinter squad alike.
+    const chanceFor = (ids: string[]) => {
+      let chance = hasCloaks
+        ? ENCOUNTER_CHANCE_PER_DAY * CLOAKS_ENCOUNTER_MULTIPLIER
+        : ENCOUNTER_CHANCE_PER_DAY;
+      if (ids.includes("aragorn")) {
+        chance *= ARAGORN_ENCOUNTER_MULTIPLIER;
+      }
+      chance *= ids.reduce((m, id) => {
+        const it = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
+        return it?.stealth ? m * it.stealth : m;
+      }, 1);
+      if (ids.includes(bearerId)) {
+        const b = CHARACTERS.find((c) => c.id === bearerId);
+        const bInt = b
+          ? effectiveStats(b, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(b, ids)))
+              .intelligence
+          : 0;
+        chance *= Math.max(0.5, 1 - Math.max(0, bInt - 4) * 0.05);
+      }
+      return chance;
+    };
     const onEagles = transport === "eagle";
-    if (onEagles) {
-      encounterChance = 0; // eagles fly above any trouble
-    }
+    const encounterChance = onEagles ? 0 : chanceFor(members);
     let wildEncounter = false;
     let rogueEncounter = false;
     let pendingTraitor: string | null = null;
@@ -3179,6 +3225,9 @@ export default function MiddleEarthMap() {
     let samCatchesUp = false;
     const ringless = !bearerId || rogueBearerId !== null;
     const hungerDead: string[] = [];
+    // Splinter squads catch their own random battles too — collected here and
+    // played out one at a time, switching focus to each squad in turn.
+    const ambushedSquads = new Set<string>();
     const onWater =
       getTerrainAtPoint(playerRef.current ?? hobbiton.point).name === "water";
     for (let day = processedDayRef.current; day < journeyDay; day += 1) {
@@ -3255,6 +3304,25 @@ export default function MiddleEarthMap() {
       if (members.includes("bombadil") && Math.random() < BOMBADIL_LEAVE_CHANCE) {
         bombadilLeaves = true;
       }
+      // Idle splinter squads can be ambushed where they wait (at most one battle
+      // queued per squad per pass; never on open water).
+      for (const squad of squads) {
+        if (ambushedSquads.has(squad.id)) {
+          continue;
+        }
+        if (getTerrainAtPoint(squad.point).name === "water") {
+          continue;
+        }
+        if (Math.random() < chanceFor(squad.members)) {
+          ambushedSquads.add(squad.id);
+        }
+      }
+    }
+    if (ambushedSquads.size > 0) {
+      setSquadEncounterQueue((prev) => [
+        ...prev,
+        ...[...ambushedSquads].filter((id) => !prev.includes(id)),
+      ]);
     }
     processedDayRef.current = journeyDay;
     foodRef.current = nextFood;
@@ -3371,6 +3439,64 @@ export default function MiddleEarthMap() {
     setPendingBetrayal(null);
   }, [pendingBetrayal, battle, encounter, party, squads, focusSquad, startBetrayal]);
 
+  // Play queued splinter-squad ambushes one at a time. Wait until nothing else
+  // is happening (single event stack), take command of the next ambushed squad,
+  // and stage its fight. A squad that has since merged or been wiped is skipped.
+  useEffect(() => {
+    if (!created || ending || battle || encounter || isMoving || target || visitedLocation) {
+      return;
+    }
+    if (pendingBetrayal || (hasFallen && rogueBearerId === null && bearerId)) {
+      return; // Ring/betrayal events take priority in the queue.
+    }
+    if (squadEncounterQueue.length === 0) {
+      return;
+    }
+    const [squadId, ...rest] = squadEncounterQueue;
+    setSquadEncounterQueue(rest);
+    const squad = squads.find((s) => s.id === squadId);
+    if (!squad || squad.members.length === 0) {
+      return;
+    }
+    const others = [...partyRef.current, ...parkedMembers].filter(
+      (id) => !squad.members.includes(id),
+    );
+    const rolled = rollEncounter(
+      squad.point,
+      squad.members,
+      others.map((id) => ({ id })),
+      slainRoamingRecruits,
+    );
+    if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
+      return; // the roused Dead deter barrow-wights — no fight
+    }
+    const enc = createEncounter(rolled, squad.members.length, squad.point);
+    const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
+    if (pack.length === 0) {
+      return;
+    }
+    focusSquad(squad.id);
+    setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
+  }, [
+    created,
+    ending,
+    battle,
+    encounter,
+    isMoving,
+    target,
+    visitedLocation,
+    pendingBetrayal,
+    hasFallen,
+    rogueBearerId,
+    bearerId,
+    squadEncounterQueue,
+    squads,
+    parkedMembers,
+    slainRoamingRecruits,
+    deadSummoned,
+    focusSquad,
+  ]);
+
   return (
     <section className="fixed inset-0 bg-white p-1 sm:p-[18px]">
       <div
@@ -3438,7 +3564,7 @@ export default function MiddleEarthMap() {
             }
             const pos = mapToLayer(squad.point);
             const label = squad.members.map((id) => charName(id)).join(", ");
-            const canTake = !battle && !encounter && !isMoving && !target;
+            const canTake = canSwitchSquads;
             return (
               <button
                 key={squad.id}
@@ -3518,7 +3644,9 @@ export default function MiddleEarthMap() {
               src={figureCharacter?.icon ?? PLAYER_ICON}
               alt=""
               draggable="false"
-              className="size-full select-none object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+              // Gold silhouette outline marks the active group's figure; the last
+              // shadow keeps it lifted off the map.
+              className="size-full select-none object-contain [filter:drop-shadow(1px_0_0_#fcd34d)_drop-shadow(-1px_0_0_#fcd34d)_drop-shadow(0_1px_0_#fcd34d)_drop-shadow(0_-1px_0_#fcd34d)_drop-shadow(0_1px_3px_rgba(0,0,0,0.75))]"
             />
           </button>
         </div>
