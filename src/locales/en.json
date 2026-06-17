@@ -200,6 +200,7 @@
     "sauronText": "Sauron could not believe his own Eye: the Ring had come to him of its own accord. It slipped from {{name}}'s finger, leapt into its master's hand — and so ended everything for Middle-earth.",
     "rogueLordTitle": "{{name}} put on the Ring",
     "rogueLordText": "You were too late. {{name}} reached Mount Doom first and proclaimed himself the new Lord. Game over.",
+    "viewStats": "View statistics",
     "replay": "Play again"
   },
   "rogue": {

@@ -48,18 +48,24 @@ function StatRow({ label, value }: { label: string; value: string }) {
 
 function Portrait({ src, label, found }: { src: string; label: string; found: boolean }) {
   return (
-    <div
-      title={found ? label : "???"}
-      className="relative aspect-square overflow-hidden rounded border border-neutral-700 bg-neutral-800"
-    >
-      <img
-        src={src}
-        alt={found ? label : ""}
-        draggable={false}
-        className={`size-full select-none object-cover transition ${
-          found ? "" : "opacity-20 grayscale"
+    <div title={label} className="flex flex-col items-center gap-0.5">
+      <div className="aspect-square w-full overflow-hidden rounded border border-neutral-700 bg-neutral-800">
+        <img
+          src={src}
+          alt={label}
+          draggable={false}
+          className={`size-full select-none object-cover transition ${
+            found ? "" : "opacity-20 grayscale"
+          }`}
+        />
+      </div>
+      <span
+        className={`w-full truncate text-center text-[9px] leading-tight ${
+          found ? "text-neutral-300" : "text-neutral-600"
         }`}
-      />
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -87,6 +93,7 @@ export function StatsModal({
     <Modal
       open={open}
       align="top"
+      z="z-[60]"
       className="max-h-[88vh] w-full max-w-2xl overflow-y-auto border-neutral-700 p-6"
     >
       <h2 className="font-serif text-2xl text-neutral-100">{t("stats.title")}</h2>

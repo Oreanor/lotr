@@ -33,7 +33,7 @@ import {
   SamCatchUpModal,
 } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
-import { RogueFledModal, BearerChooserModal } from "@/components/modals/RogueModals";
+import { RogueFledModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
 import { BattleModal } from "@/components/modals/BattleModal";
 import { EscapeFailedModal } from "@/components/modals/EscapeFailedModal";
@@ -370,6 +370,9 @@ export default function MiddleEarthMap() {
   // off (grimaFled), then turns up at Isengard or roams the wild until slain.
   const [grimaFled, setGrimaFled] = useState<boolean>(initialSave?.grimaFled ?? false);
   const [grimaSlain, setGrimaSlain] = useState<boolean>(initialSave?.grimaSlain ?? false);
+  // Gandalf has cowed Gríma at Edoras, but he stays on the card until the player
+  // dismisses the "he flees" notice — only then does he actually slip away.
+  const [grimaFleePending, setGrimaFleePending] = useState(false);
   // The Osgiliath ruins yield a Gondorian armoury cache exactly once.
   const [osgiliathCacheFound, setOsgiliathCacheFound] = useState<boolean>(
     initialSave?.osgiliathCacheFound ?? false,
@@ -435,6 +438,11 @@ export default function MiddleEarthMap() {
   );
   const [maxPartySize, setMaxPartySize] = useState<number>(
     initialSave?.maxPartySize ?? (initialSave?.party?.length ?? DEFAULT_PARTY.length),
+  );
+  // Everyone the party has laid eyes on — recruited, offered, refused, or faced
+  // as a foe — so the "characters found" tally counts those who wouldn't join.
+  const [metCharacterIds, setMetCharacterIds] = useState<Set<string>>(
+    () => new Set(initialSave?.metCharacterIds ?? []),
   );
   // Roaming recruits never reappear once dead (Gollum slain in betrayal, starved, or fallen).
   const [slainRoamingRecruits, setSlainRoamingRecruits] = useState<Set<string>>(
@@ -564,6 +572,18 @@ export default function MiddleEarthMap() {
     },
     [flashEmote],
   );
+
+  // Close the refusal notice — and, if it was Gríma being driven from Edoras,
+  // only now let him slip away (he stayed visible behind the notice).
+  const dismissRecruitRefusal = useCallback(() => {
+    setRecruitRefusal(null);
+    setGrimaFleePending((pending) => {
+      if (pending) {
+        setGrimaFled(true);
+      }
+      return false;
+    });
+  }, []);
 
   const recruitCharacter = useCallback(
     (id: string) => {
@@ -1360,11 +1380,18 @@ export default function MiddleEarthMap() {
     ],
   );
 
-  // Everyone who has ever marched with the party — the seed hobbit, anyone
-  // recruited (stamped in joinDay), and whoever stands in the party right now.
+  // Everyone "found": the seed hobbit, anyone recruited (stamped in joinDay),
+  // whoever stands in the party now, plus everyone merely met — seen at a
+  // location or faced as a foe — even if they never joined.
   const foundCharacterIds = useMemo(
-    () => new Set<string>([...DEFAULT_PARTY, ...Object.keys(joinDayRef.current), ...party]),
-    [party, statsOpen],
+    () =>
+      new Set<string>([
+        ...DEFAULT_PARTY,
+        ...Object.keys(joinDayRef.current),
+        ...party,
+        ...metCharacterIds,
+      ]),
+    [party, metCharacterIds, statsOpen],
   );
   const gameStats = useMemo<GameStats>(
     () => ({
@@ -1480,6 +1507,7 @@ export default function MiddleEarthMap() {
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
       maxPartySize,
+      metCharacterIds: [...metCharacterIds],
     });
   }, [
     created,
@@ -1519,6 +1547,7 @@ export default function MiddleEarthMap() {
     enemiesKilled,
     defeatedEnemyIcons,
     maxPartySize,
+    metCharacterIds,
   ]);
 
   // Game over: drop the save so a reload starts a fresh quest.
@@ -2156,7 +2185,7 @@ export default function MiddleEarthMap() {
       return;
     }
     if (recruitRefusal) {
-      setRecruitRefusal(null);
+      dismissRecruitRefusal();
       return;
     }
     if (samCatchUpOpen) {
@@ -2367,6 +2396,7 @@ export default function MiddleEarthMap() {
     deathNotice,
     reclaimedFrom,
     recruitRefusal,
+    dismissRecruitRefusal,
     samCatchUpOpen,
     recruitOffer,
     acceptRecruitOffer,
@@ -2498,19 +2528,23 @@ export default function MiddleEarthMap() {
       playerRef.current = player;
     }
 
-    const lockedPassages = [MORIA_GATE_ID, MINAS_MORGUL_ID]
-      .map((id) => locations.find((location) => location.id === id) ?? null)
-      .filter((location): location is MapLocation => {
-        const boss = location ? BOSSES_BY_LOCATION[location.id] : null;
-        return !!boss && !defeatedBosses.has(boss.name);
-      });
-
-    function crossedLockedPassage(point: Point): MapLocation | null {
-      return (
-        lockedPassages.find(
-          (location) => Math.hypot(location.point.x - point.x, location.point.y - point.y) < MILES_PER_DAY,
-        ) ?? null
-      );
+    // Each undefeated gate (Moria, Minas Morgul) walls off the terrain cell just
+    // east of it — as if that square were painted black on the mask. You must go
+    // to the gate and clear its guardian before the eastward pass opens; until
+    // then the cell is impassable to anyone on the ground (Eagles still fly over).
+    const blockedGateCells = new Set<string>();
+    for (const id of [MORIA_GATE_ID, MINAS_MORGUL_ID]) {
+      const gate = locations.find((location) => location.id === id);
+      const boss = gate ? BOSSES_BY_LOCATION[id] : null;
+      if (!gate || !boss || defeatedBosses.has(boss.name)) {
+        continue;
+      }
+      const cellKey = getTerrainAtPoint(gate.point).cellKey;
+      if (!cellKey) {
+        continue;
+      }
+      const [cellX, cellY] = cellKey.split(":").map(Number);
+      blockedGateCells.add(`${cellX + 1}:${cellY}`);
     }
 
     function finishTravel(visitLocation: MapLocation | null) {
@@ -2597,9 +2631,12 @@ export default function MiddleEarthMap() {
 
       function canMoveTo(point: Point): boolean {
         const terrain = getTerrainAtPoint(point);
-        // The black Mordor wall blocks everything on the ground — only Eagles,
-        // flying overhead, can pass it.
-        if (terrain.impassable && transportRef.current !== "eagle") {
+        // The black Mordor wall — and a still-sealed gate's east cell — block
+        // everything on the ground; only Eagles, flying overhead, can pass.
+        if (
+          (terrain.impassable || (terrain.cellKey !== null && blockedGateCells.has(terrain.cellKey))) &&
+          transportRef.current !== "eagle"
+        ) {
           return false;
         }
         // Mountains are passable now (just slow); only wide water still blocks.
@@ -2713,16 +2750,6 @@ export default function MiddleEarthMap() {
       const arrived = Math.hypot(activeTarget.x - nextPlayer.x, activeTarget.y - nextPlayer.y) <= 0.5;
       if (arrived) {
         nextPlayer = activeTarget;
-      }
-
-      const lockedPassage = crossedLockedPassage(nextPlayer);
-      if (lockedPassage && arrivalLocation?.id !== lockedPassage.id) {
-        journeyMilesRef.current += actualTravel * terrainCost;
-        playerRef.current = nextPlayer;
-        setPlayer(nextPlayer);
-        setHeroPath((path) => appendPathPoint(path, nextPlayer, trailCapRef.current));
-        finishTravel(lockedPassage);
-        return;
       }
 
       const nextJourneyMiles = journeyMilesRef.current + actualTravel * terrainCost;
@@ -2894,6 +2921,48 @@ export default function MiddleEarthMap() {
       ? visitedLocation
       : null;
 
+  // Log everyone the party lays eyes on into `metCharacterIds`, so the "found"
+  // tally credits characters seen but never recruited (some are mutually
+  // exclusive and can't all join one run). Sources: the recruit list at the
+  // current location, an active offer/refusal, and any character faced as a foe
+  // (matched by portrait — Éomer, Gollum, Saruman, …) in a battle or encounter.
+  const recruitsHereKey = recruitsHere.map((character) => character.id).join(",");
+  useEffect(() => {
+    const seen: string[] = recruitsHere.map((character) => character.id);
+    if (recruitOffer) {
+      seen.push(recruitOffer);
+    }
+    if (recruitRefusal?.characterId) {
+      seen.push(recruitRefusal.characterId);
+    }
+    const foes = [
+      ...(battle?.enemies ?? []).map((combatant) => combatant.icon),
+      ...(encounter ? [encounter.monster, ...encounter.pack].map((monster) => monster.icon) : []),
+    ];
+    for (const icon of foes) {
+      const match = icon ? CHARACTERS.find((character) => character.icon === icon) : undefined;
+      if (match) {
+        seen.push(match.id);
+      }
+    }
+    if (seen.length === 0) {
+      return;
+    }
+    setMetCharacterIds((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of seen) {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // recruitsHere is rebuilt each render; key off its stable id list instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recruitsHereKey, recruitOffer, recruitRefusal, battle, encounter]);
+
   // Take a transport, recording the day eagles joined (so they can leave after a
   // month). Switching from a different transport asks for confirmation first.
   const applyTransport = useCallback((next: TransportId) => {
@@ -2935,13 +3004,17 @@ export default function MiddleEarthMap() {
     () =>
       locations.map((location) => {
         const pos = mapToLayer(location.point);
+        // Places already visited fade to grey so the unvisited red dots stand out.
+        const visited = visitedLocationIds.has(location.id);
         return (
           <button
             key={location.id}
             type="button"
             title={locName(location)}
             aria-label={locName(location)}
-            className="pointer-events-auto absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-600 shadow-[0_0_0_1px_rgba(60,0,0,0.85),0_0_0_2.5px_#ffffff] transition-transform hover:scale-[1.6] hover:bg-red-500"
+            className={`pointer-events-auto absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(60,0,0,0.85),0_0_0_2.5px_#ffffff] transition-transform hover:scale-[1.6] ${
+              visited ? "bg-neutral-500 hover:bg-neutral-400" : "bg-red-600 hover:bg-red-500"
+            }`}
             style={{ left: pos.x, top: pos.y }}
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
@@ -2949,7 +3022,7 @@ export default function MiddleEarthMap() {
           />
         );
       }),
-    [locations, mapToLayer, locName, handleMarkerClick],
+    [locations, mapToLayer, locName, handleMarkerClick, visitedLocationIds],
   );
   const openCharacter = openCharacterId
     ? (CHARACTERS.find((character) => character.id === openCharacterId) ?? null)
@@ -2965,21 +3038,35 @@ export default function MiddleEarthMap() {
     : null;
   const openExp = openCharacter ? (expById[openCharacter.id] ?? 0) : 0;
   const openLevel = levelForExp(openExp);
-  // Roster rows for the party overview. Built only while the panel is open (it
-  // recomputes each render, but the work is trivial and the panel is brief).
+  // One roster row (portrait + level + full stats) for the party table panel.
+  const toSummaryRow = (character: Character): PartySummaryRow => ({
+    id: character.id,
+    icon: iconFor(character),
+    level: levelForExp(expById[character.id] ?? 0).level,
+    stats: computeCharacterStats(
+      character,
+      ringDaysById[character.id] ?? 0,
+      bearerId,
+      damageById[character.id] ?? 0,
+      totalBonusFor(character),
+    ),
+  });
+  // Reclaimed the Ring from a fallen rogue — pick its next bearer from the same
+  // table panel. Eligible companions only (some can never carry it).
+  const bearerChooserOpen =
+    !!reclaimedFrom &&
+    !ending &&
+    !battle &&
+    !deathNotice &&
+    !levelUpCharacterId &&
+    levelUpQueue.length === 0;
+  // Roster rows, built only while a panel is open (recomputed each render, but
+  // the work is trivial and the panels are brief).
   const partySummaryRows: PartySummaryRow[] = partySummaryOpen
-    ? partyCharacters.map((character) => ({
-        id: character.id,
-        icon: iconFor(character),
-        level: levelForExp(expById[character.id] ?? 0).level,
-        stats: computeCharacterStats(
-          character,
-          ringDaysById[character.id] ?? 0,
-          bearerId,
-          damageById[character.id] ?? 0,
-          totalBonusFor(character),
-        ),
-      }))
+    ? partyCharacters.map(toSummaryRow)
+    : [];
+  const bearerCandidateRows: PartySummaryRow[] = bearerChooserOpen
+    ? partyCharacters.filter((character) => !NON_BEARERS.has(character.id)).map(toSummaryRow)
     : [];
   // Frodo's creation points are baked into his bonus; don't count them as
   // level-up spending.
@@ -3337,13 +3424,20 @@ export default function MiddleEarthMap() {
   }, [visitedLocation, rollPresence]);
 
   // Arriving at Edoras with Gandalf: he cows Wormtongue, who pales and slips
-  // away for good — freeing Théoden to ride out.
+  // away for good — freeing Théoden to ride out. Keep Gríma on the card (so the
+  // notice has someone to point at) until the player closes it; the pending
+  // flag commits his flight on dismissal.
   useEffect(() => {
-    if (visitedLocation?.id === EDORAS_ID && party.includes("gandalf") && !grimaFled) {
-      setGrimaFled(true);
+    if (
+      visitedLocation?.id === EDORAS_ID &&
+      party.includes("gandalf") &&
+      !grimaFled &&
+      !grimaFleePending
+    ) {
+      setGrimaFleePending(true);
       showRecruitRefusal(t("refuse.grimaFlees"), "grima");
     }
-  }, [visitedLocation, party, grimaFled, showRecruitRefusal, t]);
+  }, [visitedLocation, party, grimaFled, grimaFleePending, showRecruitRefusal, t]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
   // per member for 2 food while anyone is hurt, or starve (5% max health/day)
@@ -4203,7 +4297,7 @@ export default function MiddleEarthMap() {
           }
           onLeave={() => {
             if (recruitRefusal) {
-              setRecruitRefusal(null);
+              dismissRecruitRefusal();
               return;
             }
             if (lockedPassageLocation) {
@@ -4366,7 +4460,7 @@ export default function MiddleEarthMap() {
           notice={recruitRefusal}
           viewportRef={viewportRef}
           centered={battle !== null}
-          onClose={() => setRecruitRefusal(null)}
+          onClose={dismissRecruitRefusal}
         />
 
         <DeathNoticeModal
@@ -4472,32 +4566,17 @@ export default function MiddleEarthMap() {
           onContinue={() => setRogueFledNotice(null)}
         />
 
-        <BearerChooserModal
-          open={
-            !!reclaimedFrom &&
-            !ending &&
-            !battle &&
-            !deathNotice &&
-            !levelUpCharacterId &&
-            levelUpQueue.length === 0
-          }
-          candidates={partyCharacters.filter((c) => !NON_BEARERS.has(c.id))}
+        <PartySummaryModal
+          open={bearerChooserOpen}
+          variant="bearer"
+          rows={bearerCandidateRows}
+          bearerId={bearerId}
           charName={charName}
-          iconFor={iconFor}
-          getStats={(id) => {
-            const c = CHARACTERS.find((ch) => ch.id === id)!;
-            return computeCharacterStats(
-              c,
-              ringDaysById[id] ?? 0,
-              bearerId,
-              damageById[id] ?? 0,
-              totalBonusFor(c),
-            );
-          }}
-          onChoose={(id) => {
+          onSelect={(id) => {
             makeBearer(id);
             setReclaimedFrom(null);
           }}
+          onClose={() => {}}
         />
 
         {ending && (
@@ -4518,6 +4597,7 @@ export default function MiddleEarthMap() {
               clearSave();
               window.location.reload();
             }}
+            onViewStats={() => setStatsOpen(true)}
           />
         )}
       </div>

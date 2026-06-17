@@ -52,6 +52,8 @@ export interface GameSave {
   enemiesKilled?: number;
   defeatedEnemyIcons?: string[];
   maxPartySize?: number;
+  // Everyone the party has met — recruited or not — for the "found" tally.
+  metCharacterIds?: string[];
 }
 
 export function loadSave(): GameSave | null {

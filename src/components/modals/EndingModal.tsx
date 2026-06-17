@@ -14,6 +14,7 @@ export function EndingModal({
   lordClaimed,
   doomBetrayal = false,
   onReplay,
+  onViewStats,
 }: {
   open: boolean;
   ending: Ending;
@@ -22,6 +23,7 @@ export function EndingModal({
   lordClaimed: boolean;
   doomBetrayal?: boolean;
   onReplay: () => void;
+  onViewStats: () => void;
 }) {
   const { t } = useTranslation();
   const borderClass =
@@ -95,13 +97,22 @@ export function EndingModal({
             <p className="mt-3 text-sm text-neutral-300">{t("ending.lordText", { name: bearerName })}</p>
           </>
         )}
-        <button
-          type="button"
-          className="mt-5 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
-          onClick={onReplay}
-        >
-          {t("ending.replay")}
-        </button>
+        <div className="mt-5 flex flex-col gap-2">
+          <button
+            type="button"
+            className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            onClick={onViewStats}
+          >
+            {t("ending.viewStats")}
+          </button>
+          <button
+            type="button"
+            className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            onClick={onReplay}
+          >
+            {t("ending.replay")}
+          </button>
+        </div>
     </Modal>
   );
 }
