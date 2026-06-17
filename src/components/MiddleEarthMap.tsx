@@ -9,7 +9,6 @@ import {
   EyeOff,
   Gauge,
   LocateFixed,
-  Play,
   RotateCcw,
   Route,
   Settings,
@@ -3806,13 +3805,19 @@ export default function MiddleEarthMap() {
             >
               <button
                 type="button"
-                onClick={() => setStopped((prev) => !prev)}
+                onClick={() => {
+                  // Cancel the march: drop the current destination and halt where
+                  // the figure stands.
+                  setTarget(null);
+                  setTargetLocation(null);
+                  setStopped(false);
+                }}
                 disabled={!target}
-                aria-label={stopped ? t("ui.resume") : t("ui.stop")}
-                title={stopped ? t("ui.resume") : t("ui.stop")}
+                aria-label={t("ui.stop")}
+                title={t("ui.stop")}
                 className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-900/90"
               >
-                {stopped ? <Play className="size-4" /> : <Square className="size-4" />}
+                <Square className="size-4" />
               </button>
               <button
                 type="button"
@@ -3827,9 +3832,10 @@ export default function MiddleEarthMap() {
               <button
                 type="button"
                 onClick={() => setSplitOpen(true)}
+                disabled={party.length <= 1 || isMoving}
                 aria-label={t("ui.split")}
                 title={t("ui.split")}
-                className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800"
+                className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-900/90"
               >
                 <Split className="size-4" />
               </button>
