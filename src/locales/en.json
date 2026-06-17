@@ -21,6 +21,8 @@
     "heroPath": "Hero's path",
     "calendar": "Recruitment calendar",
     "split": "Split the party",
+    "switchSquad": "Switch squad (Tab)",
+    "switchToSquad": "Take control: {{members}}",
     "party": "Party",
     "settings": "Settings",
     "on": "on",

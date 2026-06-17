@@ -15,6 +15,7 @@ import {
   Settings,
   Split,
   Square,
+  Users,
   Wheat,
   ZoomIn,
 } from "lucide-react";
@@ -191,6 +192,7 @@ import type {
   MapLocation,
   Point,
   Size,
+  Squad,
   StatBonus,
   TransportId,
   WaterRun,
@@ -318,8 +320,6 @@ export default function MiddleEarthMap() {
   const [journeyDay, setJourneyDay] = useState(initialSave?.journeyDay ?? 0);
   const [target, setTarget] = useState<Point | null>(null);
   const [targetLocation, setTargetLocation] = useState<MapLocation | null>(null);
-  // A companion left on the map that we're walking toward (invite on arrival).
-  const [targetMemberId, setTargetMemberId] = useState<string | null>(null);
   // Location card opens after its seasonal artwork has been preloaded.
   const [visitedLocation, setVisitedLocation] = useState<MapLocation | null>(null);
   // Location the party is physically standing in, even if its card was closed.
@@ -415,10 +415,32 @@ export default function MiddleEarthMap() {
     () => new Set(initialSave?.banishedTraitors ?? []),
   );
   const [pendingBetrayal, setPendingBetrayal] = useState<string | null>(null);
-  // Companions left waiting on the map; can be re-called by clicking their marker.
-  const [leftBehind, setLeftBehind] = useState<{ id: string; point: Point }[]>(
-    initialSave?.leftBehind ?? [],
-  );
+  // Splinter squads left waiting on the map. Each travels as a group; you can
+  // take control of one via the squad switcher and walk it its own way. The
+  // active squad is the live party/player; these are everyone else.
+  const [squads, setSquads] = useState<Squad[]>(() => {
+    if (initialSave?.squads) {
+      return initialSave.squads;
+    }
+    // Migrate legacy per-companion drop points into one squad per cluster.
+    const legacy = initialSave?.leftBehind ?? [];
+    const groups: Squad[] = [];
+    for (const member of legacy) {
+      const group = groups.find(
+        (g) => Math.hypot(g.point.x - member.point.x, g.point.y - member.point.y) < 30,
+      );
+      if (group) {
+        group.members.push(member.id);
+      } else {
+        groups.push({ id: `squad-legacy-${groups.length}`, members: [member.id], point: member.point });
+      }
+    }
+    return groups;
+  });
+  const squadsRef = useRef(squads);
+  squadsRef.current = squads;
+  const parkedMembers = useMemo(() => squads.flatMap((s) => s.members), [squads]);
+  const squadSeqRef = useRef(0);
   // Brief face swap (refuse/joy) on a character's portrait when (de)recruited.
   const [emote, setEmote] = useState<{ id: string; kind: "refuse" | "joy" } | null>(null);
   const emoteTimerRef = useRef<number | null>(null);
@@ -537,7 +559,11 @@ export default function MiddleEarthMap() {
       return;
     }
     setBanishedTraitors((prev) => new Set(prev).add(id));
-    setLeftBehind((prev) => prev.filter((member) => member.id !== id));
+    setSquads((prev) =>
+      prev
+        .map((s) => ({ ...s, members: s.members.filter((m) => m !== id) }))
+        .filter((s) => s.members.length > 0),
+    );
   }, []);
 
   // Try to recruit, honoring per-character conditions; refusals show a voiced
@@ -589,8 +615,12 @@ export default function MiddleEarthMap() {
       return;
     }
     // A companion waiting on the map simply rejoins; a beaten foe is recruited.
-    if (leftBehind.some((m) => m.id === id)) {
-      setLeftBehind((prev) => prev.filter((m) => m.id !== id));
+    if (parkedMembers.includes(id)) {
+      setSquads((prev) =>
+        prev
+          .map((s) => ({ ...s, members: s.members.filter((m) => m !== id) }))
+          .filter((s) => s.members.length > 0),
+      );
       recruitCharacter(id);
       return;
     }
@@ -610,7 +640,7 @@ export default function MiddleEarthMap() {
         showRecruitRefusal(t("refuse.eomerSendsEowyn"), "eowyn");
       }
     }
-  }, [recruitOffer, peacefulOffer, leftBehind, recruitCharacter, attemptRecruit, showRecruitRefusal, t]);
+  }, [recruitOffer, peacefulOffer, parkedMembers, recruitCharacter, attemptRecruit, showRecruitRefusal, t]);
 
   // A tempted companion turns on the bearer: a 1v1 fight for the Ring.
   const startBetrayal = useCallback(
@@ -669,57 +699,45 @@ export default function MiddleEarthMap() {
     [bearerId, party, statBonusById, damageById],
   );
 
-  // Leave a companion waiting at the current spot (re-callable later).
+  // Leave a companion at the current spot. Everyone left at the same place forms
+  // a single splinter squad you can later take control of (never empty the
+  // active squad — at least one must carry on).
   const leaveMember = useCallback(
     (id: string) => {
+      if (partyRef.current.length <= 1) {
+        return;
+      }
       const point = playerRef.current ?? hobbiton.point;
-      setLeftBehind((prev) => [
-        ...prev,
-        { id, point: { x: point.x + ((prev.length % 3) - 1) * 18, y: point.y + 22 } },
-      ]);
+      setSquads((prev) => {
+        const idx = prev.findIndex(
+          (s) => Math.hypot(s.point.x - point.x, s.point.y - point.y) < 1,
+        );
+        if (idx >= 0) {
+          const next = prev.slice();
+          next[idx] = { ...next[idx], members: [...next[idx].members, id] };
+          return next;
+        }
+        return [
+          ...prev,
+          {
+            id: `squad-${Date.now().toString(36)}-${squadSeqRef.current++}`,
+            members: [id],
+            point: { x: point.x, y: point.y },
+          },
+        ];
+      });
       setParty((prev) => prev.filter((p) => p !== id));
     },
     [hobbiton],
   );
 
-  // Dismiss a companion for good.
+  // Dismiss a companion for good (never the last one standing).
   const dismissMember = useCallback((id: string) => {
+    if (partyRef.current.length <= 1) {
+      return;
+    }
     setParty((prev) => prev.filter((p) => p !== id));
   }, []);
-
-  // Walk to a companion left on the map; they rejoin on arrival.
-  const walkToMember = useCallback((member: { id: string; point: Point }) => {
-    setTarget({ x: member.point.x, y: member.point.y });
-    setTargetMemberId(member.id);
-    setTargetLocation(null);
-    setStopped(false);
-    setVisitedLocation(null);
-    setCurrentLocation(null);
-    waterRunRef.current = { cellKey: null, count: 0 };
-    lastTimeRef.current = null;
-    followDisabledRef.current = false;
-  }, []);
-
-  const callLeftBehindMember = useCallback(
-    (member: { id: string; point: Point }) => {
-      if (battle || encounter) {
-        return;
-      }
-      const current = playerRef.current;
-      if (
-        current &&
-        Math.hypot(member.point.x - current.x, member.point.y - current.y) <= MEMBER_PICKUP_RANGE
-      ) {
-        setLeftBehind((prev) => prev.filter((m) => m.id !== member.id));
-        recruitCharacter(member.id);
-        setOpenCharacterId(null);
-        return;
-      }
-      walkToMember(member);
-      setOpenCharacterId(null);
-    },
-    [battle, encounter, recruitCharacter, walkToMember],
-  );
 
   // "Принять бой" → snapshot party + enemy into a paced auto-battle.
   const startBattle = useCallback(() => {
@@ -1336,7 +1354,7 @@ export default function MiddleEarthMap() {
       defeatedBosses: [...defeatedBosses],
       slainRoamingRecruits: [...slainRoamingRecruits],
       banishedTraitors: [...banishedTraitors],
-      leftBehind,
+      squads,
       joinDay: joinDayRef.current,
       recruitAttempts: recruitAttemptsRef.current,
       foundItems,
@@ -1369,7 +1387,7 @@ export default function MiddleEarthMap() {
     defeatedBosses,
     slainRoamingRecruits,
     banishedTraitors,
-    leftBehind,
+    squads,
     rogueBearerId,
     foundItems,
     equippedItems,
@@ -1422,6 +1440,82 @@ export default function MiddleEarthMap() {
     offsetRef.current = next;
     setOffset(next);
   }, [clampOffset, view, zoom]);
+
+  // Take control of a splinter squad: park the current active party where it
+  // stands, make the chosen squad live, halt any travel, and recenter on it.
+  // Used by the squad switcher, marker taps, and the auto-refocus when a
+  // ring/betrayal event fires in an inactive squad.
+  const focusSquad = useCallback(
+    (squadId: string) => {
+      const list = squadsRef.current;
+      const idx = list.findIndex((s) => s.id === squadId);
+      if (idx < 0) {
+        return;
+      }
+      const next = list[idx];
+      const rest = list.filter((_, i) => i !== idx);
+      const currentMembers = partyRef.current;
+      const currentPoint = playerRef.current ?? hobbiton.point;
+      const parkedCurrent: Squad[] =
+        currentMembers.length > 0
+          ? [
+              {
+                id: `squad-${Date.now().toString(36)}-${squadSeqRef.current++}`,
+                members: currentMembers,
+                point: { x: currentPoint.x, y: currentPoint.y },
+              },
+            ]
+          : [];
+      setSquads([...rest, ...parkedCurrent]);
+      setParty(next.members);
+      playerRef.current = next.point;
+      setPlayer(next.point);
+      setHeroPath([next.point]);
+      setTarget(null);
+      setTargetLocation(null);
+      setStopped(false);
+      setVisitedLocation(null);
+      setCurrentLocation(null);
+      setIsMoving(false);
+      lastTimeRef.current = null;
+      waterRunRef.current = { cellKey: null, count: 0 };
+      followDisabledRef.current = false;
+      const centered = clampOffset(
+        { x: view.width / 2 - next.point.x * zoom, y: view.height / 2 - next.point.y * zoom },
+        zoom,
+      );
+      offsetRef.current = centered;
+      setOffset(centered);
+    },
+    [hobbiton, clampOffset, view, zoom],
+  );
+
+  // Cycle the active squad: front of the queue becomes live, the old active goes
+  // to the back. Only meaningful when there's at least one splinter and nothing
+  // in progress (a battle/encounter/move must finish first).
+  const canSwitchSquads = squads.length > 0 && !battle && !encounter && !isMoving && !target;
+  const switchSquad = useCallback(() => {
+    if (battle || encounter || isMoving || target || squadsRef.current.length === 0) {
+      return;
+    }
+    focusSquad(squadsRef.current[0].id);
+  }, [battle, encounter, isMoving, target, focusSquad]);
+
+  // Tab cycles the active squad too (only when a switch is actually possible, so
+  // normal focus traversal still works the rest of the time).
+  useEffect(() => {
+    if (!canSwitchSquads) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault();
+        switchSquad();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canSwitchSquads, switchSquad]);
 
   // Step the zoom to the next preset (0.5× / 1× / 2× of the default fit) above
   // the *current* zoom — so it stays in sync after a pinch — keeping the
@@ -1509,7 +1603,6 @@ export default function MiddleEarthMap() {
       });
       setTarget(clickPoint);
       setTargetLocation(null);
-      setTargetMemberId(null);
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
@@ -1681,7 +1774,6 @@ export default function MiddleEarthMap() {
       }
       setTarget({ x: location.point.x, y: location.point.y });
       setTargetLocation(location);
-      setTargetMemberId(null);
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
@@ -1701,7 +1793,6 @@ export default function MiddleEarthMap() {
     };
     setTarget({ x: location.point.x, y: location.point.y });
     setTargetLocation(location);
-    setTargetMemberId(null);
     setStopped(false);
     setVisitedLocation(null);
     setCurrentLocation(null);
@@ -1741,7 +1832,7 @@ export default function MiddleEarthMap() {
       if (party.includes("aragorn") && !deadSummoned) {
         setDeadSummoned(true);
         setExploreResult({ found: true, message: "location.erechSummon" });
-        if (!party.includes("king_dead") && !leftBehind.some((member) => member.id === "king_dead")) {
+        if (!party.includes("king_dead") && !parkedMembers.includes("king_dead")) {
           setPendingExploreRecruit("king_dead");
         }
       } else {
@@ -1761,7 +1852,7 @@ export default function MiddleEarthMap() {
     } else {
       setExploreResult({ found: false });
     }
-  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, leftBehind]);
+  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, parkedMembers]);
 
   // Talk to a companion: hand over their gift items (once, and only if their
   // requirement is met — Bilbo needs Frodo along), else a random greeting.
@@ -2236,7 +2327,6 @@ export default function MiddleEarthMap() {
 
     const activeTarget: Point = target;
     const arrivalLocation = targetLocation;
-    const arrivalMemberId = targetMemberId;
     setIsMoving(true);
 
     if (!playerRef.current) {
@@ -2267,12 +2357,21 @@ export default function MiddleEarthMap() {
       }
       setTarget(null);
       setTargetLocation(null);
-      setTargetMemberId(null);
       setIsMoving(false);
       frameRef.current = null;
-      if (arrivalMemberId) {
-        setLeftBehind((prev) => prev.filter((m) => m.id !== arrivalMemberId));
-        recruitCharacter(arrivalMemberId);
+      // Reunite: any splinter squad the active party comes to rest beside folds
+      // back in. Walking one squad onto another is how you recombine them.
+      const here = playerRef.current;
+      if (here) {
+        const near = squadsRef.current.filter(
+          (s) => Math.hypot(s.point.x - here.x, s.point.y - here.y) <= MEMBER_PICKUP_RANGE,
+        );
+        if (near.length > 0) {
+          const nearIds = new Set(near.map((s) => s.id));
+          const rejoining = near.flatMap((s) => s.members);
+          setSquads((prev) => prev.filter((s) => !nearIds.has(s.id)));
+          setParty((prev) => [...prev, ...rejoining.filter((id) => !prev.includes(id))]);
+        }
       }
     }
 
@@ -2534,7 +2633,7 @@ export default function MiddleEarthMap() {
     // playerRef/mapSize are stable refs/memo; player is only the initial seed,
     // so it stays out of deps to avoid restarting the animation every frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animationSpeed, defeatedBosses, getTerrainAtPoint, locations, recruitCharacter, target, targetLocation, targetMemberId, stopped]);
+  }, [animationSpeed, defeatedBosses, getTerrainAtPoint, locations, recruitCharacter, target, targetLocation, stopped]);
 
   const playerLayer = mapToLayer(player);
   const targetLayer = target ? mapToLayer(target) : null;
@@ -2714,10 +2813,13 @@ export default function MiddleEarthMap() {
     ? levelForExp(expById[levelUpCharacterId] ?? 0).level
     : 1;
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
-  const hasRing = !!bearerId && rogueBearerId === null;
-  // The figure on the map is the bearer, or — while the Ring is fled — whoever
-  // leads the chase.
-  const figureCharacter = ringBearer ?? partyCharacters[0];
+  // The Ring only counts for the squad actually carrying the bearer — a splinter
+  // group off on its own can't destroy it at Mount Doom.
+  const hasRing = !!bearerId && rogueBearerId === null && party.includes(bearerId);
+  // The figure on the map is the bearer (when travelling with the active squad),
+  // or — for a splinter / while the Ring is fled — whoever leads this group.
+  const figureCharacter =
+    ringBearer && party.includes(ringBearer.id) ? ringBearer : partyCharacters[0];
   useEffect(() => {
     const currentIcons = new Set<string>();
     const addCharacter = (character: Character | null | undefined) => {
@@ -2731,8 +2833,8 @@ export default function MiddleEarthMap() {
     for (const character of recruitsHere) {
       addCharacter(character);
     }
-    for (const member of leftBehind) {
-      addCharacter(CHARACTERS.find((character) => character.id === member.id));
+    for (const id of parkedMembers) {
+      addCharacter(CHARACTERS.find((character) => character.id === id));
     }
     addCharacter(openCharacter);
     addCharacter(creationHero);
@@ -2760,7 +2862,7 @@ export default function MiddleEarthMap() {
     battle,
     creationHero,
     figureCharacter,
-    leftBehind,
+    parkedMembers,
     levelUpHero,
     openCharacter,
     partyCharacters,
@@ -2785,13 +2887,33 @@ export default function MiddleEarthMap() {
   // away with the Ring and bolts for Mount Doom. The party has two months to
   // catch him before he crowns himself.
   useEffect(() => {
-    if (hasFallen && rogueBearerId === null && ending === null && bearerId) {
-      triggerRingFlight(bearerId);
+    if (!(hasFallen && rogueBearerId === null && ending === null && bearerId)) {
+      return;
     }
-  }, [hasFallen, rogueBearerId, ending, bearerId, triggerRingFlight]);
+    // One event at a time: let the active squad finish its battle first.
+    if (battle || encounter) {
+      return;
+    }
+    // If the Ring fell to a bearer in an idle splinter, take control of that
+    // squad before the Ring bolts — the chase belongs to the group it left.
+    if (!party.includes(bearerId)) {
+      const sq = squads.find((s) => s.members.includes(bearerId));
+      if (sq) {
+        focusSquad(sq.id);
+        return;
+      }
+    }
+    triggerRingFlight(bearerId);
+  }, [hasFallen, rogueBearerId, ending, bearerId, battle, encounter, party, squads, focusSquad, triggerRingFlight]);
 
   useEffect(() => {
     if (!created || ending || party.length > 0) {
+      return;
+    }
+    // The active squad was wiped out, but if others still wander the map, take
+    // command of one rather than ending — only an empty roster is game over.
+    if (squads.length > 0) {
+      focusSquad(squads[0].id);
       return;
     }
     setEnding(rogueBearerId || !bearerId ? "nothing" : "battle");
@@ -2800,7 +2922,7 @@ export default function MiddleEarthMap() {
     setTarget(null);
     setTargetLocation(null);
     setIsMoving(false);
-  }, [created, ending, party.length, rogueBearerId, bearerId]);
+  }, [created, ending, party.length, squads, rogueBearerId, bearerId, focusSquad]);
 
   // Re-check compatibility whenever the party changes: someone who can't abide
   // the new company (e.g. Gollum once a non-hobbit joins) walks off. One per
@@ -3013,7 +3135,18 @@ export default function MiddleEarthMap() {
     let nextFood = foodRef.current;
     const nextDamage = { ...damageRef.current };
     const members = party;
-    const heal = members.includes("gandalf")
+    // Survival (food, healing, starvation) covers everyone on the map: parked
+    // squads age and eat from the shared store too. Each member's aura comes
+    // from whichever group they travel with.
+    const survivorGroups: string[][] = [party, ...squads.map((s) => s.members)];
+    const survivors = survivorGroups.flat();
+    const groupOf = (id: string) => survivorGroups.find((g) => g.includes(id)) ?? party;
+    // The Ring's temptation follows the bearer's group, active or not — that's
+    // where a betrayal or a fall-to-rogue plays out.
+    const bearerGroup = party.includes(bearerId)
+      ? party
+      : (squads.find((s) => s.members.includes(bearerId))?.members ?? party);
+    const heal = survivors.includes("gandalf")
       ? Math.round(HEAL_PER_DAY * GANDALF_HEAL_MULTIPLIER)
       : HEAL_PER_DAY;
     let encounterChance = hasCloaks
@@ -3049,17 +3182,17 @@ export default function MiddleEarthMap() {
     const onWater =
       getTerrainAtPoint(playerRef.current ?? hobbiton.point).name === "water";
     for (let day = processedDayRef.current; day < journeyDay; day += 1) {
-      const anyHurt = members.some((id) => (nextDamage[id] ?? 0) > 0);
+      const anyHurt = survivors.some((id) => (nextDamage[id] ?? 0) > 0);
       // Wounded + spare food: auto-spend a 2nd ration to heal each.
       if (anyHurt && nextFood >= 2) {
         nextFood -= 2;
-        for (const id of members) {
+        for (const id of survivors) {
           nextDamage[id] = Math.max(0, (nextDamage[id] ?? 0) - heal);
         }
       } else if (nextFood >= 1) {
         nextFood -= 1;
       } else {
-        for (const id of members) {
+        for (const id of survivors) {
           if (id === "king_dead") {
             continue;
           }
@@ -3069,7 +3202,7 @@ export default function MiddleEarthMap() {
             const maxHp =
               effectiveStats(
                 character,
-                addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, members)),
+                addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, groupOf(id))),
               ).strength * HEALTH_PER_STR;
             nextDamage[id] = prev + Math.round(maxHp * HUNGER_DAMAGE_FRACTION);
             if (nextDamage[id] >= maxHp && prev < maxHp) {
@@ -3085,7 +3218,7 @@ export default function MiddleEarthMap() {
         day < 3 &&
         members.includes("frodo") &&
         !members.includes("sam") &&
-        !leftBehind.some((member) => member.id === "sam") &&
+        !parkedMembers.includes("sam") &&
         !deathCauseById.sam
       ) {
         samCatchesUp = true;
@@ -3104,7 +3237,9 @@ export default function MiddleEarthMap() {
           rogueEncounter = true;
         }
       } else {
-        const traitors = members.filter(
+        // A betrayal brews in whatever squad holds the Ring — even if you've
+        // wandered off with another group.
+        const traitors = bearerGroup.filter(
           (id) =>
             id !== bearerId &&
             TRAITORS.has(id) &&
@@ -3147,10 +3282,15 @@ export default function MiddleEarthMap() {
       const nonBearer = hungerDead.filter((id) => id !== bearerId);
       if (nonBearer.length > 0) {
         setParty((prev) => prev.filter((id) => !nonBearer.includes(id)));
+        setSquads((prev) =>
+          prev
+            .map((s) => ({ ...s, members: s.members.filter((id) => !nonBearer.includes(id)) }))
+            .filter((s) => s.members.length > 0),
+        );
         setDeathNotice({ ids: nonBearer.join(","), cause: "hunger" });
       }
-      const survivors = members.filter((id) => !hungerDead.includes(id));
-      if (hungerDead.includes(bearerId) || survivors.length === 0) {
+      const remaining = survivors.filter((id) => !hungerDead.includes(id));
+      if (hungerDead.includes(bearerId) || remaining.length === 0) {
         setEnding((prev) => prev ?? "starved");
       }
     }
@@ -3186,7 +3326,12 @@ export default function MiddleEarthMap() {
       setPendingBetrayal(pendingTraitor);
     } else if (wildEncounter && !onWater) {
       const position = playerRef.current ?? hobbiton.point;
-      const rolled = rollEncounter(position, party, leftBehind, slainRoamingRecruits);
+      const rolled = rollEncounter(
+        position,
+        party,
+        parkedMembers.map((id) => ({ id })),
+        slainRoamingRecruits,
+      );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
       if (rolled.monster.recruitId === "eomer" && kinPresent) {
         // With his kin along, Éomer meets the party peacefully and offers to join.
@@ -3200,15 +3345,31 @@ export default function MiddleEarthMap() {
         setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
       }
     }
-  }, [journeyDay, party, leftBehind, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
+  // Serialized behind any active fight, and if the traitor is in an idle squad
+  // we switch focus to that squad before it plays out.
   useEffect(() => {
-    if (pendingBetrayal) {
-      startBetrayal(pendingBetrayal);
-      setPendingBetrayal(null);
+    if (!pendingBetrayal) {
+      return;
     }
-  }, [pendingBetrayal, startBetrayal]);
+    if (battle || encounter) {
+      return;
+    }
+    if (!party.includes(pendingBetrayal)) {
+      const sq = squads.find((s) => s.members.includes(pendingBetrayal));
+      if (sq) {
+        focusSquad(sq.id);
+        return;
+      }
+      // Traitor is nowhere (left/dismissed) — drop the stale event.
+      setPendingBetrayal(null);
+      return;
+    }
+    startBetrayal(pendingBetrayal);
+    setPendingBetrayal(null);
+  }, [pendingBetrayal, battle, encounter, party, squads, focusSquad, startBetrayal]);
 
   return (
     <section className="fixed inset-0 bg-white p-1 sm:p-[18px]">
@@ -3270,28 +3431,38 @@ export default function MiddleEarthMap() {
         >
           {locationMarkers}
 
-          {leftBehind.map((member) => {
-            const character = CHARACTERS.find((c) => c.id === member.id);
-            if (!character) {
+          {squads.map((squad) => {
+            const lead = CHARACTERS.find((c) => c.id === squad.members[0]);
+            if (!lead) {
               return null;
             }
-            const pos = mapToLayer(member.point);
+            const pos = mapToLayer(squad.point);
+            const label = squad.members.map((id) => charName(id)).join(", ");
+            const canTake = !battle && !encounter && !isMoving && !target;
             return (
               <button
-                key={member.id}
+                key={squad.id}
                 type="button"
-                title={charName(character.id)}
-                aria-label={charName(character.id)}
-                className="pointer-events-auto absolute z-20 size-11 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-amber-300 bg-parchment shadow-lg"
+                title={label}
+                aria-label={t("ui.switchToSquad", { members: label })}
+                disabled={!canTake}
+                className="pointer-events-auto absolute z-20 size-11 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-amber-300 bg-parchment shadow-lg disabled:cursor-default"
                 style={{ left: pos.x, top: pos.y }}
                 onPointerDown={(event) => event.stopPropagation()}
                 onPointerUp={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  openCharacterPanel(member.id, false);
+                  if (canTake) {
+                    focusSquad(squad.id);
+                  }
                 }}
               >
-                <img src={character.icon} alt="" className="size-full object-cover" />
+                <img src={lead.icon} alt="" className="size-full object-cover" />
+                {squad.members.length > 1 && (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full border border-amber-200 bg-neutral-900 text-[10px] font-bold leading-none text-amber-200">
+                    {squad.members.length}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -3536,6 +3707,16 @@ export default function MiddleEarthMap() {
               </button>
               <button
                 type="button"
+                onClick={switchSquad}
+                disabled={!canSwitchSquads}
+                aria-label={t("ui.switchSquad")}
+                title={t("ui.switchSquad")}
+                className="flex size-9 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-neutral-900/90"
+              >
+                <Users className="size-4" />
+              </button>
+              <button
+                type="button"
                 onClick={centerOnPlayer}
                 aria-label={t("ui.center")}
                 title={t("ui.center")}
@@ -3737,7 +3918,7 @@ export default function MiddleEarthMap() {
             party.includes(openCharacter.id) &&
             !NON_BEARERS.has(openCharacter.id)
           }
-          isLeftBehind={!!openCharacter && leftBehind.some((m) => m.id === openCharacter.id)}
+          isLeftBehind={!!openCharacter && parkedMembers.includes(openCharacter.id)}
           equippedItem={
             openCharacter && equippedItems[openCharacter.id]
               ? (ITEM_BY_ID[equippedItems[openCharacter.id]] ?? null)
@@ -3761,9 +3942,11 @@ export default function MiddleEarthMap() {
           onNext={() => showAdjacentCharacter(1)}
           onMakeBearer={() => openCharacter && makeBearer(openCharacter.id)}
           onCall={() => {
-            const member = openCharacter && leftBehind.find((m) => m.id === openCharacter.id);
-            if (member) {
-              callLeftBehindMember(member);
+            const squad =
+              openCharacter && squads.find((s) => s.members.includes(openCharacter.id));
+            if (squad && !battle && !encounter && !isMoving && !target) {
+              focusSquad(squad.id);
+              setOpenCharacterId(null);
             }
           }}
           onClose={() => setOpenCharacterId(null)}
@@ -3840,7 +4023,7 @@ export default function MiddleEarthMap() {
               ? (CHARACTERS.find((c) => c.id === recruitOffer) ?? null)
               : null
           }
-          waiting={leftBehind.some((m) => m.id === recruitOffer)}
+          waiting={!!recruitOffer && parkedMembers.includes(recruitOffer)}
           peaceful={peacefulOffer}
           charName={charName}
           onAccept={acceptRecruitOffer}

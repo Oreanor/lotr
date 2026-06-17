@@ -5,6 +5,14 @@ import type { DeathCause, Point, StatBonus, TransportId } from "@/game/types";
 const SAVE_KEY = "lotr-save";
 const SAVE_VERSION = 3;
 
+// A splinter group waiting on the map: its members travel together and can be
+// taken control of via the squad switcher.
+export interface Squad {
+  id: string;
+  members: string[];
+  point: Point;
+}
+
 export interface GameSave {
   version: number;
   player: Point;
@@ -26,7 +34,9 @@ export interface GameSave {
   defeatedBosses: string[];
   slainRoamingRecruits: string[];
   banishedTraitors?: string[];
-  leftBehind: { id: string; point: Point }[];
+  squads?: Squad[];
+  /** @deprecated legacy per-companion drop points; migrated into `squads`. */
+  leftBehind?: { id: string; point: Point }[];
   joinDay: Record<string, number>;
   recruitAttempts: Record<string, number>;
   foundItems?: string[];

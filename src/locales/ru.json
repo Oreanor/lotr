@@ -21,6 +21,8 @@
     "heroPath": "Путь героя",
     "calendar": "Календарь найма",
     "split": "Разделиться",
+    "switchSquad": "Переключить отряд (Tab)",
+    "switchToSquad": "Взять под управление: {{members}}",
     "party": "Партия",
     "settings": "Настройки",
     "on": "вкл",
