@@ -5,6 +5,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  BarChart3,
   Eye,
   EyeOff,
   Gauge,
@@ -23,6 +24,8 @@ import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBa
 import { TransportIcon } from "@/components/ui/TransportIcon";
 import { Modal } from "@/components/ui/Modal";
 import { HelpModal } from "@/components/modals/HelpModal";
+import { StatsModal, type GameStats } from "@/components/modals/StatsModal";
+import { PartySummaryModal, type PartySummaryRow } from "@/components/modals/PartySummaryModal";
 import {
   DeathNoticeModal,
   FarmResultModal,
@@ -403,6 +406,9 @@ export default function MiddleEarthMap() {
   const [peacefulOffer, setPeacefulOffer] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  // Party roster overview, shown when tapping the group's figure on the map.
+  const [partySummaryOpen, setPartySummaryOpen] = useState(false);
   // Settings dropdown (terrain / hero-path / speed / language / help / restart).
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Restart-the-game confirmation dialog (wipes the save and reloads).
@@ -418,6 +424,17 @@ export default function MiddleEarthMap() {
   const [levelUpDraft, setLevelUpDraft] = useState<StatBonus>(ZERO_BONUS);
   const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(
     () => new Set(initialSave?.defeatedBosses ?? []),
+  );
+  // Lifetime statistics, accumulated for the stats panel and persisted.
+  const [visitedLocationIds, setVisitedLocationIds] = useState<Set<number>>(
+    () => new Set(initialSave?.visitedLocationIds ?? []),
+  );
+  const [enemiesKilled, setEnemiesKilled] = useState<number>(initialSave?.enemiesKilled ?? 0);
+  const [defeatedEnemyIcons, setDefeatedEnemyIcons] = useState<Set<string>>(
+    () => new Set(initialSave?.defeatedEnemyIcons ?? []),
+  );
+  const [maxPartySize, setMaxPartySize] = useState<number>(
+    initialSave?.maxPartySize ?? (initialSave?.party?.length ?? DEFAULT_PARTY.length),
   );
   // Roaming recruits never reappear once dead (Gollum slain in betrayal, starved, or fallen).
   const [slainRoamingRecruits, setSlainRoamingRecruits] = useState<Set<string>>(
@@ -500,6 +517,9 @@ export default function MiddleEarthMap() {
       setEntryParty(new Set(partyRef.current));
       setCurrentLocation(location);
       setVisitedLocation(location);
+      setVisitedLocationIds((prev) =>
+        prev.has(location.id) ? prev : new Set(prev).add(location.id),
+      );
     };
     const src = locationImage(location.id, seasonAt(journeyDayRef.current));
     if (!src) {
@@ -1289,6 +1309,7 @@ export default function MiddleEarthMap() {
   }, [transport]);
   useEffect(() => {
     partyRef.current = party;
+    setMaxPartySize((prev) => Math.max(prev, party.length));
   }, [party]);
   useEffect(() => {
     equippedItemsRef.current = equippedItems;
@@ -1308,6 +1329,8 @@ export default function MiddleEarthMap() {
       reclaimedFrom !== null ||
       (deathNotice !== null && ending === null) ||
       helpOpen ||
+      statsOpen ||
+      partySummaryOpen ||
       ((levelUpCharacterId !== null || levelUpQueue.length > 0) && !autoPlay) ||
       (encounter !== null && !autoPlay) ||
       (battle !== null && !autoPlay) ||
@@ -1326,12 +1349,47 @@ export default function MiddleEarthMap() {
       reclaimedFrom,
       deathNotice,
       helpOpen,
+      statsOpen,
+      partySummaryOpen,
       levelUpCharacterId,
       levelUpQueue,
       encounter,
       battle,
       autoPlay,
       foodFarmed,
+    ],
+  );
+
+  // Everyone who has ever marched with the party — the seed hobbit, anyone
+  // recruited (stamped in joinDay), and whoever stands in the party right now.
+  const foundCharacterIds = useMemo(
+    () => new Set<string>([...DEFAULT_PARTY, ...Object.keys(joinDayRef.current), ...party]),
+    [party, statsOpen],
+  );
+  const gameStats = useMemo<GameStats>(
+    () => ({
+      locationsVisited: visitedLocationIds.size,
+      locationsTotal: locations.length,
+      bossesDefeated: defeatedBosses.size,
+      bossesTotal: Object.keys(BOSSES_BY_LOCATION).length,
+      itemsFound: foundItems.length,
+      itemsTotal: ITEMS.length,
+      enemiesKilled,
+      deaths: Object.keys(deathCauseById).length,
+      maxPartySize,
+      days: journeyDay,
+      miles: journeyMilesRef.current,
+    }),
+    [
+      visitedLocationIds,
+      locations,
+      defeatedBosses,
+      foundItems,
+      enemiesKilled,
+      deathCauseById,
+      maxPartySize,
+      journeyDay,
+      statsOpen,
     ],
   );
 
@@ -1418,6 +1476,10 @@ export default function MiddleEarthMap() {
       grimaFled,
       grimaSlain,
       osgiliathCacheFound,
+      visitedLocationIds: [...visitedLocationIds],
+      enemiesKilled,
+      defeatedEnemyIcons: [...defeatedEnemyIcons],
+      maxPartySize,
     });
   }, [
     created,
@@ -1453,6 +1515,10 @@ export default function MiddleEarthMap() {
     grimaFled,
     grimaSlain,
     osgiliathCacheFound,
+    visitedLocationIds,
+    enemiesKilled,
+    defeatedEnemyIcons,
+    maxPartySize,
   ]);
 
   // Game over: drop the save so a reload starts a fresh quest.
@@ -2899,6 +2965,22 @@ export default function MiddleEarthMap() {
     : null;
   const openExp = openCharacter ? (expById[openCharacter.id] ?? 0) : 0;
   const openLevel = levelForExp(openExp);
+  // Roster rows for the party overview. Built only while the panel is open (it
+  // recomputes each render, but the work is trivial and the panel is brief).
+  const partySummaryRows: PartySummaryRow[] = partySummaryOpen
+    ? partyCharacters.map((character) => ({
+        id: character.id,
+        icon: iconFor(character),
+        level: levelForExp(expById[character.id] ?? 0).level,
+        stats: computeCharacterStats(
+          character,
+          ringDaysById[character.id] ?? 0,
+          bearerId,
+          damageById[character.id] ?? 0,
+          totalBonusFor(character),
+        ),
+      }))
+    : [];
   // Frodo's creation points are baked into his bonus; don't count them as
   // level-up spending.
   const creationHero = CHARACTERS.find((character) => character.id === RING_BEARER_ID)!;
@@ -3132,6 +3214,21 @@ export default function MiddleEarthMap() {
     setDamageById(nextDamage);
     applyBattleCasualties(battle.allies);
     if (battle.outcome === "win") {
+      // Tally felled foes for the statistics panel — both a running kill count
+      // and the set of distinct portraits seen, so the foe gallery fills in.
+      const slain = battle.enemies.filter((enemy) => enemy.hp <= 0);
+      if (slain.length > 0) {
+        setEnemiesKilled((count) => count + slain.length);
+        setDefeatedEnemyIcons((prev) => {
+          const next = new Set(prev);
+          for (const enemy of slain) {
+            if (enemy.icon) {
+              next.add(enemy.icon);
+            }
+          }
+          return next.size === prev.size ? prev : next;
+        });
+      }
       const toLevel: string[] = [];
       for (const ally of battle.allies) {
         if (ally.hp <= 0) {
@@ -3719,9 +3816,8 @@ export default function MiddleEarthMap() {
                 openVisitedLocation(currentLocation);
                 return;
               }
-              if (figureCharacter) {
-                openCharacterPanel(figureCharacter.id, true);
-              }
+              // Show the whole group at a glance first; pick a hero from there.
+              setPartySummaryOpen(true);
             }}
           >
             <img
@@ -3789,6 +3885,17 @@ export default function MiddleEarthMap() {
                   {lang === "en" ? "RU" : "EN"}
                 </span>
                 <span className="flex-1">{lang === "en" ? "Русский" : "English"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatsOpen(true);
+                  setSettingsOpen(false);
+                }}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                <BarChart3 className="size-4 shrink-0" />
+                <span className="flex-1">{t("ui.stats")}</span>
               </button>
               <button
                 type="button"
@@ -4269,6 +4376,24 @@ export default function MiddleEarthMap() {
         />
 
         <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+        <StatsModal
+          open={statsOpen}
+          onClose={() => setStatsOpen(false)}
+          stats={gameStats}
+          foundCharacterIds={foundCharacterIds}
+          defeatedEnemyIcons={defeatedEnemyIcons}
+        />
+        <PartySummaryModal
+          open={partySummaryOpen}
+          rows={partySummaryRows}
+          bearerId={bearerId}
+          charName={charName}
+          onSelect={(id) => {
+            setPartySummaryOpen(false);
+            openCharacterPanel(id, true);
+          }}
+          onClose={() => setPartySummaryOpen(false)}
+        />
 
         <Modal open={restartConfirm} className="w-full max-w-sm border-neutral-700 p-5">
           <h2 className="text-center font-serif text-xl text-neutral-100">

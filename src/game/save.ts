@@ -46,6 +46,12 @@ export interface GameSave {
   grimaFled?: boolean;
   grimaSlain?: boolean;
   osgiliathCacheFound?: boolean;
+  // Lifetime tallies for the statistics panel. All optional so older saves
+  // (same version) load cleanly and simply start these counters from scratch.
+  visitedLocationIds?: number[];
+  enemiesKilled?: number;
+  defeatedEnemyIcons?: string[];
+  maxPartySize?: number;
 }
 
 export function loadSave(): GameSave | null {
