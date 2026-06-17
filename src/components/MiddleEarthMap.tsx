@@ -79,6 +79,7 @@ import {
   CARN_DUM_ID,
   clearSave,
   CHARACTERS,
+  CLOAKS_ENCOUNTER_MULTIPLIER,
   clamp,
   computeCharacterStats,
   coverZoom,
@@ -92,6 +93,8 @@ import {
   EAGLE_PRESENCE_CHANCE,
   EAGLE_STAY_DAYS,
   effectiveStats,
+  itemStatBonus,
+  itemAttackBonus,
   ENCOUNTER_CHANCE_PER_DAY,
   BOMBADIL_SLOW_FACTOR,
   EOMER_SPEED_MULTIPLIER,
@@ -450,7 +453,6 @@ export default function MiddleEarthMap() {
   const processedDayRef = useRef(initialSave?.journeyDay ?? 0);
   // Movement halts while any modal is open; the rAF loop reads this.
   const animationPausedRef = useRef(false);
-  const baradDurGazeCheckedRef = useRef(false);
 
   const openVisitedLocation = useCallback((location: MapLocation) => {
     // Snapshot who's already in the party as we arrive, so companions recruited
@@ -460,34 +462,6 @@ export default function MiddleEarthMap() {
       setEntryParty(new Set(partyRef.current));
       setCurrentLocation(location);
       setVisitedLocation(location);
-      if (
-        location.id === BARAD_DUR_ID &&
-        bearerId &&
-        rogueBearerId === null &&
-        !baradDurGazeCheckedRef.current
-      ) {
-        baradDurGazeCheckedRef.current = true;
-        const bearer = CHARACTERS.find((character) => character.id === bearerId);
-        if (bearer) {
-          const item = equippedItems[bearer.id] ? ITEM_BY_ID[equippedItems[bearer.id]] : undefined;
-          const itemBonus: StatBonus = item
-            ? {
-                strength: item.strength ?? 0,
-                defense: item.defense ?? 0,
-                intelligence: item.intelligence ?? 0,
-                luck: item.luck ?? 0,
-              }
-            : ZERO_BONUS;
-          const luck = effectiveStats(
-            bearer,
-            addBonus(addBonus(statBonusById[bearer.id] ?? ZERO_BONUS, auraBonus(bearer, party)), itemBonus),
-          ).luck;
-          const unseenChance = clamp(luck * 0.06, 0.12, 0.72);
-          if (Math.random() >= unseenChance) {
-            setEnding((prev) => prev ?? "sauron");
-          }
-        }
-      }
     };
     const src = locationImage(location.id, seasonAt(journeyDayRef.current));
     if (!src) {
@@ -495,7 +469,7 @@ export default function MiddleEarthMap() {
       return;
     }
     void preloadLocationImage(src).then(open);
-  }, [bearerId, equippedItems, party, rogueBearerId, statBonusById]);
+  }, []);
 
   useEffect(() => {
     openVisitedLocationRef.current = openVisitedLocation;
@@ -721,7 +695,6 @@ export default function MiddleEarthMap() {
     setStopped(false);
     setVisitedLocation(null);
     setCurrentLocation(null);
-    baradDurGazeCheckedRef.current = false;
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
@@ -766,21 +739,12 @@ export default function MiddleEarthMap() {
           return null;
         }
         const item = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
-        const flatItemBonus: StatBonus = item
-          ? {
-              strength: item.strength ?? 0,
-              defense: item.defense ?? 0,
-              intelligence: item.intelligence ?? 0,
-              luck: item.luck ?? 0,
-            }
-          : ZERO_BONUS;
         const s = effectiveStats(
           character,
-          addBonus(addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)), flatItemBonus),
+          addBonus(addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)), itemStatBonus(item)),
         );
         const maxHp = s.strength * HEALTH_PER_STR;
-        const undeadBonus = packHasUndead ? (item?.strengthVsUndead ?? 0) : 0;
-        const orcBonus = packHasOrcs ? (item?.strengthVsOrcs ?? 0) : 0;
+        const attackBonus = itemAttackBonus(item, packHasUndead, packHasOrcs);
         const undeadMultiplier = packHasUndead && id === "king_dead" ? 2 : 1;
         return {
           key: id,
@@ -789,7 +753,7 @@ export default function MiddleEarthMap() {
           hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
           maxHp,
           strength: s.strength,
-          attack: s.strength * undeadMultiplier + undeadBonus + orcBonus,
+          attack: s.strength * undeadMultiplier + attackBonus,
           defense: s.defense,
           luck: s.luck,
         };
@@ -1432,13 +1396,10 @@ export default function MiddleEarthMap() {
     [mapSize, view],
   );
 
-  const mapToScreen = useCallback(
-    (point: Point): Point => ({
-      x: point.x * zoom + offset.x,
-      y: point.y * zoom + offset.y,
-    }),
-    [offset, zoom],
-  );
+  // Position inside the overlay layer, which itself is translated by `offset`.
+  // Depends only on zoom (not offset), so panning the camera every frame doesn't
+  // re-project the markers/figure — only the layer's transform shifts.
+  const mapToLayer = useCallback((point: Point): Point => ({ x: point.x * zoom, y: point.y * zoom }), [zoom]);
 
   const screenToMap = useCallback(
     (screenPoint: Point): Point => ({
@@ -1552,7 +1513,6 @@ export default function MiddleEarthMap() {
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
-      baradDurGazeCheckedRef.current = false;
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
@@ -1725,7 +1685,6 @@ export default function MiddleEarthMap() {
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
-      baradDurGazeCheckedRef.current = false;
       waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
@@ -1746,7 +1705,6 @@ export default function MiddleEarthMap() {
     setStopped(false);
     setVisitedLocation(null);
     setCurrentLocation(null);
-    baradDurGazeCheckedRef.current = false;
     waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
@@ -2292,19 +2250,12 @@ export default function MiddleEarthMap() {
         return !!boss && !defeatedBosses.has(boss.name);
       });
 
-    function distanceToSegment(point: Point, from: Point, to: Point): number {
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      const lenSq = dx * dx + dy * dy;
-      if (lenSq === 0) {
-        return Math.hypot(point.x - from.x, point.y - from.y);
-      }
-      const t = clamp(((point.x - from.x) * dx + (point.y - from.y) * dy) / lenSq, 0, 1);
-      return Math.hypot(point.x - (from.x + dx * t), point.y - (from.y + dy * t));
-    }
-
-    function crossedLockedPassage(from: Point, to: Point): MapLocation | null {
-      return lockedPassages.find((location) => distanceToSegment(location.point, from, to) <= 24) ?? null;
+    function crossedLockedPassage(point: Point): MapLocation | null {
+      return (
+        lockedPassages.find(
+          (location) => Math.hypot(location.point.x - point.x, location.point.y - point.y) < MILES_PER_DAY,
+        ) ?? null
+      );
     }
 
     function finishTravel(visitLocation: MapLocation | null) {
@@ -2313,7 +2264,6 @@ export default function MiddleEarthMap() {
       } else {
         setVisitedLocation(null);
         setCurrentLocation(null);
-        baradDurGazeCheckedRef.current = false;
       }
       setTarget(null);
       setTargetLocation(null);
@@ -2501,13 +2451,12 @@ export default function MiddleEarthMap() {
         nextPlayer = activeTarget;
       }
 
-      const lockedPassage = crossedLockedPassage(current, nextPlayer);
+      const lockedPassage = crossedLockedPassage(nextPlayer);
       if (lockedPassage && arrivalLocation?.id !== lockedPassage.id) {
-        const passageTravel = Math.hypot(lockedPassage.point.x - current.x, lockedPassage.point.y - current.y);
-        journeyMilesRef.current += passageTravel * terrainCost;
-        playerRef.current = lockedPassage.point;
-        setPlayer(lockedPassage.point);
-        setHeroPath((path) => appendPathPoint(path, lockedPassage.point, trailCapRef.current));
+        journeyMilesRef.current += actualTravel * terrainCost;
+        playerRef.current = nextPlayer;
+        setPlayer(nextPlayer);
+        setHeroPath((path) => appendPathPoint(path, nextPlayer, trailCapRef.current));
         finishTravel(lockedPassage);
         return;
       }
@@ -2587,29 +2536,20 @@ export default function MiddleEarthMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animationSpeed, defeatedBosses, getTerrainAtPoint, locations, recruitCharacter, target, targetLocation, targetMemberId, stopped]);
 
-  const playerScreen = mapToScreen(player);
-  const targetScreen = target ? mapToScreen(target) : null;
-  // Only project the trail to screen space when it's actually shown — otherwise
-  // we'd remap every point on every frame of movement for nothing.
-  const heroPathScreen = useMemo(
-    () => (showHeroPath ? heroPath.map((point) => mapToScreen(point)) : []),
-    [showHeroPath, heroPath, mapToScreen],
+  const playerLayer = mapToLayer(player);
+  const targetLayer = target ? mapToLayer(target) : null;
+  // Only project the trail when it's actually shown. Layer coords (zoom-only),
+  // so panning doesn't remap it.
+  const heroPathLayer = useMemo(
+    () => (showHeroPath ? heroPath.map((point) => mapToLayer(point)) : []),
+    [showHeroPath, heroPath, mapToLayer],
   );
   const journeyDate = useMemo(() => getJourneyDate(journeyDay, months), [journeyDay, months]);
 
   const bonusFor = (id: string): StatBonus => statBonusById[id] ?? ZERO_BONUS;
   // Flat (always-on) stat bonuses from a carried item.
-  const itemBonusFor = (id: string): StatBonus => {
-    const item = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
-    return item
-      ? {
-          strength: item.strength ?? 0,
-          defense: item.defense ?? 0,
-          intelligence: item.intelligence ?? 0,
-          luck: item.luck ?? 0,
-        }
-      : ZERO_BONUS;
-  };
+  const itemBonusFor = (id: string): StatBonus =>
+    itemStatBonus(equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined);
   // Allocated level-up points, party auras (Bombadil/Elrond/Galadriel), and items.
   const totalBonusFor = (character: Character): StatBonus =>
     addBonus(addBonus(bonusFor(character.id), auraBonus(character, party)), itemBonusFor(character.id));
@@ -2724,22 +2664,22 @@ export default function MiddleEarthMap() {
   const locationMarkers = useMemo(
     () =>
       locations.map((location) => {
-        const screen = mapToScreen(location.point);
+        const pos = mapToLayer(location.point);
         return (
           <button
             key={location.id}
             type="button"
             title={locName(location)}
             aria-label={locName(location)}
-            className="absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-600 shadow-[0_0_0_1px_rgba(60,0,0,0.85),0_0_0_2.5px_#ffffff] transition-transform hover:scale-[1.6] hover:bg-red-500"
-            style={{ left: screen.x, top: screen.y }}
+            className="pointer-events-auto absolute z-10 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-600 shadow-[0_0_0_1px_rgba(60,0,0,0.85),0_0_0_2.5px_#ffffff] transition-transform hover:scale-[1.6] hover:bg-red-500"
+            style={{ left: pos.x, top: pos.y }}
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
             onClick={(event) => handleMarkerClick(event, location)}
           />
         );
       }),
-    [locations, mapToScreen, locName, handleMarkerClick],
+    [locations, mapToLayer, locName, handleMarkerClick],
   );
   const openCharacter = openCharacterId
     ? (CHARACTERS.find((character) => character.id === openCharacterId) ?? null)
@@ -3018,6 +2958,11 @@ export default function MiddleEarthMap() {
       const activeBoss = visitedLocation ? BOSSES_BY_LOCATION[visitedLocation.id] : null;
       if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
+        // Felling the Guardian of Barad-dûr only brings the Ring to Sauron's
+        // doorstep — at that range it leaps to its master and the quest is lost.
+        if (visitedLocation?.id === BARAD_DUR_ID) {
+          setEnding((prev) => prev ?? "sauron");
+        }
       }
     }
   }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, banishTraitor]);
@@ -3071,7 +3016,9 @@ export default function MiddleEarthMap() {
     const heal = members.includes("gandalf")
       ? Math.round(HEAL_PER_DAY * GANDALF_HEAL_MULTIPLIER)
       : HEAL_PER_DAY;
-    let encounterChance = hasCloaks ? ENCOUNTER_CHANCE_PER_DAY / 2 : ENCOUNTER_CHANCE_PER_DAY;
+    let encounterChance = hasCloaks
+      ? ENCOUNTER_CHANCE_PER_DAY * CLOAKS_ENCOUNTER_MULTIPLIER
+      : ENCOUNTER_CHANCE_PER_DAY;
     if (members.includes("aragorn")) {
       encounterChance *= ARAGORN_ENCOUNTER_MULTIPLIER;
     }
@@ -3113,6 +3060,9 @@ export default function MiddleEarthMap() {
         nextFood -= 1;
       } else {
         for (const id of members) {
+          if (id === "king_dead") {
+            continue;
+          }
           const prev = nextDamage[id] ?? 0;
           const character = CHARACTERS.find((c) => c.id === id);
           if (character) {
@@ -3284,6 +3234,19 @@ export default function MiddleEarthMap() {
             transformOrigin: "0 0",
           }}
         />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-0 max-w-none select-none"
+          style={{
+            width: mapSize.width,
+            height: mapSize.height,
+            backgroundColor: "#d8b777",
+            mixBlendMode: "multiply",
+            opacity: 0.18,
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        />
         <img
           alt="Terrain overlay"
           draggable="false"
@@ -3298,88 +3261,96 @@ export default function MiddleEarthMap() {
           }}
         />
 
-        {locationMarkers}
-
-        {leftBehind.map((member) => {
-          const character = CHARACTERS.find((c) => c.id === member.id);
-          if (!character) {
-            return null;
-          }
-          const screen = mapToScreen(member.point);
-          return (
-            <button
-              key={member.id}
-              type="button"
-              title={charName(character.id)}
-              aria-label={charName(character.id)}
-              className="absolute z-20 size-11 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-amber-300 bg-parchment shadow-lg"
-              style={{ left: screen.x, top: screen.y }}
-              onPointerDown={(event) => event.stopPropagation()}
-              onPointerUp={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                openCharacterPanel(member.id, false);
-              }}
-            >
-              <img src={character.icon} alt="" className="size-full object-cover" />
-            </button>
-          );
-        })}
-
-        {targetScreen && (
-          <div
-            className="pointer-events-none absolute z-20 size-4 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: targetScreen.x, top: targetScreen.y }}
-            aria-hidden="true"
-          >
-            <span className="absolute inset-0 animate-ping rounded-full bg-green-500/70" />
-            <span className="absolute left-1/2 top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-green-500 shadow" />
-          </div>
-        )}
-
-        {showHeroPath && heroPathScreen.length > 1 && (
-          <svg
-            className="pointer-events-none absolute inset-0 z-[25] overflow-visible"
-            aria-hidden="true"
-          >
-            <polyline
-              points={heroPathScreen.map((point) => `${point.x},${point.y}`).join(" ")}
-              fill="none"
-              stroke="#c9a227"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={0.9}
-            />
-          </svg>
-        )}
-
-        <button
-          type="button"
-          aria-label={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
-          title={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
-          className="absolute z-30 size-12 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-          style={{ left: playerScreen.x, top: playerScreen.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (!isMoving && !target && currentLocation) {
-              openVisitedLocation(currentLocation);
-              return;
-            }
-            if (figureCharacter) {
-              openCharacterPanel(figureCharacter.id, true);
-            }
-          }}
+        {/* Overlay layer: only the container's translate tracks the camera each
+            frame, so markers/figure aren't re-projected on pan. Children sit at
+            point×zoom (constant pixel size — no scale on this layer). */}
+        <div
+          className="pointer-events-none absolute left-0 top-0"
+          style={{ transform: `translate(${offset.x}px, ${offset.y}px)`, transformOrigin: "0 0" }}
         >
-          <img
-            src={figureCharacter?.icon ?? PLAYER_ICON}
-            alt=""
-            draggable="false"
-            className="size-full select-none object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
-          />
-        </button>
+          {locationMarkers}
+
+          {leftBehind.map((member) => {
+            const character = CHARACTERS.find((c) => c.id === member.id);
+            if (!character) {
+              return null;
+            }
+            const pos = mapToLayer(member.point);
+            return (
+              <button
+                key={member.id}
+                type="button"
+                title={charName(character.id)}
+                aria-label={charName(character.id)}
+                className="pointer-events-auto absolute z-20 size-11 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-amber-300 bg-parchment shadow-lg"
+                style={{ left: pos.x, top: pos.y }}
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openCharacterPanel(member.id, false);
+                }}
+              >
+                <img src={character.icon} alt="" className="size-full object-cover" />
+              </button>
+            );
+          })}
+
+          {targetLayer && (
+            <div
+              className="pointer-events-none absolute z-20 size-4 -translate-x-1/2 -translate-y-1/2"
+              style={{ left: targetLayer.x, top: targetLayer.y }}
+              aria-hidden="true"
+            >
+              <span className="absolute inset-0 animate-ping rounded-full bg-green-500/70" />
+              <span className="absolute left-1/2 top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-green-500 shadow" />
+            </div>
+          )}
+
+          {showHeroPath && heroPathLayer.length > 1 && (
+            <svg
+              className="pointer-events-none absolute left-0 top-0 z-[25] overflow-visible"
+              aria-hidden="true"
+            >
+              <polyline
+                points={heroPathLayer.map((point) => `${point.x},${point.y}`).join(" ")}
+                fill="none"
+                stroke="#c9a227"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.9}
+              />
+            </svg>
+          )}
+
+          <button
+            type="button"
+            aria-label={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
+            title={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
+            className="pointer-events-auto absolute z-30 size-12 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+            style={{ left: playerLayer.x, top: playerLayer.y }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!isMoving && !target && currentLocation) {
+                openVisitedLocation(currentLocation);
+                return;
+              }
+              if (figureCharacter) {
+                openCharacterPanel(figureCharacter.id, true);
+              }
+            }}
+          >
+            <img
+              src={figureCharacter?.icon ?? PLAYER_ICON}
+              alt=""
+              draggable="false"
+              className="size-full select-none object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+            />
+          </button>
+        </div>
 
         <div
           className="absolute right-4 top-4 z-50"
@@ -3680,6 +3651,7 @@ export default function MiddleEarthMap() {
               visitedLocation.id === WEATHERTOP_ID)
           }
           exploreLocked={
+            !!locationBoss ||
             (visitedLocation?.id === ISENGARD_ID &&
               !defeatedBosses.has(BOSSES_BY_LOCATION[ISENGARD_ID].name) &&
               !party.includes("saruman")) ||

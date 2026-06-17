@@ -134,22 +134,23 @@ export const GOLLUM_ENEMY: Monster = {
 // One passive ability per hero, active while they are in the party.
 // Special items found by exploring or gifted by companions.
 export const ITEMS: Item[] = [
-  { id: "numenor_dagger", icon: "🗡️", strengthVsUndead: 2 },
-  { id: "sting", icon: "⚔️", strength: 2 },
-  { id: "mithril_mail", icon: "🛡️", defense: 2 },
-  { id: "palantir", icon: "🔮", intelligence: 2 },
+  { id: "numenor_dagger", icon: "🗡️", strengthVsUndead: 3 },
+  { id: "sting", icon: "⚔️", strength: 3 },
+  { id: "mithril_mail", icon: "🛡️", defense: 3 },
+  { id: "palantir", icon: "🔮", intelligence: 3 },
   // Galadriel's gifts.
-  { id: "phial", icon: "🌟", luck: 2 },
-  { id: "galadriel_box", icon: "🌰", luck: 2 },
-  { id: "elessar", icon: "💚", strength: 2 },
-  { id: "golden_belt", icon: "🔶", defense: 2 },
-  { id: "silver_belt_1", icon: "⚪", defense: 1 },
-  { id: "silver_belt_2", icon: "⚪", defense: 1 },
-  { id: "galadhrim_bow", icon: "🏹", strength: 2 },
-  { id: "galadriel_hairs", icon: "💛", luck: 2 },
-  { id: "mithril_helmet", icon: "🪖", defense: 1 },
-  { id: "numenor_blade", icon: "🔪", strengthVsUndead: 2 },
-  { id: "elven_arrows", icon: "🎯", strengthVsOrcs: 3 },
+  { id: "phial", icon: "🌟", holders: ["frodo"], luck: 3 },
+  { id: "galadriel_box", icon: "🌰", holders: ["sam"], luck: 3 },
+  { id: "elessar", icon: "💚", holders: ["aragorn"], strength: 3 },
+  { id: "golden_belt", icon: "🔶", holders: ["boromir"], defense: 3 },
+  { id: "silver_belt_1", icon: "⚪", holders: ["merry"], defense: 2 },
+  { id: "silver_belt_2", icon: "⚪", holders: ["pippin"], defense: 2 },
+  { id: "galadhrim_bow", icon: "🏹", holders: ["legolas"], strength: 3 },
+  { id: "galadriel_hairs", icon: "💛", holders: ["gimli"], luck: 3 },
+  { id: "mithril_helmet", icon: "🪖", defense: 2 },
+  { id: "numenor_blade", icon: "🔪", strengthVsUndead: 3 },
+  { id: "book_of_mazarbul", icon: "📖", holders: ["gimli"], luck: 5 },
+  { id: "elven_arrows", icon: "🎯", strengthVsOrcs: 4 },
 ];
 export const ITEM_BY_ID: Record<string, Item> = Object.fromEntries(
   ITEMS.map((item) => [item.id, item]),

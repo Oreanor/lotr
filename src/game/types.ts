@@ -112,6 +112,7 @@ export interface Monster {
 export interface Item {
   id: string;
   icon: string; // emoji glyph
+  holders?: string[]; // if set, only these characters can carry it
   strength?: number;
   defense?: number;
   intelligence?: number;

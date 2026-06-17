@@ -62,6 +62,11 @@ export function EndingModal({
           </>
         ) : ending === "sauron" ? (
           <>
+            <img
+              src="/enemies/sauron.png"
+              alt=""
+              className="mx-auto mb-3 size-28 border border-red-900 object-cover"
+            />
             <h2 className="font-serif text-2xl text-red-400">{t("ending.sauronTitle")}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.sauronText", { name: bearerName })}</p>
           </>

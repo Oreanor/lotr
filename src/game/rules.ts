@@ -69,6 +69,7 @@ import type {
   CharacterStats,
   Combatant,
   EncounterState,
+  Item,
   MapLocation,
   Monster,
   Point,
@@ -129,9 +130,20 @@ export function locationImage(id: number, season: Season): string | null {
   return file ? `/locations/${SEASON_FOLDER[season]}/${file}` : null;
 }
 
-// XP a foe grants the whole party on victory (scales with tier and strength).
+// XP a foe grants the whole party on victory. Big foes should pay for their
+// bulk, armor, and special attack spikes; keep UI values clean by rounding to 5.
 export function monsterExp(monster: Monster): number {
-  return 5 + monster.tier * 20 + monster.strength * 4;
+  const attack = monster.attack ?? monster.strength;
+  const raw =
+    10 +
+    monster.tier * 18 +
+    monster.strength * 6 +
+    monster.defense * 4 +
+    monster.intelligence * 2 +
+    monster.luck * 2 +
+    Math.max(0, attack - monster.strength) * 9 +
+    monster.strength ** 2 * 0.2;
+  return Math.round(raw / 5) * 5;
 }
 
 // i18n key for a deterministic refusal given the party (null = no block).
@@ -515,6 +527,33 @@ export function effectiveStats(character: Character, bonus: StatBonus) {
     intelligence: character.intelligence + bonus.intelligence,
     luck: character.luck + bonus.luck,
   };
+}
+
+// Flat (always-on) stat bonuses a carried item grants its bearer.
+export function itemStatBonus(item: Item | undefined): StatBonus {
+  return item
+    ? {
+        strength: item.strength ?? 0,
+        defense: item.defense ?? 0,
+        intelligence: item.intelligence ?? 0,
+        luck: item.luck ?? 0,
+      }
+    : ZERO_BONUS;
+}
+
+// Conditional bonus attack a carried item adds against the foes in this fight.
+export function itemAttackBonus(
+  item: Item | undefined,
+  packHasUndead: boolean,
+  packHasOrcs: boolean,
+): number {
+  if (!item) {
+    return 0;
+  }
+  return (
+    (packHasUndead ? (item.strengthVsUndead ?? 0) : 0) +
+    (packHasOrcs ? (item.strengthVsOrcs ?? 0) : 0)
+  );
 }
 
 // Chance a blow crits for double damage, rising with the attacker's luck.

@@ -193,7 +193,7 @@
     "nothingTitle": "All for nothing",
     "nothingText": "{{name}} bested you and vanished with the Ring. No one is left to give chase. The quest ends with nothing.",
     "sauronTitle": "The Eye of Sauron",
-    "sauronText": "{{name}} entered Barad-dur with the Ring. The Eye of Sauron found the bearer, reached for the Ring, and took it. The quest is over.",
+    "sauronText": "Sauron could not believe his own Eye: the Ring had come to him of its own accord. It slipped from {{name}}'s finger, leapt into its master's hand — and so ended everything for Middle-earth.",
     "rogueLordTitle": "{{name}} put on the Ring",
     "rogueLordText": "You were too late. {{name}} reached Mount Doom first and proclaimed himself the new Lord. Game over.",
     "replay": "Play again"
@@ -267,63 +267,67 @@
     "chooseTitle": "Choose an item",
     "numenor_dagger": {
       "name": "Númenórean dagger",
-      "desc": "+2 strength against the undead"
+      "desc": "+3 strength against the undead"
     },
     "sting": {
       "name": "Sting",
-      "desc": "+2 strength"
+      "desc": "+3 strength"
     },
     "mithril_mail": {
       "name": "Mithril shirt",
-      "desc": "+2 defense"
+      "desc": "+3 defense"
     },
     "palantir": {
       "name": "Palantír",
-      "desc": "+2 intelligence"
+      "desc": "+3 intelligence"
     },
     "phial": {
       "name": "Phial of Galadriel",
-      "desc": "+2 luck"
+      "desc": "+3 luck"
     },
     "galadriel_box": {
       "name": "Box of Lórien earth",
-      "desc": "+2 luck"
+      "desc": "+3 luck"
     },
     "elessar": {
       "name": "Elessar",
-      "desc": "+2 strength"
+      "desc": "+3 strength"
     },
     "golden_belt": {
       "name": "Golden belt",
-      "desc": "+2 defense"
+      "desc": "+3 defense"
     },
     "silver_belt_1": {
       "name": "Silver belt",
-      "desc": "+1 defense"
+      "desc": "+2 defense"
     },
     "silver_belt_2": {
       "name": "Silver belt",
-      "desc": "+1 defense"
+      "desc": "+2 defense"
     },
     "galadhrim_bow": {
       "name": "Galadhrim bow",
-      "desc": "+2 strength"
+      "desc": "+3 strength"
     },
     "galadriel_hairs": {
       "name": "Three hairs of Galadriel",
-      "desc": "+2 luck"
+      "desc": "+3 luck"
     },
     "mithril_helmet": {
       "name": "Mithril helm",
-      "desc": "+1 defense"
+      "desc": "+2 defense"
     },
     "numenor_blade": {
       "name": "Númenórean blade",
-      "desc": "+2 strength against the undead"
+      "desc": "+3 strength against the undead"
+    },
+    "book_of_mazarbul": {
+      "name": "Book of Mazarbul",
+      "desc": "+5 luck for a dwarf"
     },
     "elven_arrows": {
       "name": "Elven arrows",
-      "desc": "+3 strength against orcs"
+      "desc": "+4 strength against orcs"
     }
   },
   "talk": {

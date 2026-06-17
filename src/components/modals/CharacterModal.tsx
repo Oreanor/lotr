@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Flame, Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
@@ -50,10 +50,41 @@ export function CharacterModal({
 }) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const itemListRef = useRef<HTMLDivElement>(null);
+  const suppressItemClick = useRef(false);
   // Close the item picker when switching to another character.
   useEffect(() => {
     setPickerOpen(false);
   }, [character?.id, isInParty]);
+
+  const startItemListDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const el = itemListRef.current;
+    if (!el) {
+      return;
+    }
+    const startY = event.clientY;
+    const startScroll = el.scrollTop;
+    let moved = false;
+    const onMove = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      if (Math.abs(dy) > 4) {
+        moved = true;
+      }
+      el.scrollTop = startScroll - dy;
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
+      if (moved) {
+        suppressItemClick.current = true;
+      }
+    };
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
+  };
+
   return (
     <Modal
       open={character !== null && stats !== null}
@@ -209,30 +240,49 @@ export function CharacterModal({
             className="w-full max-w-xs border-sky-800 p-5 text-center"
           >
             <h2 className="font-serif text-xl text-sky-200">{t("item.chooseTitle")}</h2>
-            <div className="mt-4 max-h-80 overflow-y-auto overscroll-contain">
+            <div
+              ref={itemListRef}
+              onPointerDown={startItemListDrag}
+              onDragStart={(event) => event.preventDefault()}
+              onClickCapture={(event) => {
+                if (suppressItemClick.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  suppressItemClick.current = false;
+                }
+              }}
+              className="mt-4 max-h-80 cursor-grab select-none overflow-y-auto overscroll-contain active:cursor-grabbing"
+            >
               <div className="flex flex-col gap-2 pr-1">
                 {itemOptions.length === 0 && !equippedItem && (
                   <p className="text-sm text-neutral-400">{t("character.noItems")}</p>
                 )}
-                {itemOptions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      onEquipItem(item.id);
-                      setPickerOpen(false);
-                    }}
-                    className={`flex flex-col items-center gap-1 rounded border px-3 py-2 transition ${
-                      equippedItem?.id === item.id
-                        ? "border-sky-500 bg-sky-900/50"
-                        : "border-sky-800/70 bg-sky-900/30 hover:bg-sky-800/50"
-                    }`}
-                  >
-                    <span className="text-3xl leading-none">{item.icon}</span>
-                    <span className="text-sm font-semibold text-sky-100">{t(`item.${item.id}.name`)}</span>
-                    <span className="text-xs text-sky-300/80">{t(`item.${item.id}.desc`)}</span>
-                  </button>
-                ))}
+                {itemOptions.map((item) => {
+                  const disabled = !!item.holders && !item.holders.includes(character.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled) {
+                          return;
+                        }
+                        onEquipItem(item.id);
+                        setPickerOpen(false);
+                      }}
+                      className={`flex flex-col items-center gap-1 rounded border px-3 py-2 transition ${
+                        equippedItem?.id === item.id
+                          ? "border-sky-500 bg-sky-900/50"
+                          : "border-sky-800/70 bg-sky-900/30 hover:bg-sky-800/50"
+                      } disabled:cursor-default disabled:opacity-35 disabled:hover:bg-sky-900/30`}
+                    >
+                      <span className="text-3xl leading-none">{item.icon}</span>
+                      <span className="text-sm font-semibold text-sky-100">{t(`item.${item.id}.name`)}</span>
+                      <span className="text-xs text-sky-300/80">{t(`item.${item.id}.desc`)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {equippedItem && (

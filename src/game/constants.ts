@@ -93,6 +93,7 @@ export const EXPLORE_ITEM_BY_LOCATION: Record<number, string> = {
   [FORNOST_ID]: "numenor_dagger",
   [ISENGARD_ID]: "palantir",
   [EREBOR_ID]: "mithril_helmet",
+  [MORIA_GATE_ID]: "book_of_mazarbul",
   [OLD_FOREST_ID]: "numenor_blade",
 };
 
@@ -175,7 +176,8 @@ export const REGION_Y_SOUTH = 1290;
 
 // Per-companion ability tuning.
 export const GANDALF_HEAL_MULTIPLIER = 1.5;
-export const ARAGORN_ENCOUNTER_MULTIPLIER = 0.5;
+export const CLOAKS_ENCOUNTER_MULTIPLIER = 2 / 3;
+export const ARAGORN_ENCOUNTER_MULTIPLIER = 2 / 3;
 export const EOMER_SPEED_MULTIPLIER = 1.5;
 // Bombadil dawdles — the march takes 1.5× as long while he travels along.
 export const BOMBADIL_SLOW_FACTOR = 1.5;
