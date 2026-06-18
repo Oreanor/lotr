@@ -855,17 +855,19 @@ export default function MiddleEarthMap() {
     setParty((prev) => prev.filter((p) => p !== id));
   }, []);
 
-  // "Принять бой" → snapshot party + enemy into a paced auto-battle.
-  const startBattle = useCallback(() => {
-    if (!encounter) {
+  // "Принять бой" → snapshot party + enemy into a paced auto-battle. Pass an
+  // encounter to launch the fight straight off (e.g. a chosen boss), skipping
+  // the "you met a foe" prompt; default to the current wild encounter.
+  const startBattle = useCallback((enc: EncounterState | null = encounter) => {
+    if (!enc) {
       return;
     }
     // Carried items lend bonus attack against the right foes here.
-    const packHasUndead = encounter.pack.some((mm) => WRAITH_FOES.has(mm.name));
-    const packHasOrcs = encounter.pack.some((mm) => ORC_FOES.has(mm.name));
+    const packHasUndead = enc.pack.some((mm) => WRAITH_FOES.has(mm.name));
+    const packHasOrcs = enc.pack.some((mm) => ORC_FOES.has(mm.name));
     // The Phial of Galadriel blinds Shelob — her strength is halved.
     const partyHasPhial = party.some((id) => equippedItems[id] === "phial");
-    const phialBlinded = partyHasPhial && encounter.pack.some((mm) => mm.name === SHELOB_NAME);
+    const phialBlinded = partyHasPhial && enc.pack.some((mm) => mm.name === SHELOB_NAME);
     const allies: Combatant[] = party
       .map((id): Combatant | null => {
         const character = CHARACTERS.find((c) => c.id === id);
@@ -895,8 +897,8 @@ export default function MiddleEarthMap() {
         };
       })
       .filter((c): c is Combatant => c !== null && c.hp > 0);
-    const m = encounter.monster;
-    const pack = encounter.pack;
+    const m = enc.monster;
+    const pack = enc.pack;
     const enemies: Combatant[] = pack.map((mm, i) => {
       const str =
         phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
@@ -940,7 +942,7 @@ export default function MiddleEarthMap() {
       rogueId: null,
       invisibleEnemy: false,
       phialBlinded,
-      wraithsStand: encounter.wraithsStand ?? false,
+      wraithsStand: enc.wraithsStand ?? false,
     };
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
@@ -4568,7 +4570,9 @@ export default function MiddleEarthMap() {
                     : visitedLocation?.id === ISENGARD_ID && grimaFled
                       ? [locationBoss, GRIMA_ENEMY]
                       : [locationBoss];
-              setEncounter({
+              // Already chose the fight at the location — go straight to battle,
+              // skipping the "you met a foe" encounter prompt.
+              startBattle({
                 monster: locationBoss,
                 dangerous: true,
                 solo: bossPack.length === 1,
@@ -4714,7 +4718,7 @@ export default function MiddleEarthMap() {
         <EncounterModal
           encounter={autoPlay ? null : encounter}
           monsterName={monsterName}
-          onAccept={startBattle}
+          onAccept={() => startBattle()}
           onFlee={fleeEncounter}
           fleeChance={encounterEscapePct}
         />
