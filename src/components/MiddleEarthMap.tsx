@@ -2114,12 +2114,7 @@ export default function MiddleEarthMap() {
       const cacheIds = [...GONDOR_SWORD_IDS.slice(0, swords), ...GONDOR_ARMOR_IDS.slice(0, armor)];
       setFoundItems((prev) => [...prev, ...cacheIds.filter((id) => !prev.includes(id))]);
       setOsgiliathCacheFound(true);
-      setExploreResult({
-        found: true,
-        message: "location.osgiliathCache",
-        messageParams: { swords, armor },
-        emoji: "⚔️",
-      });
+      setExploreResult({ found: true, itemIds: cacheIds });
       return;
     }
     // Helm's Deep: only Éomer knows the Hornburg armoury. With him along he leads
@@ -3104,13 +3099,6 @@ export default function MiddleEarthMap() {
     }
     return offered;
   })();
-  const lockedPassageLocation =
-    visitedLocation &&
-    (visitedLocation.id === MORIA_GATE_ID || visitedLocation.id === MINAS_MORGUL_ID) &&
-    locationBoss
-      ? visitedLocation
-      : null;
-
   // Log everyone the party lays eyes on into `metCharacterIds`, so the "found"
   // tally credits characters seen but never recruited (some are mutually
   // exclusive and can't all join one run). Sources: the recruit list at the
@@ -3824,9 +3812,10 @@ export default function MiddleEarthMap() {
         if (!visitedLocation && Math.random() < encounterChance) {
           wildEncounter = true;
         }
-        // Corsair raids at sea — sharply likelier the further south you sail, all
-        // but absent up at the Grey Havens' latitude.
-        if (!visitedLocation && onWater && !corsairPeace) {
+        // Corsair raids only out at sea (under sail — not while fording a river),
+        // sharply likelier the further south, all but absent at Grey Havens' latitude.
+        const atSea = onWater && (transport === "ship" || party.includes("cirdan"));
+        if (!visitedLocation && atSea && !corsairPeace) {
           const south = clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
           if (Math.random() < CORSAIR_SEA_MAX * Math.pow(south, CORSAIR_SEA_POWER)) {
             corsairEncounter = true;
@@ -4610,16 +4599,12 @@ export default function MiddleEarthMap() {
             }
           }}
           onWait={waitOneDay}
-          canLeave={!lockedPassageLocation}
           note={
             visitedLocation?.id === ORODRUIN_ID && !hasRing ? t("orodruin.noRing") : null
           }
           onLeave={() => {
             if (recruitRefusal) {
               dismissRecruitRefusal();
-              return;
-            }
-            if (lockedPassageLocation) {
               return;
             }
             setVisitedLocation(null);

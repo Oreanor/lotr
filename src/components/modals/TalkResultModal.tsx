@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import { ITEM_BY_ID, itemFamilyId } from "@/game";
+import { ItemTile } from "@/components/ui/ItemTile";
+import { ITEM_BY_ID } from "@/game";
 
 export type TalkResult = {
   charId: string;
@@ -34,24 +35,16 @@ export function TalkResultModal({
     >
       {items.length > 0 || cloaks ? (
         <>
-          <div className="flex justify-center gap-3 text-4xl leading-none">
+          <h2 className="font-serif text-lg text-sky-200">{t("talk.giftTitle", { name })}</h2>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
             {items.map((it) => (
-              <span key={it.id}>{it.icon}</span>
-            ))}
-            {cloaks && <span>🧥</span>}
-          </div>
-          <h2 className="mt-3 font-serif text-lg text-sky-200">{t("talk.giftTitle", { name })}</h2>
-          <div className="mt-3 flex flex-col gap-2">
-            {items.map((it) => (
-              <div key={it.id}>
-                <p className="text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(it.id)}.name`)}</p>
-                <p className="text-xs text-sky-300/80">{t(`item.${itemFamilyId(it.id)}.desc`)}</p>
-              </div>
+              <ItemTile key={it.id} item={it} />
             ))}
             {cloaks && (
-              <div>
-                <p className="text-sm font-semibold text-sky-100">{t("talk.cloaksName")}</p>
-                <p className="text-xs text-sky-300/80">{t("talk.cloaksDesc")}</p>
+              <div className="flex w-24 flex-col items-center gap-1 rounded border border-sky-800/70 bg-sky-900/30 px-2 py-2 text-center">
+                <span className="text-3xl leading-none">🧥</span>
+                <span className="text-xs font-semibold text-sky-100">{t("talk.cloaksName")}</span>
+                <span className="text-[11px] leading-tight text-sky-300/80">{t("talk.cloaksDesc")}</span>
               </div>
             )}
           </div>
