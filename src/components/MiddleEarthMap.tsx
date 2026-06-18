@@ -4766,7 +4766,7 @@ export default function MiddleEarthMap() {
           z="z-[60]"
           className="w-full max-w-xs border-sky-800 p-6 text-center"
         >
-          <div className="text-5xl leading-none">⚓</div>
+          <TransportIcon transport="ship" className="mx-auto size-12 object-contain" />
           <p className="mt-3 text-sm text-sky-100">{t("transport.disembarkAsk")}</p>
           <div className="mt-5 flex gap-2">
             <button
@@ -4806,7 +4806,7 @@ export default function MiddleEarthMap() {
           overlayClassName="bg-black/80"
           className="w-full max-w-xs border-sky-800 p-6 text-center"
         >
-          <div className="text-5xl leading-none">⛵</div>
+          <TransportIcon transport="ship" className="mx-auto size-12 object-contain" />
           <p className="mt-3 text-sm text-sky-100">{t("ending.valinorAsk")}</p>
           <div className="mt-5 flex gap-2">
             <button
@@ -4833,8 +4833,9 @@ export default function MiddleEarthMap() {
                   setExploreResult({ found: true, message: "ending.valinorReturn", emoji: "🌫️" });
                 }
               }}
-              className="flex-1 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"
             >
+              <TransportIcon transport="ship" className="size-5 shrink-0 object-contain" />
               {t("ending.valinorYes")}
             </button>
             <button
