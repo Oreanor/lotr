@@ -87,6 +87,9 @@ import {
   BARAD_DUR_ID,
   buildRecruitmentCalendar,
   CARN_DUM_ID,
+  CORSAIRS_CITY_ID,
+  CORSAIR_ENEMY,
+  MONSTERS,
   clearSave,
   CHARACTERS,
   CLOAKS_ENCOUNTER_MULTIPLIER,
@@ -145,6 +148,8 @@ import {
   GONDOR_CACHE_MAX,
   GONDOR_SWORD_IDS,
   GRIMA_ENEMY,
+  HELMS_DEEP_ID,
+  ROHAN_ARMORY_IDS,
   MORIA_GATE_ID,
   MOVE_SUBSTEPS,
   NAZGUL_ENEMY,
@@ -192,8 +197,15 @@ import {
   TRAITORS,
   TRANSPORT_BY_LOCATION,
   TRANSPORTS,
+  HARBOR_IDS,
+  SHIP_BOARD_OFFSET,
+  SHIP_PRESENCE_CHANCE,
+  CIRDAN_SEA_SPEED,
+  CORSAIR_SEA_MIN,
+  CORSAIR_SEA_MAX,
   unspentPointsFor,
   RING_PIERCING_FOES,
+  RINGWRAITH_FOES,
   writeSave,
   ZERO_BONUS,
   ZOOM_STEP,
@@ -206,12 +218,12 @@ import type {
   DragState,
   EncounterState,
   MapLocation,
+  Monster,
   Point,
   Size,
   Squad,
   StatBonus,
   TransportId,
-  WaterRun,
 } from "@/game";
 
 
@@ -260,7 +272,10 @@ export default function MiddleEarthMap() {
       ? MAX_PATH_POINTS
       : undefined,
   );
-  const waterRunRef = useRef<WaterRun>({ cellKey: null, count: 0 });
+  // Distinct water cells stepped through since last on land. You may revisit
+  // these (to turn back) but can't enter more than MAX new ones — so a band of
+  // water wider than that simply can't be crossed on foot.
+  const waterRunRef = useRef<Set<string>>(new Set());
   const dragRef = useRef<DragState>({
     active: false,
     moved: false,
@@ -385,6 +400,8 @@ export default function MiddleEarthMap() {
   const [osgiliathCacheFound, setOsgiliathCacheFound] = useState<boolean>(
     initialSave?.osgiliathCacheFound ?? false,
   );
+  // The Corsair captain has been talked round into letting the party sail in peace.
+  const [corsairPeace, setCorsairPeace] = useState<boolean>(initialSave?.corsairPeace ?? false);
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
   // Result of talking to a companion: a greeting or items handed over.
   const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
@@ -394,6 +411,8 @@ export default function MiddleEarthMap() {
   // Eagles of Manwë: offered only on some Carn Dûm visits, and they leave after
   // a month. `eagleSince` is the journey day they joined (null when not flying).
   const [eagleOffered, setEagleOffered] = useState(false);
+  // A ship happens to be in port this visit — rolled per harbour (see rollPresence).
+  const [shipOffered, setShipOffered] = useState(false);
   const [eagleSince, setEagleSince] = useState<number | null>(initialSave?.eagleSince ?? null);
   const [eaglesLeft, setEaglesLeft] = useState(false);
   // A transport swap awaiting the player's confirmation (replaces the current one).
@@ -499,6 +518,12 @@ export default function MiddleEarthMap() {
   // A failed flee roll: "encounter" forces the fight on dismiss, "battle" just
   // closes (the one in-fight attempt is already spent).
   const [escapeFailed, setEscapeFailed] = useState<"encounter" | "battle" | null>(null);
+  // A ship has reached a harbour and awaits the player's call to step ashore
+  // (which loses the ship). Holds where to land and which haven, if any.
+  const [pendingDisembark, setPendingDisembark] = useState<{
+    point: Point;
+    location: MapLocation | null;
+  } | null>(null);
   const [expById, setExpById] = useState<Record<string, number>>(initialSave?.expById ?? {});
   const [statBonusById, setStatBonusById] = useState<Record<string, StatBonus>>(
     initialSave?.statBonusById ?? {},
@@ -656,13 +681,22 @@ export default function MiddleEarthMap() {
         refuse(t("refuse.theodenGrima"));
         return;
       }
-      // Círdan only follows a bearer at least as wise as himself.
+      // Círdan only sails with a company wiser, on the whole, than himself.
       if (character.id === "cirdan") {
-        const bearer = CHARACTERS.find((c) => c.id === bearerId);
-        const bearerInt = bearer
-          ? effectiveStats(bearer, statBonusById[bearerId] ?? ZERO_BONUS).intelligence
+        const ids = partyRef.current;
+        const avgInt = ids.length
+          ? ids.reduce((sum, id) => {
+              const c = CHARACTERS.find((ch) => ch.id === id);
+              return (
+                sum +
+                (c
+                  ? effectiveStats(c, addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(c, ids)))
+                      .intelligence
+                  : 0)
+              );
+            }, 0) / ids.length
           : 0;
-        if (bearerInt < character.intelligence) {
+        if (avgInt <= character.intelligence) {
           refuse(t("refuse.cirdanWisdom"));
           return;
         }
@@ -894,6 +928,8 @@ export default function MiddleEarthMap() {
       fleeUsed: false,
       recruitId: m.recruitId ?? null,
       enemyBeast: pack.some((mm) => BEAST_MONSTERS.has(mm.name)),
+      enemyNazgul: pack.some((mm) => RINGWRAITH_FOES.has(mm.name)),
+      enemyOrc: packHasOrcs,
       ringIneffective: pack.some((mm) => RING_PIERCING_FOES.has(mm.name)),
       betrayalBy: null,
       gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
@@ -916,6 +952,9 @@ export default function MiddleEarthMap() {
     }
     if (rollEscape(party, statBonusById, encounter.pack.map((mm) => mm.luck))) {
       setEncounter(null);
+      // Slipping away means the whole scattered company keeps its head down — a
+      // splinter squad's pending ambush doesn't seize control right after.
+      setSquadEncounterQueue([]);
     } else {
       setEscapeFailed("encounter");
     }
@@ -1122,6 +1161,9 @@ export default function MiddleEarthMap() {
     foodRef.current = nextFood;
     setFood(nextFood);
     setBattle(null);
+    // Breaking off the fight: don't yank control into a splinter squad's pending
+    // ambush right after — the company lies low together.
+    setSquadEncounterQueue([]);
   }, [battle, party, statBonusById, applyBattleCasualties]);
 
   // Put on the Ring: the bearer turns invisible/untargetable for this fight,
@@ -1255,6 +1297,9 @@ export default function MiddleEarthMap() {
       return rolled;
     });
     setEagleOffered(locationId === CARN_DUM_ID && Math.random() < EAGLE_PRESENCE_CHANCE);
+    setShipOffered(
+      locationId !== undefined && Math.random() < (SHIP_PRESENCE_CHANCE[locationId] ?? 0),
+    );
   }, []);
 
   const waitOneDay = useCallback(() => {
@@ -1453,6 +1498,7 @@ export default function MiddleEarthMap() {
     animationPaused ||
     escapeFailed !== null ||
     exploreResult !== null ||
+    pendingDisembark !== null ||
     talkResult !== null;
 
   // Close the settings dropdown when clicking anywhere outside it. The panel
@@ -1526,6 +1572,7 @@ export default function MiddleEarthMap() {
       grimaFled,
       grimaSlain,
       osgiliathCacheFound,
+      corsairPeace,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -1566,6 +1613,7 @@ export default function MiddleEarthMap() {
     grimaFled,
     grimaSlain,
     osgiliathCacheFound,
+    corsairPeace,
     visitedLocationIds,
     enemiesKilled,
     defeatedEnemyIcons,
@@ -1656,7 +1704,7 @@ export default function MiddleEarthMap() {
       setCurrentLocation(null);
       setIsMoving(false);
       lastTimeRef.current = null;
-      waterRunRef.current = { cellKey: null, count: 0 };
+      waterRunRef.current.clear();
       followDisabledRef.current = false;
       const centered = clampOffset(
         { x: view.width / 2 - next.point.x * zoom, y: view.height / 2 - next.point.y * zoom },
@@ -1787,7 +1835,8 @@ export default function MiddleEarthMap() {
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
-      waterRunRef.current = { cellKey: null, count: 0 };
+      // Note: don't reset the water run here — a fresh tap mid-crossing must not
+      // refill the allowance, or a wide sea could be crossed two cells per tap.
       lastTimeRef.current = null;
       followDisabledRef.current = false;
     },
@@ -1962,7 +2011,6 @@ export default function MiddleEarthMap() {
       setStopped(false);
       setVisitedLocation(null);
       setCurrentLocation(null);
-      waterRunRef.current = { cellKey: null, count: 0 };
       lastTimeRef.current = null;
       followDisabledRef.current = false;
     },
@@ -1981,7 +2029,6 @@ export default function MiddleEarthMap() {
     setStopped(false);
     setVisitedLocation(null);
     setCurrentLocation(null);
-    waterRunRef.current = { cellKey: null, count: 0 };
     lastTimeRef.current = null;
     followDisabledRef.current = false;
   }, []);
@@ -2009,7 +2056,13 @@ export default function MiddleEarthMap() {
     const itemId = EXPLORE_ITEM_BY_LOCATION[loc.id];
     // Nothing to search here (no special site, no hidden item) — do nothing, and
     // don't burn a day for it.
-    if (loc.id !== WEATHERTOP_ID && loc.id !== ERECH_ID && loc.id !== OSGILIATH_ID && !itemId) {
+    if (
+      loc.id !== WEATHERTOP_ID &&
+      loc.id !== ERECH_ID &&
+      loc.id !== OSGILIATH_ID &&
+      loc.id !== HELMS_DEEP_ID &&
+      !itemId
+    ) {
       return;
     }
     // Searching a location costs a day (and runs that day's upkeep: rations,
@@ -2059,6 +2112,19 @@ export default function MiddleEarthMap() {
         messageParams: { swords, armor },
         emoji: "⚔️",
       });
+      return;
+    }
+    // Helm's Deep: only Éomer knows the Hornburg armoury. With him along he leads
+    // the party to it and they kit out (spear/sword +3 str, shield/mail +3 def);
+    // without him the search turns up nothing.
+    if (loc.id === HELMS_DEEP_ID) {
+      const already = ROHAN_ARMORY_IDS.every((id) => foundItems.includes(id));
+      if (party.includes("eomer") && !already) {
+        setFoundItems((prev) => [...prev, ...ROHAN_ARMORY_IDS.filter((id) => !prev.includes(id))]);
+        setExploreResult({ found: true, message: "location.helmsDeepArmory", emoji: "⚔️" });
+      } else {
+        setExploreResult({ found: false });
+      }
       return;
     }
     const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
@@ -2571,6 +2637,18 @@ export default function MiddleEarthMap() {
       blockedGateCells.add(`${cellX + 1}:${cellY}`);
     }
 
+    // Harbour cells — the only land a boarded ship may step onto (and lose the
+    // ship doing so). A plain "is this land cell a harbour?" check, no radius.
+    const harborCells = new Set<string>();
+    for (const location of locations) {
+      if (HARBOR_IDS.has(location.id)) {
+        const key = getTerrainAtPoint(location.point).cellKey;
+        if (key) {
+          harborCells.add(key);
+        }
+      }
+    }
+
     function finishTravel(visitLocation: MapLocation | null) {
       if (visitLocation) {
         openVisitedLocationRef.current(visitLocation);
@@ -2650,8 +2728,15 @@ export default function MiddleEarthMap() {
         transportRef.current === "eagle" || members.includes("gollum") || (onWater && canSail)
           ? 1
           : currentTerrain.cost;
-      const visibleSpeed = (SPEED_PX_PER_SECOND * animationSpeed * transportSpeed) / terrainCost;
+      // Círdan the Shipwright doubles the party's pace while at sea.
+      const cirdanSea = onWater && canSail && members.includes("cirdan") ? CIRDAN_SEA_SPEED : 1;
+      const visibleSpeed =
+        (SPEED_PX_PER_SECOND * animationSpeed * transportSpeed * cirdanSea) / terrainCost;
       const travel = Math.min(routeRadius, visibleSpeed * elapsedSeconds);
+
+      // A boarded ship is a one-way passage: it may only step ashore onto a
+      // harbour cell (and is lost when it does). Any other land is a wall.
+      const onShip = transportRef.current === "ship";
 
       function canMoveTo(point: Point): boolean {
         const terrain = getTerrainAtPoint(point);
@@ -2663,11 +2748,25 @@ export default function MiddleEarthMap() {
         ) {
           return false;
         }
-        // Mountains are passable now (just slow); only wide water still blocks.
+        // On a ship you ride the water; you may only set foot on land if that
+        // very cell holds a harbour — the open coast is a wall.
+        if (
+          onShip &&
+          terrain.name !== "water" &&
+          !(terrain.cellKey !== null && harborCells.has(terrain.cellKey))
+        ) {
+          return false;
+        }
+        // Mountains are passable now (just slow); wide water still blocks: you may
+        // wade back through cells already crossed, but never enter more than
+        // MAX_WATER_CROSSING_CELLS fresh ones before reaching land again.
         if (terrain.name === "water" && !canSail) {
-          const waterRun = waterRunRef.current;
-          const isNewWaterCell = waterRun.cellKey !== terrain.cellKey;
-          if (isNewWaterCell && waterRun.count >= MAX_WATER_CROSSING_CELLS) {
+          const cell = terrain.cellKey;
+          if (
+            cell !== null &&
+            !waterRunRef.current.has(cell) &&
+            waterRunRef.current.size >= MAX_WATER_CROSSING_CELLS
+          ) {
             return false;
           }
         }
@@ -2680,17 +2779,12 @@ export default function MiddleEarthMap() {
         }
         const terrain = getTerrainAtPoint(point);
         if (terrain.name === "water") {
-          const waterRun = waterRunRef.current;
-          const isNewWaterCell = waterRun.cellKey !== terrain.cellKey;
-          if (isNewWaterCell) {
-            waterRunRef.current = {
-              cellKey: terrain.cellKey,
-              count: waterRun.count + 1,
-            };
+          if (terrain.cellKey !== null) {
+            waterRunRef.current.add(terrain.cellKey);
           }
-          return;
+        } else {
+          waterRunRef.current.clear();
         }
-        waterRunRef.current = { cellKey: null, count: 0 };
       }
 
       // Move toward (dirX, dirY); if blocked, fan out to ever-wider angles on
@@ -2774,6 +2868,17 @@ export default function MiddleEarthMap() {
       const arrived = Math.hypot(activeTarget.x - nextPlayer.x, activeTarget.y - nextPlayer.y) <= 0.5;
       if (arrived) {
         nextPlayer = activeTarget;
+      }
+
+      // Reached a harbour off a ship (canMoveTo walls every other coast): don't
+      // step ashore yet — hold on the water and ask, since landing loses the ship.
+      if (onShip && getTerrainAtPoint(nextPlayer).name !== "water") {
+        setPendingDisembark({ point: nextPlayer, location: arrivalLocation });
+        setTarget(null);
+        setTargetLocation(null);
+        setIsMoving(false);
+        frameRef.current = null;
+        return;
       }
 
       const nextJourneyMiles = journeyMilesRef.current + actualTravel * terrainCost;
@@ -2891,6 +2996,16 @@ export default function MiddleEarthMap() {
     }
     return effectiveStats(bearer, totalBonusFor(bearer)).intelligence < saruman.intelligence;
   })();
+  // The Corsair captain parleys rather than fights for a company clever enough on
+  // the whole — average intelligence above 8. Talk to him then for safe passage.
+  const corsairCaptainFriendly =
+    party.length > 0 &&
+    party.reduce((sum, id) => {
+      const c = CHARACTERS.find((ch) => ch.id === id);
+      return sum + (c ? effectiveStats(c, totalBonusFor(c)).intelligence : 0);
+    }, 0) /
+      party.length >
+      8;
   // A fled Gríma with no Isengard left to run to (Saruman already beaten) skulks
   // the wild until someone puts him down.
   const grimaRoaming = grimaFled && !grimaSlain && defeatedBosses.has(sarumanBossName);
@@ -2925,6 +3040,10 @@ export default function MiddleEarthMap() {
     if (visitedLocation.id === ISENGARD_ID && sarumanFriendly) {
       return null;
     }
+    // A friendly Corsair captain is parleyed with, not fought.
+    if (visitedLocation.id === CORSAIRS_CITY_ID && corsairCaptainFriendly) {
+      return null;
+    }
     // Weathertop's riding melts away once their lord is undone.
     if (visitedLocation.id === WEATHERTOP_ID && wraithsBroken) {
       return null;
@@ -2942,6 +3061,9 @@ export default function MiddleEarthMap() {
     }
     if (offered === "eagle" && !eagleOffered) {
       return null; // the eagles aren't here this visit
+    }
+    if (offered === "ship" && !shipOffered) {
+      return null; // no ship in port this visit
     }
     return offered;
   })();
@@ -3015,6 +3137,51 @@ export default function MiddleEarthMap() {
       }
     },
     [applyTransport, party, showRecruitRefusal, t],
+  );
+  // Board a ship at a harbour: drop the figure onto the open water beside it and
+  // set sail. From here only a harbour coast will take the party back ashore.
+  const boardShip = useCallback(
+    (harborId: number) => {
+      const harbor = locations.find((l) => l.id === harborId);
+      if (!harbor) {
+        return;
+      }
+      // Pick the open-water cell to set sail from: the harbour's preferred hint
+      // if it's sea, else scan its neighbours outward for the nearest water.
+      const cell = 10;
+      const candidates: { x: number; y: number }[] = [];
+      const pref = SHIP_BOARD_OFFSET[harborId];
+      if (pref) {
+        candidates.push(pref);
+      }
+      for (const r of [1, 2, 3]) {
+        for (const dy of [-1, 0, 1]) {
+          for (const dx of [-1, 0, 1]) {
+            if (dx === 0 && dy === 0) continue;
+            candidates.push({ x: dx * cell * r, y: dy * cell * r });
+          }
+        }
+      }
+      let point = { x: harbor.point.x, y: harbor.point.y };
+      for (const c of candidates) {
+        const p = { x: harbor.point.x + c.x, y: harbor.point.y + c.y };
+        if (getTerrainAtPoint(p).name === "water") {
+          point = p;
+          break;
+        }
+      }
+      applyTransport("ship");
+      playerRef.current = point;
+      setPlayer(point);
+      setTarget(null);
+      setTargetLocation(null);
+      setStopped(false);
+      setVisitedLocation(null);
+      setCurrentLocation(null);
+      waterRunRef.current.clear();
+      centerOnPlayer();
+    },
+    [locations, applyTransport, centerOnPlayer, getTerrainAtPoint],
   );
   const recruitmentCalendar = useMemo(
     () =>
@@ -3538,6 +3705,7 @@ export default function MiddleEarthMap() {
     const onEagles = transport === "eagle";
     const encounterChance = onEagles ? 0 : chanceFor(members);
     let wildEncounter = false;
+    let corsairEncounter = false;
     let rogueEncounter = false;
     let pendingTraitor: string | null = null;
     let bombadilLeaves = false;
@@ -3618,6 +3786,13 @@ export default function MiddleEarthMap() {
         }
         if (!visitedLocation && Math.random() < encounterChance) {
           wildEncounter = true;
+        }
+        // Corsair raids at sea — likelier the further south you sail.
+        if (!visitedLocation && onWater && !corsairPeace) {
+          const south = clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
+          if (Math.random() < CORSAIR_SEA_MIN + (CORSAIR_SEA_MAX - CORSAIR_SEA_MIN) * south) {
+            corsairEncounter = true;
+          }
         }
       }
       if (members.includes("bombadil") && Math.random() < BOMBADIL_LEAVE_CHANCE) {
@@ -3703,8 +3878,21 @@ export default function MiddleEarthMap() {
       setEaglesLeft(true);
     }
     if (ringless) {
-      // Ran out of time: the rogue reaches Mount Doom and crowns himself.
-      if (rogueSinceDay !== null && journeyDay - rogueSinceDay >= ROGUE_CHASE_DAYS) {
+      const daysSinceFled = rogueSinceDay !== null ? journeyDay - rogueSinceDay : 0;
+      // Raced the thief to the Mountain and lay in wait: he must come here to
+      // claim the Fire, so once he's had time to draw near you fall on the
+      // invisible bearer — a fight to reclaim the Ring, not a loss to him.
+      if (
+        rogueBearerId &&
+        rogueSinceDay !== null &&
+        visitedLocation?.id === ORODRUIN_ID &&
+        daysSinceFled >= ROGUE_MIN_CHASE_DAYS
+      ) {
+        setVisitedLocation(null);
+        setCurrentLocation(null);
+        startRogueBattle(rogueBearerId);
+      } else if (rogueSinceDay !== null && daysSinceFled >= ROGUE_CHASE_DAYS) {
+        // Ran out of time elsewhere: the rogue reaches Mount Doom and crowns himself.
         setEnding((prev) => prev ?? "rogueLord");
       } else if (rogueEncounter && rogueBearerId) {
         startRogueBattle(rogueBearerId);
@@ -3733,8 +3921,22 @@ export default function MiddleEarthMap() {
         const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
         setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
       }
+    } else if (corsairEncounter && onWater) {
+      // A corsair crew falls on the ship — they only ever sail with rats and
+      // Haradrim alongside, and none of them are much of a threat.
+      const corsairCount = clamp(1 + Math.floor(Math.random() * party.length), 1, 4);
+      const pack: Monster[] = Array.from({ length: corsairCount }, () => CORSAIR_ENEMY);
+      const rat = MONSTERS.find((mm) => mm.icon === "/enemies/rat.png");
+      const haradrim = MONSTERS.find((mm) => mm.icon === "/enemies/kharadrim.png");
+      if (rat && Math.random() < 0.5) {
+        pack.push(rat);
+      }
+      if (haradrim && Math.random() < 0.4) {
+        pack.push(haradrim);
+      }
+      setEncounter({ monster: CORSAIR_ENEMY, dangerous: true, solo: pack.length === 1, pack });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, wraithsBroken]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, wraithsBroken, corsairPeace, mapSize]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -4237,6 +4439,11 @@ export default function MiddleEarthMap() {
                       draggable="false"
                       className="size-full select-none object-cover"
                     />
+                    {/* Touch devices have no hover, so caption the name on the
+                        portrait (mobile only); desktop keeps the hover tooltip. */}
+                    <span className="pointer-events-none absolute inset-x-0 bottom-1 truncate px-0.5 text-center text-[9px] font-semibold leading-tight text-white [text-shadow:0_1px_2px_#000,0_0_2px_#000] sm:hidden">
+                      {charName(character.id)}
+                    </span>
                     <span className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-max max-w-[60vw] whitespace-nowrap rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs font-normal text-neutral-200 shadow-lg group-hover:block">
                       {charName(character.id)}
                     </span>
@@ -4283,6 +4490,15 @@ export default function MiddleEarthMap() {
               : false
           }
           boss={locationBoss}
+          parley={
+            visitedLocation?.id === CORSAIRS_CITY_ID && corsairCaptainFriendly
+              ? BOSSES_BY_LOCATION[CORSAIRS_CITY_ID]
+              : null
+          }
+          onParley={() => {
+            setCorsairPeace(true);
+            setExploreResult({ found: true, message: "location.corsairPeace", emoji: "🏴‍☠️" });
+          }}
           monsterName={monsterName}
           recruits={recruitsHere}
           party={party}
@@ -4300,7 +4516,8 @@ export default function MiddleEarthMap() {
             (!!EXPLORE_ITEM_BY_LOCATION[visitedLocation.id] ||
               visitedLocation.id === ERECH_ID ||
               visitedLocation.id === WEATHERTOP_ID ||
-              visitedLocation.id === OSGILIATH_ID)
+              visitedLocation.id === OSGILIATH_ID ||
+              visitedLocation.id === HELMS_DEEP_ID)
           }
           exploreLocked={
             !!locationBoss ||
@@ -4341,7 +4558,12 @@ export default function MiddleEarthMap() {
             foodRef.current = foodCapacity;
           }}
           onTakeTransport={() => {
-            if (locationTransport) {
+            if (!locationTransport) {
+              return;
+            }
+            if (locationTransport === "ship" && visitedLocation) {
+              boardShip(visitedLocation.id);
+            } else {
               requestTransport(locationTransport);
             }
           }}
@@ -4494,6 +4716,45 @@ export default function MiddleEarthMap() {
           charName={charName}
           onClose={() => setTalkResult(null)}
         />
+
+        <Modal
+          open={pendingDisembark !== null}
+          z="z-[60]"
+          className="w-full max-w-xs border-sky-800 p-6 text-center"
+        >
+          <div className="text-5xl leading-none">⚓</div>
+          <p className="mt-3 text-sm text-sky-100">{t("transport.disembarkAsk")}</p>
+          <div className="mt-5 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const landing = pendingDisembark;
+                setPendingDisembark(null);
+                if (!landing) {
+                  return;
+                }
+                transportRef.current = null;
+                setTransport(null);
+                playerRef.current = landing.point;
+                setPlayer(landing.point);
+                setHeroPath((path) => appendPathPoint(path, landing.point, trailCapRef.current));
+                if (landing.location) {
+                  openVisitedLocationRef.current(landing.location);
+                }
+              }}
+              className="flex-1 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
+            >
+              {t("transport.disembarkYes")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingDisembark(null)}
+              className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            >
+              {t("transport.disembarkNo")}
+            </button>
+          </div>
+        </Modal>
 
         <RecruitOfferModal
           offered={

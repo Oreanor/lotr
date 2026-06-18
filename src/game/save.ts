@@ -54,6 +54,8 @@ export interface GameSave {
   maxPartySize?: number;
   // Everyone the party has met — recruited or not — for the "found" tally.
   metCharacterIds?: string[];
+  // The Corsair captain has granted safe passage — no more corsair sea raids.
+  corsairPeace?: boolean;
 }
 
 export function loadSave(): GameSave | null {

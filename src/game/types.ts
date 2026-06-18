@@ -182,6 +182,8 @@ export interface BattleState {
   invisibleEnemy: boolean; // foe wears the Ring — most strikes against it miss
   phialBlinded: boolean; // Shelob recoiled from the Phial — her strength is halved
   wraithsStand?: boolean; // Minas Morgul: wraiths fight to the death, not flee at half
+  enemyNazgul?: boolean; // foes include a Ringwraith — Éowyn hits them harder
+  enemyOrc?: boolean; // foes include orc-kin — Haldir hits them harder
 }
 
 export type TransportId = "pony" | "horse" | "ship" | "eagle";

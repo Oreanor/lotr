@@ -63,7 +63,10 @@
     "switchNo": "Cancel",
     "eaglesLeftTitle": "The eagles have gone",
     "eaglesLeftText": "The eagles tired of carrying you and returned to the skies.",
-    "eaglesNeedGandalf": "The eagles cry: \"We care for none but Gandalf.\""
+    "eaglesNeedGandalf": "The eagles cry: \"We care for none but Gandalf.\"",
+    "disembarkAsk": "Step ashore? The ship will be left behind.",
+    "disembarkYes": "Disembark",
+    "disembarkNo": "Stay aboard"
   },
   "location": {
     "leave": "Leave",
@@ -74,7 +77,10 @@
     "weathertopRune": "Atop Weathertop you find a flat stone scratched with signs: a rune 'G' and three strokes beneath it — Gandalf's mark. He was here on the third. Press on east, to Rivendell.",
     "erechSummon": "At the Stone of Erech, Aragorn, heir of Isildur, summons the Oathbreakers — the Dead of Dunharrow who once swore to Isildur and broke their oath. He bids them fulfil it at last. The King of the Dead bows and agrees to follow until the oath is fulfilled. From now on the undead dare not assail your company.",
     "osgiliathCache": "In the ruins of Osgiliath you uncover a sealed Gondorian armoury cache: {{swords}} sword(s) and {{armor}} hauberk(s). Share them out among the company.",
+    "helmsDeepArmory": "Éomer says he knows where to find some good gear and leads you to the Hornburg armoury. You take an ash spear, a blade, a round shield and a guardsman's mail. Share them out among the company.",
     "fight": "⚔️ Fight: {{name}}",
+    "fightShort": "⚔️ Fight",
+    "corsairPeace": "The Corsair captain hears you out and, judging your company wise, strikes a bargain: the corsairs will not trouble you at sea from now on.",
     "supplies": "🍞 Take {{n}} days of supplies",
     "suppliesFull": "🍞 Supplies full ({{n}} days)",
     "cloaksTake": "🧥 Take elven cloaks",
@@ -290,7 +296,7 @@
     "sarumanGandalf": "Saruman: \"I will not walk beside that grey vagabond.\"",
     "gandalfSaruman": "Gandalf: \"I will not stand beside the traitor Saruman.\"",
     "elfDwarf": "The elf shakes his head: \"I will not take a step while a dwarf is in the party.\"",
-    "cirdanWisdom": "Cirdan: \"I will not trust myself to a bearer less wise than I.\"",
+    "cirdanWisdom": "Cirdan: \"I will put to sea only with a company wiser, on the whole, than I.\"",
     "bilbo": "Bilbo grumbles: \"No, no — I'm not so young anymore. Adventures aren't for me.\"",
     "denethor": "Denethor: \"I have no time for mad schemes. The Ring belongs to Minas Tirith.\"",
     "mood": "{{name}}: {{line}}",
@@ -379,6 +385,22 @@
     "elven_arrows": {
       "name": "Elven arrows",
       "desc": "+4 strength against orcs"
+    },
+    "rohan_spear": {
+      "name": "Ash Spear",
+      "desc": "+3 strength"
+    },
+    "rohan_sword": {
+      "name": "Hornburg Blade",
+      "desc": "+3 strength"
+    },
+    "rohan_shield": {
+      "name": "Rohan Shield",
+      "desc": "+3 defense"
+    },
+    "rohan_armor": {
+      "name": "Guardsman's Mail",
+      "desc": "+3 defense"
     }
   },
   "talk": {
@@ -402,13 +424,16 @@
     "aragorn": "Stealth: fewer random battles",
     "gollum": "No penalty for rough terrain",
     "bombadil": "Whole party's luck +1",
-    "cirdan": "Sail the sea, no water penalty",
+    "cirdan": "Sail the sea; double speed on water",
     "grimbeorn": "Bonus damage versus beasts",
     "sam": "Forages more food",
     "eomer": "Speeds travel on the map",
     "elrond": "Elves' strength +1",
     "galadriel": "Elves' defense +1",
-    "king_dead": "Double damage against the undead"
+    "king_dead": "Double damage against the undead",
+    "eowyn": "Bonus damage versus Ringwraiths",
+    "haldir": "Bonus damage versus orcs and goblins",
+    "thranduil": "Crits trolls far more often"
   },
   "char": {
     "frodo": "Frodo",

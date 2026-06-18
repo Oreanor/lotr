@@ -76,7 +76,13 @@ export const OLD_FOREST_ID = 12;
 export const MORIA_GATE_ID = 14;
 export const LOTHLORIEN_ID = 15;
 export const ISENGARD_ID = 16;
+export const HELMS_DEEP_ID = 17;
 export const EDORAS_ID = 18;
+export const FORLOND_ID = 6;
+export const HARLOND_ID = 13;
+export const DOL_AMROTH_ID = 26;
+export const PELARGIR_ID = 27;
+export const CORSAIRS_CITY_ID = 28;
 export const BARAD_DUR_ID = 19;
 export const ERECH_ID = 20;
 export const ORODRUIN_ID = 21;
@@ -301,6 +307,14 @@ export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, WITCHKING_N
 // Weathertop and on the open road. Only in Minas Morgul, the seat of their
 // power, do they stand and fight to the death (the battle sets `wraithsStand`).
 export const FLEE_AT_HALF_FOES = new Set([NAZGUL_NAME, WITCHKING_NAME]);
+// The Ringwraiths — Éowyn, no living man, strikes them a touch harder.
+export const RINGWRAITH_FOES = new Set([NAZGUL_NAME, WITCHKING_NAME]);
+export const EOWYN_NAZGUL_BONUS = 3;
+// Haldir, marchwarden, lands heavier blows on orc-kin; Thranduil crits trolls
+// far more often. Both are secondary-elf combat abilities.
+export const HALDIR_ORC_BONUS = 3;
+export const TROLL_FOES = new Set(["Горный тролль", "Тролль Горгорота"]);
+export const THRANDUIL_TROLL_CRIT_BONUS = 0.2;
 // Orc-kin — targets of the elven arrows' bonus.
 export const ORC_FOES = new Set(["Гоблин", "Орк-разведчик", "Орк", "Урук-хай"]);
 // Shelob recoils from the Phial of Galadriel — her strength is halved.
@@ -333,6 +347,7 @@ export const FOOD_SUPPLY_LOCATION_IDS = new Set<number>([
   MINAS_TIRITH_ID,
   LOTHLORIEN_ID,
   ESGAROTH_ID,
+  FORLOND_ID,
 ]);
 // Always available at these locations (no schedule in recruitment.json).
 export const RECRUITS_BY_LOCATION: Record<number, string[]> = {
@@ -364,12 +379,56 @@ export const RELUCTANT_RECRUIT_ATTEMPTS: Record<string, number> = {
 
 // No ship at the Grey Havens — Cirdan grants passage by sea there. The southern
 // haven (Umbar) still hires out ships.
+// Harbours — the whole class of seaside havens. A ship can be boarded at any of
+// them, and they are the only coast a ship may put back ashore at (it's lost
+// when it does). Boarding drops the figure onto the open water beside the haven.
+export const HARBOR_IDS = new Set([
+  GREY_HAVENS_ID,
+  FORLOND_ID,
+  HARLOND_ID,
+  DOL_AMROTH_ID,
+  PELARGIR_ID,
+  CORSAIRS_CITY_ID,
+  UMBAR_ID,
+]);
 export const TRANSPORT_BY_LOCATION: Record<number, TransportId> = {
   [CARN_DUM_ID]: "eagle",
   [BREE_ID]: "pony",
   [EDORAS_ID]: "horse",
+  [GREY_HAVENS_ID]: "ship",
+  [FORLOND_ID]: "ship",
+  [HARLOND_ID]: "ship",
+  [DOL_AMROTH_ID]: "ship",
+  [PELARGIR_ID]: "ship",
+  [CORSAIRS_CITY_ID]: "ship",
   [UMBAR_ID]: "ship",
 };
+// Preferred water cell beside a harbour (a hint; boarding falls back to scanning
+// the harbour's neighbours for sea if this isn't water).
+export const SHIP_BOARD_OFFSET: Record<number, { x: number; y: number }> = {
+  [GREY_HAVENS_ID]: { x: -10, y: -10 }, // a cell up-and-left
+  [FORLOND_ID]: { x: 10, y: 0 }, // a cell east
+  [UMBAR_ID]: { x: 0, y: -10 }, // a cell north
+};
+// A ship isn't always in port — its presence is rolled each visit and each day
+// waited (per harbour). Umbar's corsair haven is busiest, the Grey Havens less
+// so, the rest rarer still — landing roughly between every couple of days and
+// once a week.
+export const SHIP_PRESENCE_CHANCE: Record<number, number> = {
+  [UMBAR_ID]: 0.5,
+  [CORSAIRS_CITY_ID]: 0.5,
+  [GREY_HAVENS_ID]: 0.3,
+  [DOL_AMROTH_ID]: 0.22,
+  [PELARGIR_ID]: 0.2,
+  [FORLOND_ID]: 0.16,
+  [HARLOND_ID]: 0.16,
+};
+// Círdan the Shipwright doubles the party's pace at sea.
+export const CIRDAN_SEA_SPEED = 2;
+// Corsair raids at sea grow likelier the further south you sail — fairly rare in
+// the northern seas, up to a middling chance off Harad. Per day, by latitude.
+export const CORSAIR_SEA_MIN = 0.04;
+export const CORSAIR_SEA_MAX = 0.25;
 // Eagles of Manwë only happen to be at Carn Dûm on some visits, and tire of
 // carrying you after this many days.
 export const EAGLE_PRESENCE_CHANCE = 0.25;

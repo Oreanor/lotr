@@ -33,6 +33,10 @@ import {
   GOLLUM_ENCOUNTER_CHANCE,
   GRIMA_ENCOUNTER_CHANCE,
   GRIMBEORN_BEAST_BONUS,
+  EOWYN_NAZGUL_BONUS,
+  HALDIR_ORC_BONUS,
+  TROLL_FOES,
+  THRANDUIL_TROLL_CRIT_BONUS,
   HEALTH_PER_STR,
   HEALTH_PER_DEF,
   HOBBIT_IDS,
@@ -592,8 +596,8 @@ export function critChance(intelligence: number): number {
   return clamp((intelligence - CRIT_INT_FLOOR) * CRIT_PER_INT, 0, CRIT_MAX_CHANCE);
 }
 
-export function rollCrit(intelligence: number): boolean {
-  return Math.random() < critChance(intelligence);
+export function rollCrit(intelligence: number, bonus = 0): boolean {
+  return Math.random() < critChance(intelligence) + bonus;
 }
 
 // A crit's bite is a flat multiplier — intelligence governs frequency, not size,
@@ -746,9 +750,18 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     }
     const target = chooseTargetIndex(allies[i], enemies, aliveEnemies);
     const beastBonus = allies[i].key === "grimbeorn" && battle.enemyBeast ? GRIMBEORN_BEAST_BONUS : 0;
+    // Éowyn, no living man: she bites harder into the Ringwraiths.
+    const nazgulBonus = allies[i].key === "eowyn" && battle.enemyNazgul ? EOWYN_NAZGUL_BONUS : 0;
+    // Haldir the marchwarden lands heavier blows on orc-kin.
+    const orcBonus = allies[i].key === "haldir" && battle.enemyOrc ? HALDIR_ORC_BONUS : 0;
     // Everyone can wound the Balrog, but only Gandalf/Bombadil/Saruman hit hard.
     const balrogBonus =
       battle.gandalfOnly && BALROG_DAMAGERS.has(allies[i].key) ? BALROG_DAMAGER_BONUS : 0;
+    // Thranduil crits trolls far more often.
+    const critBonus =
+      allies[i].key === "thranduil" && TROLL_FOES.has(enemies[target].name)
+        ? THRANDUIL_TROLL_CRIT_BONUS
+        : 0;
     // An invisible foe (the rogue ring-bearer) shrugs off most strikes.
     const missesInvisible = battle.invisibleEnemy && Math.random() > ROGUE_HIT_CHANCE;
     // Luck duel decides whether the blow connects; luck again rolls a crit.
@@ -757,11 +770,11 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     let didCrit = false;
     if (lands) {
       dealt = hitDamage(allies[i], enemies[target]);
-      if (rollCrit(allies[i].intelligence)) {
+      if (rollCrit(allies[i].intelligence, critBonus)) {
         dealt = Math.round(dealt * critMultiplier());
         didCrit = true;
       }
-      dealt += beastBonus + balrogBonus;
+      dealt += beastBonus + balrogBonus + nazgulBonus + orcBonus;
     }
     enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
     // A foe that yields at half is never beaten below it — one big blow can't

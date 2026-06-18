@@ -18,6 +18,7 @@ export function LocationModal({
   imageSrc,
   imageInitiallyLoaded,
   boss,
+  parley,
   monsterName,
   recruits,
   party,
@@ -34,6 +35,7 @@ export function LocationModal({
   exploreLocked,
   onExplore,
   onFightBoss,
+  onParley,
   onViewStats,
   onRecruit,
   onTalk,
@@ -51,6 +53,7 @@ export function LocationModal({
   imageSrc: string | null;
   imageInitiallyLoaded: boolean;
   boss: Monster | null;
+  parley: Monster | null;
   monsterName: (icon: string) => string;
   recruits: Character[];
   party: string[];
@@ -67,6 +70,7 @@ export function LocationModal({
   exploreLocked: boolean;
   onExplore: () => void;
   onFightBoss: () => void;
+  onParley: () => void;
   onViewStats: (id: string) => void;
   onRecruit: (c: Character) => void;
   onTalk: (c: Character) => void;
@@ -141,14 +145,43 @@ export function LocationModal({
 
           {note && <p className="mt-3 text-sm text-neutral-400">{note}</p>}
 
-          {boss && (
-            <button
-              type="button"
-              onClick={onFightBoss}
-              className="mt-4 w-full rounded border border-red-800 bg-red-900/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/70"
-            >
-              {t("location.fight", { name: monsterName(boss.icon) })}
-            </button>
+          {(boss || parley) && (
+            <div className="mt-4 flex justify-center gap-3">
+              {boss && (
+                <div className="flex w-24 shrink-0 flex-col items-center gap-1">
+                  <div className="size-20 border border-red-800 bg-parchment">
+                    <img src={boss.icon} alt="" draggable={false} className="size-full object-cover" />
+                  </div>
+                  <span className="w-full truncate text-center text-xs text-neutral-200">
+                    {monsterName(boss.icon)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onFightBoss}
+                    className="w-full rounded border border-red-800 bg-red-900/40 px-2 py-1 text-xs font-semibold text-red-200 transition hover:bg-red-900/70"
+                  >
+                    {t("location.fightShort")}
+                  </button>
+                </div>
+              )}
+              {parley && (
+                <div className="flex w-24 shrink-0 flex-col items-center gap-1">
+                  <div className="size-20 border border-sky-800 bg-parchment">
+                    <img src={parley.icon} alt="" draggable={false} className="size-full object-cover" />
+                  </div>
+                  <span className="w-full truncate text-center text-xs text-neutral-200">
+                    {monsterName(parley.icon)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onParley}
+                    className="w-full rounded border border-sky-800 bg-sky-900/30 px-2 py-1 text-xs font-semibold text-sky-200 transition hover:bg-sky-900/60"
+                  >
+                    {t("character.talk")}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {recruits.length > 0 && (

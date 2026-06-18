@@ -7,11 +7,11 @@ import { isoDateToDayOffset } from "@/game/calendar";
 import {
   BARAD_DUR_ID,
   CIRITH_UNGOL_ID,
+  CORSAIRS_CITY_ID,
   ISENGARD_ID,
   MINAS_MORGUL_ID,
   MORIA_GATE_ID,
   RECRUITMENT_PLACE_IDS,
-  UMBAR_ID,
   WEATHERTOP_ID,
 } from "@/game/constants";
 import type {
@@ -104,7 +104,7 @@ export const BOSSES_BY_LOCATION: Record<number, Monster> = {
   [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 20, defense: 20, intelligence: 10, luck: 6 },
   [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 20, intelligence: 5, luck: 5 },
   [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 20, intelligence: 9, luck: 6 },
-  [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 14, intelligence: 5, luck: 5 },
+  [CORSAIRS_CITY_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 14, intelligence: 5, luck: 5 },
 };
 // Unique boss names — a defeated boss never returns to its location.
 export const BOSS_NAMES = new Set(Object.values(BOSSES_BY_LOCATION).map((boss) => boss.name));
@@ -155,6 +155,20 @@ export const GOLLUM_ENEMY: Monster = {
   recruitId: "gollum",
 };
 
+// Rank-and-file corsairs raiding the southern seas — roughly orc-grade, no great
+// threat. They sail in mixed crews (with rats and Haradrim). Share the Corsair
+// captain's portrait. Suppressed once the party has bought safe passage.
+export const CORSAIR_ENEMY: Monster = {
+  name: "Корсар",
+  icon: "/enemies/corsair.png",
+  tier: 3,
+  strength: 9,
+  defense: 6,
+  intelligence: 5,
+  luck: 5,
+  regions: ["SW", "SE"],
+};
+
 // A cornered Gríma — wretched and feeble, no match for a couple of hobbits.
 export const GRIMA_ENEMY: Monster = {
   name: "Грима Гнилоуст",
@@ -182,6 +196,10 @@ export const GONDOR_ARMOR_IDS = Array.from(
   (_, i) => `gondor_armor_${i + 1}`,
 );
 
+// The Hornburg armoury at Helm's Deep — Éomer's stash of good Rohirric kit. Two
+// pieces lend +3 strength (spear, sword), two +3 defense (shield, mail).
+export const ROHAN_ARMORY_IDS = ["rohan_spear", "rohan_sword", "rohan_shield", "rohan_armor"];
+
 export const ITEMS: Item[] = [
   { id: "numenor_dagger", icon: "🗡️", strengthVsUndead: 3 },
   { id: "sting", icon: "⚔️", strength: 3 },
@@ -200,6 +218,10 @@ export const ITEMS: Item[] = [
   { id: "numenor_blade", icon: "🔪", strengthVsUndead: 3 },
   { id: "book_of_mazarbul", icon: "📖", holders: ["gimli"], luck: 5 },
   { id: "elven_arrows", icon: "🎯", strengthVsOrcs: 4 },
+  { id: "rohan_spear", icon: "🔱", strength: 3 },
+  { id: "rohan_sword", icon: "🗡️", strength: 3 },
+  { id: "rohan_shield", icon: "🛡️", defense: 3 },
+  { id: "rohan_armor", icon: "⛓️", defense: 3 },
   ...GONDOR_SWORD_IDS.map((id): Item => ({ id, icon: "⚔️", strength: 3 })),
   ...GONDOR_ARMOR_IDS.map((id): Item => ({ id, icon: "🛡️", defense: 3 })),
 ];
@@ -238,13 +260,16 @@ export const ABILITIES: Record<string, string> = {
   aragorn: "Скрытность: реже случайные бои",
   gollum: "Нет штрафа за труднопроходимую местность",
   bombadil: "Удача всего отряда +1",
-  cirdan: "Можно плыть по морю, нет штрафа от воды",
+  cirdan: "Можно плыть по морю; двойная скорость на воде",
   grimbeorn: "Усиленный урон по зверям",
   sam: "Добывает больше еды",
   eomer: "Ускоряет передвижение по карте",
   elrond: "Сила эльфов в отряде +1",
   galadriel: "Защита эльфов в отряде +1",
   king_dead: "Двойной урон по нежити",
+  eowyn: "Усиленный урон по Назгулам",
+  haldir: "Усиленный урон по оркам и гоблинам",
+  thranduil: "Чаще критует по троллям",
 };
 
 // Artwork filename per location id. Same names live in each season folder; the

@@ -49,7 +49,7 @@ function StatRow({ label, value }: { label: string; value: string }) {
 function Portrait({ src, label, found }: { src: string; label: string; found: boolean }) {
   return (
     <div title={label} className="flex flex-col items-center gap-0.5">
-      <div className="aspect-square w-full overflow-hidden rounded border border-neutral-700 bg-neutral-800">
+      <div className="aspect-square w-full overflow-hidden rounded border border-neutral-700 bg-parchment">
         <img
           src={src}
           alt={label}
@@ -94,8 +94,9 @@ export function StatsModal({
       open={open}
       align="top"
       z="z-[60]"
-      className="max-h-[88vh] w-full max-w-2xl overflow-y-auto border-neutral-700 p-6"
+      className="flex max-h-[88vh] w-full max-w-2xl flex-col border-neutral-700"
     >
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
       <h2 className="font-serif text-2xl text-neutral-100">{t("stats.title")}</h2>
 
       <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
@@ -180,14 +181,17 @@ export function StatsModal({
           />
         ))}
       </div>
+      </div>
 
-      <button
-        type="button"
-        className="mt-6 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
-        onClick={onClose}
-      >
-        {t("stats.ok")}
-      </button>
+      <div className="border-t border-neutral-800 p-4">
+        <button
+          type="button"
+          className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+          onClick={onClose}
+        >
+          {t("stats.ok")}
+        </button>
+      </div>
     </Modal>
   );
 }
