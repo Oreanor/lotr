@@ -5,7 +5,6 @@ import recruitmentDataJson from "@/data/recruitment.json";
 import heroProgressDataJson from "@/data/hero-progress.json";
 import { isoDateToDayOffset } from "@/game/calendar";
 import {
-  BARAD_DUR_ID,
   CIRITH_UNGOL_ID,
   CORSAIRS_CITY_ID,
   ISENGARD_ID,
@@ -101,7 +100,8 @@ export const BOSSES_BY_LOCATION: Record<number, Monster> = {
   [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 2, strength: 8, defense: 8, intelligence: 6, luck: 5 },
   [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 32, defense: 32, intelligence: 8, luck: 6 },
   [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 15, defense: 15, intelligence: 9, luck: 5 },
-  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 20, defense: 20, intelligence: 10, luck: 6 },
+  // Barad-dûr has no boss to fight — reaching it is simply the end (see the
+  // "sauron" ending). The /enemies/baraddur.png art is kept for possible reuse.
   [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 20, intelligence: 5, luck: 5 },
   [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 20, intelligence: 9, luck: 6 },
   [CORSAIRS_CITY_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 14, intelligence: 5, luck: 5 },

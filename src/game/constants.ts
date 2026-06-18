@@ -55,7 +55,9 @@ export const MOVE_SUBSTEPS = 4;
 export const SLIDE_DEFLECTIONS = [0, 18, -18, 36, -36, 54, -54, 72, -72, 88, -88];
 // Ring bearer picks up a left-behind companion within this map distance.
 export const MEMBER_PICKUP_RANGE = 24;
-export const TERRAIN_OVERLAY_OPACITY = 0.2;
+export const TERRAIN_OVERLAY_OPACITY = 0.3;
+// Remembers the terrain-layer toggle between sessions.
+export const TERRAIN_PREF_KEY = "lotr-terrain";
 // Narrow water (rivers) up to this many cells can be forded; wider water blocks.
 export const MAX_WATER_CROSSING_CELLS = 2;
 // The figure stays within this margin (share of viewport) from each edge.

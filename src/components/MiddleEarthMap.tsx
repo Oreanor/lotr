@@ -195,6 +195,7 @@ import {
   SLIDE_DEFLECTIONS,
   SPEED_PX_PER_SECOND,
   TERRAIN_OVERLAY_OPACITY,
+  TERRAIN_PREF_KEY,
   terrainImage,
   TRAITORS,
   TRANSPORT_BY_LOCATION,
@@ -361,7 +362,20 @@ export default function MiddleEarthMap() {
   // Manually halted mid-journey: the destination (and its marker) is kept so the
   // march can be resumed; only a fresh target clears it.
   const [stopped, setStopped] = useState(false);
-  const [showTerrain, setShowTerrain] = useState(false);
+  const [showTerrain, setShowTerrain] = useState(() => {
+    try {
+      return localStorage.getItem(TERRAIN_PREF_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(TERRAIN_PREF_KEY, showTerrain ? "1" : "0");
+    } catch {
+      // ignore storage errors (private mode, quota…)
+    }
+  }, [showTerrain]);
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
   // Whether the open details panel can page through the party (arrows). True
   // only when opened from the party HUD or by clicking the hero on the map.
@@ -3597,11 +3611,6 @@ export default function MiddleEarthMap() {
       const activeBoss = visitedLocation ? BOSSES_BY_LOCATION[visitedLocation.id] : null;
       if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
-        // Felling the Guardian of Barad-dûr only brings the Ring to Sauron's
-        // doorstep — at that range it leaps to its master and the quest is lost.
-        if (visitedLocation?.id === BARAD_DUR_ID) {
-          setEnding((prev) => prev ?? "sauron");
-        }
       }
       // Wormtongue felled (at Isengard alongside Saruman, or cornered in the
       // wild) is gone for good — he won't haunt the roads again.
@@ -3661,6 +3670,14 @@ export default function MiddleEarthMap() {
       showRecruitRefusal(t("refuse.grimaFlees"), "grima");
     }
   }, [visitedLocation, party, grimaFled, grimaFleePending, showRecruitRefusal, t]);
+
+  // Reaching Barad-dûr is simply the end — no fight. At Sauron's doorstep the
+  // Eye finds the Ring and it leaps to its master; the quest is lost.
+  useEffect(() => {
+    if (visitedLocation?.id === BARAD_DUR_ID) {
+      setEnding((prev) => prev ?? "sauron");
+    }
+  }, [visitedLocation]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
   // per member for 2 food while anyone is hurt, or starve (5% max health/day)
@@ -4083,7 +4100,7 @@ export default function MiddleEarthMap() {
             height: mapSize.height,
             backgroundColor: "#d8b777",
             mixBlendMode: "multiply",
-            opacity: 0.18,
+            opacity: 0.24,
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
             transformOrigin: "0 0",
           }}

@@ -29,10 +29,19 @@ export function CreationModal({
   onConfirm: () => void;
   onAutoPlay: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const maxHealth = maxHpFromStats(hero.strength + bonus.strength, hero.defense + bonus.defense);
   return (
-    <Modal open={open} z="z-[60]" overlayClassName="bg-black/85" className="w-full max-w-xs border-amber-800 p-6 text-center">
+    <Modal open={open} z="z-[60]" overlayClassName="bg-black/85" className="relative w-full max-w-xs border-amber-800 p-6 text-center">
+      {/* Pick the language right here, before the journey begins. */}
+      <button
+        type="button"
+        onClick={() => i18n.changeLanguage(i18n.language === "en" ? "ru" : "en")}
+        aria-label="Language"
+        className="absolute right-3 top-3 flex h-8 min-w-8 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 px-2 text-xs font-bold text-neutral-200 transition hover:bg-neutral-800"
+      >
+        {i18n.language === "en" ? "RU" : "EN"}
+      </button>
       <h2 className="font-serif text-2xl text-neutral-100">{t("creation.title")}</h2>
       <div className="mx-auto mt-4 flex w-24 flex-col items-center gap-1">
         <div className="size-20 border border-neutral-700 bg-parchment">
