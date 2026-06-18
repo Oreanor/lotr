@@ -76,26 +76,35 @@ export const MONSTERS: Monster[] = [
   { name: "Бандит", icon: "/enemies/bandit.png", tier: 1, strength: 4, defense: 3, intelligence: 3, luck: 3 },
   { name: "Гигантский паук", icon: "/enemies/spider.png", tier: 1, strength: 4, defense: 3, intelligence: 2, luck: 3, regions: ["NW", "NE"] },
   { name: "Умертвие", icon: "/enemies/wight.png", tier: 1, strength: 6, defense: 5, intelligence: 6, luck: 2, regions: ["NW"] },
-  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 8, defense: 4, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
-  { name: "Орк-разведчик", icon: "/enemies/orc_scout.png", tier: 2, strength: 8, defense: 5, intelligence: 3, luck: 3 },
-  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 11, defense: 7, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
-  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 6, intelligence: 3, luck: 3 },
-  { name: "Варг", icon: "/enemies/varg.png", tier: 3, strength: 9, defense: 5, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
-  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 6, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
-  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 11, defense: 7, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
-  { name: "Мумак", icon: "/enemies/mumak.png", tier: 4, strength: 13, defense: 8, intelligence: 1, luck: 3, regions: ["SW", "SE"] },
-  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 14, defense: 9, intelligence: 3, luck: 3, regions: ["ME"] },
+  // From tier 2 up, defense is raised to match strength so the 5×str+5×def pool
+  // keeps these foes as tough as before (the party's blows already hit the 34%
+  // floor against this much guard, so it adds HP, not extra mitigation). Tier 0-1
+  // fodder keeps its low guard — a touch frailer now, which suits cannon fodder.
+  { name: "Гоблин", icon: "/enemies/goblin.png", tier: 2, strength: 8, defense: 8, intelligence: 3, luck: 3, regions: ["NW", "MW", "ME"] },
+  { name: "Орк-разведчик", icon: "/enemies/orc_scout.png", tier: 2, strength: 8, defense: 8, intelligence: 3, luck: 3 },
+  { name: "Горный тролль", icon: "/enemies/troll.png", tier: 2, strength: 11, defense: 11, intelligence: 2, luck: 2, regions: ["NW", "NE", "MW"] },
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
+  { name: "Варг", icon: "/enemies/varg.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 4, regions: ["NW", "MW"] },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3, regions: ["MW", "ME"] },
+  { name: "Харадрим", icon: "/enemies/kharadrim.png", tier: 4, strength: 11, defense: 11, intelligence: 4, luck: 4, regions: ["SW", "SE"] },
+  { name: "Мумак", icon: "/enemies/mumak.png", tier: 4, strength: 13, defense: 13, intelligence: 1, luck: 3, regions: ["SW", "SE"] },
+  { name: "Тролль Горгорота", icon: "/enemies/troll_gorgoroth.png", tier: 5, strength: 14, defense: 14, intelligence: 3, luck: 3, regions: ["ME"] },
 ];
 
 // Named bosses fixed to their lairs — engageable when you reach the location.
 export const BOSSES_BY_LOCATION: Record<number, Monster> = {
-  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 2, strength: 12, attack: 18, defense: 7, intelligence: 8, luck: 5 },
-  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 24, attack: 32, defense: 10, intelligence: 8, luck: 6 },
-  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 15, defense: 8, intelligence: 9, luck: 5 },
-  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 20, defense: 10, intelligence: 10, luck: 6 },
-  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 9, intelligence: 5, luck: 5 },
-  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 9, intelligence: 9, luck: 6 },
-  [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 6, intelligence: 5, luck: 5 },
+  // Weathertop fields a riding of five wraiths rather than one terror: each is
+  // far weaker (and, like all Nazgûl, recoils at half health), so four near-fresh
+  // hobbits with Aragorn can stand them off — see the WEATHERTOP pack below.
+  // Bosses keep defense matched to strength so their HP holds under 5×str+5×def
+  // (the old 10×strength), and their guard already floors the party's hits.
+  [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 2, strength: 8, defense: 8, intelligence: 6, luck: 5 },
+  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 32, defense: 32, intelligence: 8, luck: 6 },
+  [ISENGARD_ID]: { name: "Саруман", icon: "/icons/saruman.png", tier: 4, strength: 15, defense: 15, intelligence: 9, luck: 5 },
+  [BARAD_DUR_ID]: { name: "Страж Барад-дура", icon: "/enemies/baraddur.png", tier: 5, strength: 20, defense: 20, intelligence: 10, luck: 6 },
+  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 20, intelligence: 5, luck: 5 },
+  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 20, intelligence: 9, luck: 6 },
+  [UMBAR_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 14, intelligence: 5, luck: 5 },
 };
 // Unique boss names — a defeated boss never returns to its location.
 export const BOSS_NAMES = new Set(Object.values(BOSSES_BY_LOCATION).map((boss) => boss.name));
@@ -105,9 +114,23 @@ export const NAZGUL_ENEMY: Monster = {
   icon: "/enemies/nazgul.png",
   tier: 4,
   strength: 18,
-  defense: 8,
+  defense: 18, // matched to strength so HP holds under 5×str+5×def
   intelligence: 8,
   luck: 5,
+};
+
+// The Witch-king as he led the assault on Weathertop — stronger than his riders
+// and the pack's anchor, but here (like them) driven off at half rather than
+// slain. A far cry from the terror he becomes at Minas Morgul, where the wraiths
+// stand and fight to the death (see BOSSES_BY_LOCATION + the wraithsStand flag).
+export const WEATHERTOP_WITCHKING: Monster = {
+  name: "Король-чародей",
+  icon: "/enemies/witchking.png",
+  tier: 3,
+  strength: 10,
+  defense: 10,
+  intelligence: 8,
+  luck: 6,
 };
 
 // Roaming foes who join on defeat. Eomer only in Rohan; Gollum anywhere, rare.
@@ -212,7 +235,7 @@ export const CLOAK_GIVERS = new Set(["galadriel"]);
 
 export const ABILITIES: Record<string, string> = {
   gandalf: "Ускоряет лечение отряда на 50%",
-  aragorn: "Скрытность: вдвое реже случайные бои",
+  aragorn: "Скрытность: реже случайные бои",
   gollum: "Нет штрафа за труднопроходимую местность",
   bombadil: "Удача всего отряда +1",
   cirdan: "Можно плыть по морю, нет штрафа от воды",

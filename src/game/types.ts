@@ -95,11 +95,10 @@ export interface Monster {
   name: string;
   icon: string;
   tier: number;
-  strength: number; // drives HP (×10) and, on equal terms with heroes, attack
-  attack?: number; // optional override for damage without inflating HP
+  strength: number; // drives both HP (×10) and attack damage, same as heroes
   defense: number;
   intelligence: number;
-  luck: number; // low luck = whiffs often and rarely crits; see hitChance/critChance
+  luck: number; // low luck = whiffs often and easily dodged; see hitChance
   // If set, defeating this foe may recruit the given character.
   recruitId?: string;
   // Habitats this foe roams; undefined = anywhere (still tier-gated).
@@ -128,6 +127,9 @@ export interface EncounterState {
   dangerous: boolean;
   solo: boolean;
   pack: Monster[];
+  // Set in the Minas Morgul lair: the wraiths fight to the death instead of
+  // recoiling at half strength as they do elsewhere.
+  wraithsStand?: boolean;
 }
 
 export interface StatBonus {
@@ -151,8 +153,9 @@ export interface Combatant {
   strength: number; // drives max HP
   attack: number; // damage stat; equals strength for heroes, boosted for monsters
   defense: number;
-  luck: number; // used when weighing escape odds, and to roll crits
-  intelligence: number; // drives target choice (focus vs. flail) and crit size
+  luck: number; // to-hit / dodge duel and escape odds
+  intelligence: number; // target choice (focus vs. flail) and crit frequency
+  level?: number; // hero level — foes prefer the most seasoned of the party
 }
 
 export interface BattleState {
@@ -178,6 +181,7 @@ export interface BattleState {
   rogueId: string | null; // the fled ring-bearer being hunted (reclaim the Ring on win)
   invisibleEnemy: boolean; // foe wears the Ring — most strikes against it miss
   phialBlinded: boolean; // Shelob recoiled from the Phial — her strength is halved
+  wraithsStand?: boolean; // Minas Morgul: wraiths fight to the death, not flee at half
 }
 
 export type TransportId = "pony" | "horse" | "ship" | "eagle";

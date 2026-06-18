@@ -191,10 +191,10 @@ export function CharacterModal({
           </div>
 
           <div className="space-y-1.5">
-            <StatBar label={t("character.strength")} value={stats.strength} max={10} color="bg-red-500" />
-            <StatBar label={t("character.defense")} value={stats.defense} max={10} color="bg-sky-500" />
-            <StatBar label={t("character.intelligence")} value={stats.intelligence} max={10} color="bg-violet-500" />
-            <StatBar label={t("character.luck")} value={stats.luck} max={10} color="bg-lime-500" />
+            <StatBar label={t("character.strength")} hint={t("character.strengthHint")} value={stats.strength} max={10} color="bg-red-500" />
+            <StatBar label={t("character.defense")} hint={t("character.defenseHint")} value={stats.defense} max={10} color="bg-sky-500" />
+            <StatBar label={t("character.intelligence")} hint={t("character.intelligenceHint")} value={stats.intelligence} max={10} color="bg-violet-500" />
+            <StatBar label={t("character.luck")} hint={t("character.luckHint")} value={stats.luck} max={10} color="bg-lime-500" />
           </div>
 
           <div className="rounded border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-left">

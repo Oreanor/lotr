@@ -58,6 +58,9 @@ import {
   addBonus,
   appendPathPoint,
   ARAGORN_ENCOUNTER_MULTIPLIER,
+  PARTY_INT_STEALTH_BASELINE,
+  PARTY_INT_STEALTH_PER_POINT,
+  PARTY_INT_STEALTH_FLOOR,
   auraBonus,
   AUTO_MAX_TURN_STEPS,
   AUTO_ROUTE,
@@ -110,7 +113,7 @@ import {
   getLocationLabel,
   getStartPosition,
   HEAL_PER_DAY,
-  HEALTH_PER_STR,
+  maxHpFromStats,
   HUNGER_DAMAGE_FRACTION,
   HOBBITON_ID,
   iconVariant,
@@ -141,6 +144,7 @@ import {
   MORIA_GATE_ID,
   MOVE_SUBSTEPS,
   NAZGUL_ENEMY,
+  WEATHERTOP_WITCHKING,
   NON_BEARERS,
   ORODRUIN_ID,
   OSGILIATH_ID,
@@ -696,7 +700,7 @@ export default function MiddleEarthMap() {
     if (character) {
       // Subdued in battle → joins wounded (half health); a peaceful join is unhurt.
       if (!peaceful) {
-        const half = Math.floor((character.strength * HEALTH_PER_STR) / 2);
+        const half = Math.floor(maxHpFromStats(character.strength, character.defense) / 2);
         damageRef.current = { ...damageRef.current, [id]: half };
         setDamageById(damageRef.current);
       }
@@ -720,7 +724,7 @@ export default function MiddleEarthMap() {
       }
       const toCombatant = (c: Character): Combatant => {
         const s = effectiveStats(c, addBonus(statBonusById[c.id] ?? ZERO_BONUS, auraBonus(c, party)));
-        const maxHp = s.strength * HEALTH_PER_STR;
+        const maxHp = maxHpFromStats(s.strength, s.defense);
         return {
           key: c.id,
           name: c.name,
@@ -732,6 +736,7 @@ export default function MiddleEarthMap() {
           defense: s.defense,
           luck: s.luck,
           intelligence: s.intelligence,
+          level: levelForExp(expById[c.id] ?? 0).level,
         };
       };
       battleAppliedRef.current = false;
@@ -830,7 +835,7 @@ export default function MiddleEarthMap() {
           character,
           addBonus(addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)), itemStatBonus(item)),
         );
-        const maxHp = s.strength * HEALTH_PER_STR;
+        const maxHp = maxHpFromStats(s.strength, s.defense);
         const attackBonus = itemAttackBonus(item, packHasUndead, packHasOrcs);
         const undeadMultiplier = packHasUndead && id === "king_dead" ? 2 : 1;
         return {
@@ -844,6 +849,7 @@ export default function MiddleEarthMap() {
           defense: s.defense,
           luck: s.luck,
           intelligence: s.intelligence,
+          level: levelForExp(expById[id] ?? 0).level,
         };
       })
       .filter((c): c is Combatant => c !== null && c.hp > 0);
@@ -852,7 +858,7 @@ export default function MiddleEarthMap() {
     const enemies: Combatant[] = pack.map((mm, i) => {
       const str =
         phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
-      const hp = str * HEALTH_PER_STR;
+      const hp = maxHpFromStats(str, mm.defense);
       return {
         key: `enemy-${i}`,
         name: mm.name,
@@ -860,7 +866,7 @@ export default function MiddleEarthMap() {
         hp,
         maxHp: hp,
         strength: str,
-        attack: mm.attack ?? str,
+        attack: str,
         defense: mm.defense,
         luck: mm.luck,
         intelligence: mm.intelligence,
@@ -890,12 +896,13 @@ export default function MiddleEarthMap() {
       rogueId: null,
       invisibleEnemy: false,
       phialBlinded,
+      wraithsStand: encounter.wraithsStand ?? false,
     };
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
     }
     setBattle(battleState);
-  }, [encounter, party, statBonusById, damageById, bearerId, equippedItems]);
+  }, [encounter, party, statBonusById, damageById, bearerId, equippedItems, expById]);
 
   // Flee before the fight: succeed and the foe is left behind; fail and there's
   // no slipping away — the battle begins anyway.
@@ -1160,7 +1167,7 @@ export default function MiddleEarthMap() {
             character,
             addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
           );
-          const maxHp = s.strength * HEALTH_PER_STR;
+          const maxHp = maxHpFromStats(s.strength, s.defense);
           return {
             key: id,
             name: character.name,
@@ -1172,11 +1179,12 @@ export default function MiddleEarthMap() {
             defense: s.defense,
             luck: s.luck,
             intelligence: s.intelligence,
+            level: levelForExp(expById[id] ?? 0).level,
           };
         })
         .filter((c): c is Combatant => c !== null && c.hp > 0);
       const rs = effectiveStats(rogue, statBonusById[rogueId] ?? ZERO_BONUS);
-      const rogueMaxHp = rs.strength * HEALTH_PER_STR;
+      const rogueMaxHp = maxHpFromStats(rs.strength, rs.defense);
       const enemy: Combatant = {
         key: rogueId,
         name: rogue.name,
@@ -2294,6 +2302,7 @@ export default function MiddleEarthMap() {
           dangerous: true,
           solo: bossPack.length === 1,
           pack: bossPack,
+          wraithsStand: loc.id === MINAS_MORGUL_ID,
         });
         return;
       }
@@ -2887,6 +2896,9 @@ export default function MiddleEarthMap() {
     : [];
   // The boss to offer a fight with at the current location (null if none, slain,
   // or Saruman is currently a friend).
+  // The Witch-king cast down at Minas Morgul breaks the wraiths: they stop
+  // roaming and any unfought riding (e.g. still lurking at Weathertop) disperses.
+  const wraithsBroken = defeatedBosses.has(BOSSES_BY_LOCATION[MINAS_MORGUL_ID].name);
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
@@ -2896,6 +2908,10 @@ export default function MiddleEarthMap() {
       return null;
     }
     if (visitedLocation.id === ISENGARD_ID && sarumanFriendly) {
+      return null;
+    }
+    // Weathertop's riding melts away once their lord is undone.
+    if (visitedLocation.id === WEATHERTOP_ID && wraithsBroken) {
       return null;
     }
     return boss;
@@ -3465,8 +3481,8 @@ export default function MiddleEarthMap() {
       ? Math.round(HEAL_PER_DAY * GANDALF_HEAL_MULTIPLIER)
       : HEAL_PER_DAY;
     // Per-day encounter chance for any group: cloaks + Aragorn + stealth gear,
-    // and a wiser Ring-bearer (when travelling with that group) picks safer
-    // paths. Used for the active party and for each idle splinter squad alike.
+    // and the group's overall cleverness (average intelligence) — a sharper band
+    // travels more warily. Used for the active party and each idle squad alike.
     const chanceFor = (ids: string[]) => {
       let chance = hasCloaks
         ? ENCOUNTER_CHANCE_PER_DAY * CLOAKS_ENCOUNTER_MULTIPLIER
@@ -3478,13 +3494,22 @@ export default function MiddleEarthMap() {
         const it = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
         return it?.stealth ? m * it.stealth : m;
       }, 1);
-      if (ids.includes(bearerId)) {
-        const b = CHARACTERS.find((c) => c.id === bearerId);
-        const bInt = b
-          ? effectiveStats(b, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(b, ids)))
-              .intelligence
-          : 0;
-        chance *= Math.max(0.5, 1 - Math.max(0, bInt - 4) * 0.05);
+      if (ids.length > 0) {
+        const avgInt =
+          ids.reduce((sum, id) => {
+            const c = CHARACTERS.find((ch) => ch.id === id);
+            return (
+              sum +
+              (c
+                ? effectiveStats(c, addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(c, ids)))
+                    .intelligence
+                : 0)
+            );
+          }, 0) / ids.length;
+        chance *= Math.max(
+          PARTY_INT_STEALTH_FLOOR,
+          1 - Math.max(0, avgInt - PARTY_INT_STEALTH_BASELINE) * PARTY_INT_STEALTH_PER_POINT,
+        );
       }
       return chance;
     };
@@ -3520,11 +3545,11 @@ export default function MiddleEarthMap() {
           const prev = nextDamage[id] ?? 0;
           const character = CHARACTERS.find((c) => c.id === id);
           if (character) {
-            const maxHp =
-              effectiveStats(
-                character,
-                addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, groupOf(id))),
-              ).strength * HEALTH_PER_STR;
+            const es = effectiveStats(
+              character,
+              addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, groupOf(id))),
+            );
+            const maxHp = maxHpFromStats(es.strength, es.defense);
             nextDamage[id] = prev + Math.round(maxHp * HUNGER_DAMAGE_FRACTION);
             if (nextDamage[id] >= maxHp && prev < maxHp) {
               hungerDead.push(id);
@@ -3672,6 +3697,7 @@ export default function MiddleEarthMap() {
         parkedMembers.map((id) => ({ id })),
         slainRoamingRecruits,
         grimaRoaming,
+        wraithsBroken,
       );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
       if (rolled.monster.recruitId === "eomer" && kinPresent) {
@@ -3686,7 +3712,7 @@ export default function MiddleEarthMap() {
         setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
       }
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, wraithsBroken]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -3740,6 +3766,7 @@ export default function MiddleEarthMap() {
       others.map((id) => ({ id })),
       slainRoamingRecruits,
       grimaRoaming,
+      wraithsBroken,
     );
     if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
       return; // the roused Dead deter barrow-wights — no fight
@@ -3769,6 +3796,7 @@ export default function MiddleEarthMap() {
     slainRoamingRecruits,
     deadSummoned,
     grimaRoaming,
+    wraithsBroken,
     focusSquad,
   ]);
 
@@ -4169,8 +4197,8 @@ export default function MiddleEarthMap() {
               className="grid grid-flow-col grid-rows-[repeat(9,auto)] gap-1"
             >
                 {partyCharacters.map((character) => {
-                  const maxHp =
-                    effectiveStats(character, totalBonusFor(character)).strength * HEALTH_PER_STR;
+                  const es = effectiveStats(character, totalBonusFor(character));
+                  const maxHp = maxHpFromStats(es.strength, es.defense);
                   const hp = Math.max(0, maxHp - (damageById[character.id] ?? 0));
                   return (
                   <button
@@ -4258,7 +4286,8 @@ export default function MiddleEarthMap() {
               !defeatedBosses.has(BOSSES_BY_LOCATION[ISENGARD_ID].name) &&
               !party.includes("saruman")) ||
             (visitedLocation?.id === WEATHERTOP_ID &&
-              !defeatedBosses.has(BOSSES_BY_LOCATION[WEATHERTOP_ID].name))
+              !defeatedBosses.has(BOSSES_BY_LOCATION[WEATHERTOP_ID].name) &&
+              !wraithsBroken)
           }
           onExplore={exploreLocation}
           onFightBoss={() => {
@@ -4266,14 +4295,18 @@ export default function MiddleEarthMap() {
               const bossPack =
                 visitedLocation?.id === MINAS_MORGUL_ID
                   ? [locationBoss, ...Array.from({ length: 8 }, () => NAZGUL_ENEMY)]
-                  : visitedLocation?.id === ISENGARD_ID && grimaFled
-                    ? [locationBoss, GRIMA_ENEMY]
-                    : [locationBoss];
+                  : visitedLocation?.id === WEATHERTOP_ID
+                    ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
+                    : visitedLocation?.id === ISENGARD_ID && grimaFled
+                      ? [locationBoss, GRIMA_ENEMY]
+                      : [locationBoss];
               setEncounter({
                 monster: locationBoss,
                 dangerous: true,
                 solo: bossPack.length === 1,
                 pack: bossPack,
+                // The wraiths stand and fight to the death in their own lair.
+                wraithsStand: visitedLocation?.id === MINAS_MORGUL_ID,
               });
             }
           }}

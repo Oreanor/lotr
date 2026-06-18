@@ -3,7 +3,7 @@ import { Gauge, FastForward } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { BALROG_DAMAGERS, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
+import { BALROG_DAMAGERS, enemyBeatenInBattle, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
 import type { BattleState } from "@/game";
 
 // Auto-battle screen: ally vs enemy rosters with hit-flashes, plus the
@@ -46,11 +46,15 @@ export function BattleModal({
     }
     return battle?.lastHit === ally.key ? iconVariant(ally.icon, "pain") : ally.icon;
   };
+  // A foe that has yielded — slain, or (like the Nazgûl) recoiled at half
+  // health — is out of the fight and should read as defeated, not just at 0 HP.
+  const enemyDown = (enemy: BattleState["enemies"][number]): boolean =>
+    battle ? enemyBeatenInBattle(enemy, battle) : enemy.hp <= 0;
   const enemyIcon = (enemy: BattleState["enemies"][number]): string => {
     if (!enemy.icon) {
       return "";
     }
-    if (enemy.hp <= 0) {
+    if (enemyDown(enemy)) {
       return iconVariant(enemy.icon, "pain");
     }
     if (battle?.outcome === "lose" && (battle.betrayalBy || battle.rogueId)) {
@@ -167,11 +171,11 @@ export function BattleModal({
                         src={enemyIcon(enemy)}
                         alt=""
                         className={`size-full object-cover ${
-                          enemy.hp <= 0 ? "opacity-30 grayscale" : battle.invisibleEnemy ? "opacity-40" : ""
+                          enemyDown(enemy) ? "opacity-30 grayscale" : battle.invisibleEnemy ? "opacity-40" : ""
                         }`}
                       />
                     ) : (
-                      <span className={enemy.hp <= 0 ? "opacity-30" : ""}>👹</span>
+                      <span className={enemyDown(enemy) ? "opacity-30" : ""}>👹</span>
                     )}
                     {battle.invisibleEnemy && enemy.hp > 0 && (
                       <span className="pointer-events-none absolute inset-0 flex items-center justify-center">

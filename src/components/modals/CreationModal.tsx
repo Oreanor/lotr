@@ -3,7 +3,7 @@ import { Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { StatAllocator } from "@/components/ui/StatAllocator";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { CREATION_POINTS, HEALTH_PER_STR } from "@/game";
+import { CREATION_POINTS, maxHpFromStats } from "@/game";
 import type { Character, StatBonus } from "@/game";
 
 // Opening hero-creation: distribute CREATION_POINTS over Frodo's stats (or
@@ -30,7 +30,7 @@ export function CreationModal({
   onAutoPlay: () => void;
 }) {
   const { t } = useTranslation();
-  const maxHealth = (hero.strength + bonus.strength) * HEALTH_PER_STR;
+  const maxHealth = maxHpFromStats(hero.strength + bonus.strength, hero.defense + bonus.defense);
   return (
     <Modal open={open} z="z-[60]" overlayClassName="bg-black/85" className="w-full max-w-xs border-amber-800 p-6 text-center">
       <h2 className="font-serif text-2xl text-neutral-100">{t("creation.title")}</h2>
@@ -69,7 +69,7 @@ export function CreationModal({
         onAdjust={onAdjust}
         canDecrement={(stat) => bonus[stat] > 0}
         canIncrement={spent < CREATION_POINTS}
-        strengthValue={hero.strength + bonus.strength}
+        maxHealth={maxHealth}
         showHealth={false}
       />
       <p className="my-4 text-center text-xs text-amber-300">

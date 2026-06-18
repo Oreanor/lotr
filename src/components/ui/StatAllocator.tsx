@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Heart } from "lucide-react";
-import { HEALTH_PER_STR } from "@/game";
+import { HoverHint } from "@/components/ui/HoverHint";
 import type { StatBonus } from "@/game";
 
 const STATS: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
@@ -12,14 +12,14 @@ export function StatAllocator({
   onAdjust,
   canDecrement,
   canIncrement,
-  strengthValue,
+  maxHealth,
   showHealth = true,
 }: {
   statValue: (stat: keyof StatBonus) => number;
   onAdjust: (stat: keyof StatBonus, delta: number) => void;
   canDecrement: (stat: keyof StatBonus) => boolean;
   canIncrement: boolean;
-  strengthValue: number;
+  maxHealth: number;
   showHealth?: boolean;
 }) {
   const { t } = useTranslation();
@@ -28,7 +28,11 @@ export function StatAllocator({
       <div className="mt-3 space-y-2">
         {STATS.map((stat) => (
           <div key={stat} className="flex items-center justify-between gap-2">
-            <span className="text-sm text-neutral-300">{t(`character.${stat}`)}</span>
+            <HoverHint label={t(`character.${stat}Hint`)}>
+              <span className="cursor-help text-sm text-neutral-300 underline decoration-dotted decoration-neutral-600 underline-offset-2">
+                {t(`character.${stat}`)}
+              </span>
+            </HoverHint>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -58,7 +62,7 @@ export function StatAllocator({
       {showHealth && (
         <p className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-400">
           <Heart className="size-3 text-emerald-500" />
-          {strengthValue * HEALTH_PER_STR}
+          {maxHealth}
         </p>
       )}
     </>

@@ -15,14 +15,16 @@ import {
   EDORAS_POINT,
   ELF_IDS,
   ENCOUNTER_TIER_SPAN,
+  ENEMY_TARGET_TOP_MAX_CHANCE,
+  ENEMY_TARGET_INT_FLOOR,
+  ENEMY_TARGET_INT_CEIL,
   EOMER_ENCOUNTER_CHANCE,
   FOOD_DAYS_BASE,
   FOOD_DAYS_HORSE,
-  CRIT_LUCK_FLOOR,
   CRIT_MAX_CHANCE,
-  CRIT_PER_LUCK,
   CRIT_INT_FLOOR,
-  CRIT_INT_MULT,
+  CRIT_PER_INT,
+  CRIT_MULTIPLIER,
   FOCUS_INT_FLOOR,
   FOCUS_PER_INT,
   FOCUS_MAX_CHANCE,
@@ -32,6 +34,7 @@ import {
   GRIMA_ENCOUNTER_CHANCE,
   GRIMBEORN_BEAST_BONUS,
   HEALTH_PER_STR,
+  HEALTH_PER_DEF,
   HOBBIT_IDS,
   LEVEL_BASE_XP,
   LEVEL_XP_STEP,
@@ -140,15 +143,13 @@ export function locationImage(id: number, season: Season): string | null {
 // XP a foe grants the whole party on victory. Big foes should pay for their
 // bulk, armor, and special attack spikes; keep UI values clean by rounding to 5.
 export function monsterExp(monster: Monster): number {
-  const attack = monster.attack ?? monster.strength;
   const raw =
     10 +
     monster.tier * 18 +
     monster.strength * 6 +
-    monster.defense * 4 +
+    monster.defense * 2 +
     monster.intelligence * 2 +
     monster.luck * 2 +
-    Math.max(0, attack - monster.strength) * 9 +
     monster.strength ** 2 * 0.2;
   return Math.round(raw / 5) * 5;
 }
@@ -226,9 +227,12 @@ function nazgulForTier(localTier: number): Monster {
   return {
     ...NAZGUL_ENEMY,
     tier,
-    strength: 9 + Math.floor(tier * 1.8),
-    attack: 13 + Math.floor(tier * 2.5),
-    defense: 5 + Math.floor((tier + 1) / 2),
+    // Strength now drives both their HP and their bite (they used to hit above
+    // their HP via a separate attack); the half-strength retreat keeps them from
+    // turning into HP sponges. Defense matches strength so HP holds under the
+    // 5×str+5×def pool (and stays floor-capped against the party's blows).
+    strength: 13 + Math.floor(tier * 2.5),
+    defense: 13 + Math.floor(tier * 2.5),
     luck: tier >= 2 ? 5 : 4,
   };
 }
@@ -241,6 +245,7 @@ export function rollEncounter(
   leftBehind: { id: string }[],
   slainRoamingRecruits: ReadonlySet<string>,
   grimaRoaming = false,
+  wraithsBroken = false,
 ): { monster: Monster; dangerous: boolean; solo: boolean } {
   // A masterless Gríma, skulking the wilds — a rare, feeble foe.
   if (grimaRoaming && Math.random() < GRIMA_ENCOUNTER_CHANCE) {
@@ -260,7 +265,8 @@ export function rollEncounter(
   ) {
     return { monster: EOMER_ENEMY, dangerous: false, solo: true };
   }
-  if (Math.random() < NAZGUL_ENCOUNTER_CHANCE) {
+  // With the Witch-king thrown down, the leaderless wraiths no longer roam.
+  if (!wraithsBroken && Math.random() < NAZGUL_ENCOUNTER_CHANCE) {
     return { monster: nazgulForTier(tierAt(point)), dangerous: true, solo: false };
   }
   return { ...pickMonster(tierAt(point), point), solo: false };
@@ -357,7 +363,7 @@ export function autoPlayShouldFleeCombat(opts: {
       character,
       addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
     );
-    const maxHp = stats.strength * HEALTH_PER_STR;
+    const maxHp = maxHpFromStats(stats.strength, stats.defense);
     partyStrength += stats.strength;
     partyMaxHp += maxHp;
     partyHp += Math.max(0, maxHp - (damageById[id] ?? 0));
@@ -576,20 +582,19 @@ export function itemAttackBonus(
   );
 }
 
-// Chance a blow crits for double damage, rising with the attacker's luck.
-export function critChance(luck: number): number {
-  return clamp((luck - CRIT_LUCK_FLOOR) * CRIT_PER_LUCK, 0, CRIT_MAX_CHANCE);
+// How often a landed blow crits, rising with the attacker's intelligence.
+export function critChance(intelligence: number): number {
+  return clamp((intelligence - CRIT_INT_FLOOR) * CRIT_PER_INT, 0, CRIT_MAX_CHANCE);
 }
 
-export function rollCrit(luck: number): boolean {
-  return Math.random() < critChance(luck);
+export function rollCrit(intelligence: number): boolean {
+  return Math.random() < critChance(intelligence);
 }
 
-// A crit's bite scales with the attacker's wits (luck only sets how often it
-// lands). A dolt's "crit" is no crit at all (×1); a hobbit lands ~1.5×, a sharp
-// mind far heavier.
-export function critMultiplier(intelligence: number): number {
-  return 1 + Math.max(0, intelligence - CRIT_INT_FLOOR) * CRIT_INT_MULT;
+// A crit's bite is a flat multiplier — intelligence governs frequency, not size,
+// so it never compounds (more-often × harder).
+export function critMultiplier(): number {
+  return CRIT_MULTIPLIER;
 }
 
 // How likely a fighter is to coordinate on the team's focus target rather than
@@ -621,6 +626,46 @@ export function chooseTargetIndex(
     }, aliveIndices[0]);
   }
   return aliveIndices[Math.floor(Math.random() * aliveIndices.length)];
+}
+
+// Whom a foe strikes among the party. The smarter the foe, the more reliably it
+// singles out the most seasoned (highest-level) hero — the obvious threat; the
+// duller it is, the more its blows land anywhere. At the dumb end every ally is
+// equally likely (top chance = 1/N); at the clever end the top-level hero draws
+// ENEMY_TARGET_TOP_MAX_CHANCE. This keeps a glass-cannon Ring-bearer from being
+// ganged up on just for hitting hard. With one ally left, there's no choice.
+export function chooseAllyTarget(
+  attacker: Combatant,
+  allies: Combatant[],
+  aliveIndices: number[],
+): number {
+  if (aliveIndices.length <= 1) {
+    return aliveIndices[0] ?? 0;
+  }
+  const topIdx = aliveIndices.reduce((best, idx) => {
+    const candidate = allies[idx];
+    const current = allies[best];
+    const cl = candidate.level ?? 0;
+    const bl = current.level ?? 0;
+    if (cl !== bl) {
+      return cl > bl ? idx : best;
+    }
+    return candidate.hp < current.hp ? idx : best; // tie → the frailer
+  }, aliveIndices[0]);
+  const smartness = clamp(
+    (attacker.intelligence - ENEMY_TARGET_INT_FLOOR) /
+      (ENEMY_TARGET_INT_CEIL - ENEMY_TARGET_INT_FLOOR),
+    0,
+    1,
+  );
+  // Lerp the top-level chance from uniform (1/N, fully random) to the max focus.
+  const uniform = 1 / aliveIndices.length;
+  const topChance = uniform + (ENEMY_TARGET_TOP_MAX_CHANCE - uniform) * smartness;
+  if (Math.random() < topChance) {
+    return topIdx;
+  }
+  const others = aliveIndices.filter((idx) => idx !== topIdx);
+  return others[Math.floor(Math.random() * others.length)];
 }
 
 // Auto-battle: allies strike one by one, then the enemy. Damage is symmetric on
@@ -665,7 +710,7 @@ export function enemyBeatenInBattle(enemy: Combatant, battle: BattleState): bool
   if (battle.betrayalBy) {
     return enemy.hp <= enemy.maxHp / 2;
   }
-  if (FLEE_AT_HALF_FOES.has(enemy.name)) {
+  if (FLEE_AT_HALF_FOES.has(enemy.name) && !battle.wraithsStand) {
     return enemy.hp <= enemy.maxHp / 2;
   }
   return enemy.hp <= 0;
@@ -707,12 +752,9 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     let didCrit = false;
     if (lands) {
       dealt = hitDamage(allies[i], enemies[target]);
-      if (rollCrit(allies[i].luck)) {
-        const mult = critMultiplier(allies[i].intelligence);
-        if (mult > 1) {
-          dealt = Math.round(dealt * mult);
-          didCrit = true;
-        }
+      if (rollCrit(allies[i].intelligence)) {
+        dealt = Math.round(dealt * critMultiplier());
+        didCrit = true;
       }
       dealt += beastBonus + balrogBonus;
     }
@@ -750,7 +792,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   if (aliveAllies.length === 0) {
     return { ...battle, allies, enemies, outcome: "lose" };
   }
-  const target = chooseTargetIndex(enemies[j], allies, aliveAllies);
+  const target = chooseAllyTarget(enemies[j], allies, aliveAllies);
   // The Ring hides its bearer but isn't total cover — only about ROGUE_HIT_CHANCE
   // of blows find him.
   const ringProtected =
@@ -761,12 +803,9 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   let didCrit = false;
   if (lands) {
     dealt = hitDamage(enemies[j], allies[target]);
-    if (rollCrit(enemies[j].luck)) {
-      const mult = critMultiplier(enemies[j].intelligence);
-      if (mult > 1) {
-        dealt = Math.round(dealt * mult);
-        didCrit = true;
-      }
+    if (rollCrit(enemies[j].intelligence)) {
+      dealt = Math.round(dealt * critMultiplier());
+      didCrit = true;
     }
   }
   allies[target].hp = Math.max(0, allies[target].hp - dealt);
@@ -1027,6 +1066,11 @@ export function nearestTerrainId(r: number, g: number, b: number): number {
   return bestId;
 }
 
+// Max HP pool from the two bulk stats: 5×strength + 5×defense.
+export function maxHpFromStats(strength: number, defense: number): number {
+  return strength * HEALTH_PER_STR + defense * HEALTH_PER_DEF;
+}
+
 // Derive current stats from a character and how many days have been travelled.
 export function computeCharacterStats(
   character: Character,
@@ -1037,7 +1081,7 @@ export function computeCharacterStats(
 ): CharacterStats {
   const isBearer = character.id === bearerId;
   const s = effectiveStats(character, bonus);
-  const maxHealth = s.strength * HEALTH_PER_STR;
+  const maxHealth = maxHpFromStats(s.strength, s.defense);
   const health = Math.max(0, maxHealth - damage);
 
   const accumulated = (character.ringExposure ?? 0) * 100;

@@ -3,7 +3,7 @@ import { Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { StatAllocator } from "@/components/ui/StatAllocator";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { HEALTH_PER_STR } from "@/game";
+import { maxHpFromStats } from "@/game";
 import type { Character, StatBonus } from "@/game";
 
 // Spend the points earned on level-up across the hero's four stats.
@@ -32,7 +32,10 @@ export function LevelUpModal({
 }) {
   const { t } = useTranslation();
   const maxHealth = hero
-    ? (hero.strength + existingBonus.strength + draft.strength) * HEALTH_PER_STR
+    ? maxHpFromStats(
+        hero.strength + existingBonus.strength + draft.strength,
+        hero.defense + existingBonus.defense + draft.defense,
+      )
     : 0;
   return (
     <Modal
@@ -84,7 +87,7 @@ export function LevelUpModal({
             onAdjust={onAdjust}
             canDecrement={(stat) => draft[stat] > 0}
             canIncrement={draftSpent < totalPoints}
-            strengthValue={hero.strength + existingBonus.strength + draft.strength}
+            maxHealth={maxHealth}
             showHealth={false}
           />
           <p className="my-4 text-center text-xs text-amber-300">

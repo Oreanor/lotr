@@ -130,8 +130,11 @@ export const AUTO_SKIP_RECRUITS = new Set([
   "boromir",
 ]);
 
-// RPG model. Max health = 10×strength.
-export const HEALTH_PER_STR = 10;
+// RPG model. Max health is split evenly between brawn and guard:
+// 5×strength + 5×defense. So strength still buys HP (plus damage) while defense
+// now buys HP too (plus its mitigation) — a real tank build, not just a stat tax.
+export const HEALTH_PER_STR = 5;
+export const HEALTH_PER_DEF = 5;
 // Combat is on equal terms: attack = strength and defense subtracts the same
 // for heroes and foes alike. Enemies are a threat through their stats and
 // numbers, not a hidden damage multiplier.
@@ -141,22 +144,25 @@ export const HEALTH_PER_STR = 10;
 // fights turn into 100-swing grinds; with it, defense still cuts damage by up to
 // two-thirds but can never fully nullify a hit.
 export const MIN_DAMAGE_FRACTION = 0.34;
-// A landed blow can crit for double damage; the chance climbs with the
-// attacker's luck (~1 in 10 for a luck-9 hero, capped at CRIT_MAX_CHANCE), and
-// is nil at or below CRIT_LUCK_FLOOR. Rewards luck-built / leveled heroes; most
-// foes have low luck and rarely crit.
-export const CRIT_LUCK_FLOOR = 4;
-export const CRIT_PER_LUCK = 0.02;
+// Crits are wits, not luck: a landed blow crits for a flat CRIT_MULTIPLIER, and
+// how OFTEN it crits climbs with the attacker's intelligence — chance =
+// (intelligence − CRIT_INT_FLOOR) × CRIT_PER_INT, capped at CRIT_MAX_CHANCE, nil
+// at or below the floor. The bite is constant so intelligence only sets
+// frequency (no double-dipping freq × size); most foes are dull and rarely crit.
+export const CRIT_INT_FLOOR = 3;
+export const CRIT_PER_INT = 0.03;
 export const CRIT_MAX_CHANCE = 0.2;
-// How HARD a crit lands scales with the attacker's intelligence (luck only sets
-// how OFTEN). multiplier = 1 + max(0, intelligence − CRIT_INT_FLOOR) × CRIT_INT_MULT,
-// so a dolt (int 1) crits for ×1 — i.e. no crit at all — a hobbit (int 4) for
-// ~1.5×, and a sharp mind (int 10) for ~2.4×.
-export const CRIT_INT_FLOOR = 1;
-export const CRIT_INT_MULT = 0.16;
+export const CRIT_MULTIPLIER = 1.5;
 // Whom a fighter strikes depends on wits: focus the most dangerous foe with
 // probability (intelligence − FOCUS_INT_FLOOR) × FOCUS_PER_INT (capped), else
 // flail at a random target. The dimmer the fighter, the wilder the swing.
+// Whom a foe strikes among the party scales with its wits: the dumbest lash out
+// at anyone with equal odds (top-level chance = 1/N), the smartest single out the
+// party's most seasoned hero up to ENEMY_TARGET_TOP_MAX_CHANCE — linearly between
+// these intelligence bounds.
+export const ENEMY_TARGET_TOP_MAX_CHANCE = 0.75;
+export const ENEMY_TARGET_INT_FLOOR = 2; // at/below this int → fully random
+export const ENEMY_TARGET_INT_CEIL = 10; // at/above this int → max focus
 export const FOCUS_INT_FLOOR = 2;
 export const FOCUS_PER_INT = 0.12;
 export const FOCUS_MAX_CHANCE = 0.95;
@@ -190,7 +196,13 @@ export const REGION_Y_SOUTH = 1290;
 // Per-companion ability tuning.
 export const GANDALF_HEAL_MULTIPLIER = 1.5;
 export const CLOAKS_ENCOUNTER_MULTIPLIER = 2 / 3;
-export const ARAGORN_ENCOUNTER_MULTIPLIER = 2 / 3;
+export const ARAGORN_ENCOUNTER_MULTIPLIER = 5 / 6;
+// A generally clever party travels more warily: its average intelligence above
+// PARTY_INT_STEALTH_BASELINE trims the daily encounter chance by PER_POINT each,
+// down to FLOOR. Gentle, and separate from a wise Ring-bearer picking safe paths.
+export const PARTY_INT_STEALTH_BASELINE = 4;
+export const PARTY_INT_STEALTH_PER_POINT = 0.03;
+export const PARTY_INT_STEALTH_FLOOR = 0.65;
 export const EOMER_SPEED_MULTIPLIER = 1.5;
 // Bombadil dawdles — the march takes 1.5× as long while he travels along.
 export const BOMBADIL_SLOW_FACTOR = 1.5;
@@ -274,9 +286,12 @@ export const ELF_IDS = new Set([
 ]);
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
 export const NAZGUL_NAME = "Назгул";
-export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, "Король-чародей"]);
-// Nazgul are driven off at half strength instead of slain outright.
-export const FLEE_AT_HALF_FOES = new Set([NAZGUL_NAME]);
+export const WITCHKING_NAME = "Король-чародей";
+export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, WITCHKING_NAME]);
+// The Ringwraiths are driven off at half strength instead of slain — at
+// Weathertop and on the open road. Only in Minas Morgul, the seat of their
+// power, do they stand and fight to the death (the battle sets `wraithsStand`).
+export const FLEE_AT_HALF_FOES = new Set([NAZGUL_NAME, WITCHKING_NAME]);
 // Orc-kin — targets of the elven arrows' bonus.
 export const ORC_FOES = new Set(["Гоблин", "Орк-разведчик", "Орк", "Урук-хай"]);
 // Shelob recoils from the Phial of Galadriel — her strength is halved.
