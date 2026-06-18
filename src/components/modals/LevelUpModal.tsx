@@ -10,6 +10,7 @@ import type { Character, StatBonus } from "@/game";
 export function LevelUpModal({
   hero,
   level,
+  damage,
   existingBonus,
   draft,
   totalPoints,
@@ -21,6 +22,7 @@ export function LevelUpModal({
 }: {
   hero: Character | null;
   level: number;
+  damage: number;
   existingBonus: StatBonus;
   draft: StatBonus;
   totalPoints: number;
@@ -35,6 +37,16 @@ export function LevelUpModal({
     ? maxHpFromStats(
         hero.strength + existingBonus.strength + draft.strength,
         hero.defense + existingBonus.defense + draft.defense,
+      )
+    : 0;
+  // Current HP is what the hero carries in (wounds and all) — spending points
+  // raises the max cap but heals nothing, so it stays put while the bar's max
+  // grows. Drafted points are deliberately left out of this figure.
+  const health = hero
+    ? Math.max(
+        0,
+        maxHpFromStats(hero.strength + existingBonus.strength, hero.defense + existingBonus.defense) -
+          damage,
       )
     : 0;
   return (
@@ -71,13 +83,13 @@ export function LevelUpModal({
                 {t("character.health")}
               </span>
               <span className="tabular-nums text-neutral-200">
-                {maxHealth}/{maxHealth}
+                {health}/{maxHealth}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
               <div
-                className={`h-full ${healthBarColorClass(maxHealth, maxHealth)}`}
-                style={{ width: `${healthBarWidthPct(maxHealth, maxHealth)}%` }}
+                className={`h-full ${healthBarColorClass(health, maxHealth)}`}
+                style={{ width: `${healthBarWidthPct(health, maxHealth)}%` }}
               />
             </div>
           </div>

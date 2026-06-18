@@ -61,6 +61,10 @@ import {
   PARTY_INT_STEALTH_BASELINE,
   PARTY_INT_STEALTH_PER_POINT,
   PARTY_INT_STEALTH_FLOOR,
+  PARTY_STEALTH_NEUTRAL_SIZE,
+  PARTY_STEALTH_PER_MEMBER,
+  PARTY_STEALTH_FLOOR,
+  PARTY_STEALTH_CEIL,
   auraBonus,
   AUTO_MAX_TURN_STEPS,
   AUTO_ROUTE,
@@ -989,6 +993,17 @@ export default function MiddleEarthMap() {
       const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
       return { ...prev, [levelUpCharacterId]: addBonus(current, levelUpDraft) };
     });
+    // Leveling raises the max HP pool but doesn't heal: the extra capacity comes
+    // in "empty", so carry the gain into damage to leave current health untouched.
+    const hpGain = maxHpFromStats(levelUpDraft.strength, levelUpDraft.defense);
+    if (hpGain > 0) {
+      const nextDamage = {
+        ...damageRef.current,
+        [levelUpCharacterId]: (damageRef.current[levelUpCharacterId] ?? 0) + hpGain,
+      };
+      damageRef.current = nextDamage;
+      setDamageById(nextDamage);
+    }
     setLevelUpDraft(ZERO_BONUS);
     // Swap in the next queued hero without closing the modal; only close when the
     // queue is empty.
@@ -3510,6 +3525,13 @@ export default function MiddleEarthMap() {
           PARTY_INT_STEALTH_FLOOR,
           1 - Math.max(0, avgInt - PARTY_INT_STEALTH_BASELINE) * PARTY_INT_STEALTH_PER_POINT,
         );
+        // Fewer feet draw fewer eyes; a big host is far easier to spot (and
+        // largely cancels its own cloaks). Mild for small bands, steep for crowds.
+        chance *= clamp(
+          1 + (ids.length - PARTY_STEALTH_NEUTRAL_SIZE) * PARTY_STEALTH_PER_MEMBER,
+          PARTY_STEALTH_FLOOR,
+          PARTY_STEALTH_CEIL,
+        );
       }
       return chance;
     };
@@ -4563,6 +4585,7 @@ export default function MiddleEarthMap() {
         <LevelUpModal
           hero={autoPlay ? null : levelUpHero}
           level={levelUpLevel}
+          damage={levelUpCharacterId ? (damageById[levelUpCharacterId] ?? 0) : 0}
           existingBonus={levelUpExistingBonus}
           draft={levelUpDraft}
           totalPoints={levelUpTotalPoints}

@@ -195,7 +195,7 @@ export const REGION_Y_SOUTH = 1290;
 
 // Per-companion ability tuning.
 export const GANDALF_HEAL_MULTIPLIER = 1.5;
-export const CLOAKS_ENCOUNTER_MULTIPLIER = 2 / 3;
+export const CLOAKS_ENCOUNTER_MULTIPLIER = 0.55;
 export const ARAGORN_ENCOUNTER_MULTIPLIER = 5 / 6;
 // A generally clever party travels more warily: its average intelligence above
 // PARTY_INT_STEALTH_BASELINE trims the daily encounter chance by PER_POINT each,
@@ -203,6 +203,15 @@ export const ARAGORN_ENCOUNTER_MULTIPLIER = 5 / 6;
 export const PARTY_INT_STEALTH_BASELINE = 4;
 export const PARTY_INT_STEALTH_PER_POINT = 0.03;
 export const PARTY_INT_STEALTH_FLOOR = 0.65;
+// Party size shifts the encounter chance around a neutral size: each member off
+// PARTY_STEALTH_NEUTRAL_SIZE moves it by PARTY_STEALTH_PER_MEMBER, between FLOOR
+// and CEIL. Small bands draw only mildly fewer eyes (so early-game, naturally
+// small and cloakless, isn't gutted — cloaks are the real lever); a big host
+// (7-8+) is markedly easier to spot and largely cancels its own cloaks.
+export const PARTY_STEALTH_NEUTRAL_SIZE = 4;
+export const PARTY_STEALTH_PER_MEMBER = 0.15;
+export const PARTY_STEALTH_FLOOR = 0.7;
+export const PARTY_STEALTH_CEIL = 1.7;
 export const EOMER_SPEED_MULTIPLIER = 1.5;
 // Bombadil dawdles — the march takes 1.5× as long while he travels along.
 export const BOMBADIL_SLOW_FACTOR = 1.5;

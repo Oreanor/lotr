@@ -444,6 +444,10 @@ export const ESCAPE_BASE_CHANCE = 0.5;
 export const ESCAPE_LUCK_STEP = 0.06; // chance shift per point of average-luck edge
 export const ESCAPE_MIN_CHANCE = 0.05;
 export const ESCAPE_MAX_CHANCE = 0.95;
+// A small, nimble band breaks off more easily: each member short of
+// ESCAPE_SIZE_FULL adds ESCAPE_SIZE_STEP to the getaway odds.
+export const ESCAPE_SIZE_FULL = 5;
+export const ESCAPE_SIZE_STEP = 0.05;
 
 // Sum of the party's effective luck (auras and level-up bonuses included).
 export function partyLuck(party: string[], statBonusById: Record<string, StatBonus>): number {
@@ -472,7 +476,8 @@ export function escapeChance(
 ): number {
   const partyAvg = party.length ? partyLuck(party, statBonusById) / party.length : 0;
   const enemyAvg = mean(enemyLuck);
-  const chance = ESCAPE_BASE_CHANCE + (partyAvg - enemyAvg) * ESCAPE_LUCK_STEP;
+  const sizeBonus = Math.max(0, ESCAPE_SIZE_FULL - party.length) * ESCAPE_SIZE_STEP;
+  const chance = ESCAPE_BASE_CHANCE + (partyAvg - enemyAvg) * ESCAPE_LUCK_STEP + sizeBonus;
   return Math.min(ESCAPE_MAX_CHANCE, Math.max(ESCAPE_MIN_CHANCE, chance));
 }
 
