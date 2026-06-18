@@ -2128,8 +2128,10 @@ export default function MiddleEarthMap() {
     if (loc.id === HELMS_DEEP_ID) {
       const already = ROHAN_ARMORY_IDS.every((id) => foundItems.includes(id));
       if (party.includes("eomer") && !already) {
-        setFoundItems((prev) => [...prev, ...ROHAN_ARMORY_IDS.filter((id) => !prev.includes(id))]);
-        setExploreResult({ found: true, message: "location.helmsDeepArmory", emoji: "⚔️" });
+        const gained = ROHAN_ARMORY_IDS.filter((id) => !foundItems.includes(id));
+        setFoundItems((prev) => [...prev, ...gained.filter((id) => !prev.includes(id))]);
+        // Show the kit as a gift list (icons + names + effects), like Galadriel's.
+        setTalkResult({ charId: "eomer", itemIds: gained, greeting: null });
       } else {
         setExploreResult({ found: false });
       }
@@ -2893,8 +2895,13 @@ export default function MiddleEarthMap() {
 
       // Reached a harbour off a ship (canMoveTo walls every other coast): don't
       // step ashore yet — hold on the water and ask, since landing loses the ship.
+      // On landing, put ashore exactly at the harbour (if a marker was clicked) or
+      // at the point that was tapped, not wherever the hull happened to touch land.
       if (onShip && getTerrainAtPoint(nextPlayer).name !== "water") {
-        setPendingDisembark({ point: nextPlayer, location: arrivalLocation });
+        setPendingDisembark({
+          point: arrivalLocation ? arrivalLocation.point : activeTarget,
+          location: arrivalLocation,
+        });
         setTarget(null);
         setTargetLocation(null);
         setIsMoving(false);
