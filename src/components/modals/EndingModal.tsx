@@ -3,7 +3,17 @@ import { Modal } from "@/components/ui/Modal";
 import { iconVariant } from "@/game";
 import type { Character } from "@/game";
 
-export type Ending = "victory" | "lord" | "starved" | "battle" | "nothing" | "rogueLord" | "sauron";
+export type Ending =
+  | "victory"
+  | "lord"
+  | "starved"
+  | "battle"
+  | "nothing"
+  | "rogueLord"
+  | "sauron"
+  | "valinorWest"
+  | "valinorRing"
+  | "valinorSink";
 
 // Terminal game-over screen. The page passes the outcome and the bearer.
 export function EndingModal({
@@ -27,9 +37,14 @@ export function EndingModal({
 }) {
   const { t } = useTranslation();
   const borderClass =
-    ending === "victory"
+    ending === "victory" || ending === "valinorWest"
       ? "border-emerald-700"
-      : ending === "starved" || ending === "battle" || ending === "nothing" || ending === "sauron"
+      : ending === "starved" ||
+          ending === "battle" ||
+          ending === "nothing" ||
+          ending === "sauron" ||
+          ending === "valinorRing" ||
+          ending === "valinorSink"
         ? "border-red-800"
         : "border-amber-700";
   const darkPortrait = bearer && (
@@ -71,6 +86,21 @@ export function EndingModal({
             />
             <h2 className="font-serif text-2xl text-red-400">{t("ending.sauronTitle")}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.sauronText", { name: bearerName })}</p>
+          </>
+        ) : ending === "valinorWest" ? (
+          <>
+            <h2 className="font-serif text-2xl text-emerald-400">{t("ending.valinorWestTitle")}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.valinorWestText")}</p>
+          </>
+        ) : ending === "valinorRing" ? (
+          <>
+            <h2 className="font-serif text-2xl text-red-400">{t("ending.valinorRingTitle")}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.valinorRingText", { name: bearerName })}</p>
+          </>
+        ) : ending === "valinorSink" ? (
+          <>
+            <h2 className="font-serif text-2xl text-red-400">{t("ending.valinorSinkTitle")}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.valinorSinkText")}</p>
           </>
         ) : ending === "rogueLord" ? (
           <>

@@ -347,7 +347,6 @@ export const FOOD_SUPPLY_LOCATION_IDS = new Set<number>([
   MINAS_TIRITH_ID,
   LOTHLORIEN_ID,
   ESGAROTH_ID,
-  FORLOND_ID,
 ]);
 // Always available at these locations (no schedule in recruitment.json).
 export const RECRUITS_BY_LOCATION: Record<number, string[]> = {
@@ -425,10 +424,11 @@ export const SHIP_PRESENCE_CHANCE: Record<number, number> = {
 };
 // Círdan the Shipwright doubles the party's pace at sea.
 export const CIRDAN_SEA_SPEED = 2;
-// Corsair raids at sea grow likelier the further south you sail — fairly rare in
-// the northern seas, up to a middling chance off Harad. Per day, by latitude.
-export const CORSAIR_SEA_MIN = 0.04;
+// Corsair raids at sea grow likelier the further south you sail — chance per day
+// = MAX × (latitude fraction)^POWER. The steep power keeps them all but absent at
+// the Grey Havens' latitude, ramping to a middling chance off Harad.
 export const CORSAIR_SEA_MAX = 0.25;
+export const CORSAIR_SEA_POWER = 3;
 // Eagles of Manwë only happen to be at Carn Dûm on some visits, and tire of
 // carrying you after this many days.
 export const EAGLE_PRESENCE_CHANCE = 0.25;

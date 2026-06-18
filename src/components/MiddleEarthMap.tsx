@@ -33,6 +33,7 @@ import {
   SamCatchUpModal,
 } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
+import type { Ending } from "@/components/modals/EndingModal";
 import { RogueFledModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
 import { BattleModal } from "@/components/modals/BattleModal";
@@ -114,6 +115,7 @@ import {
   fitZoom,
   FOLLOW_MARGIN_RATIO,
   FOOD_SUPPLY_LOCATION_IDS,
+  FOOD_DAYS_BASE,
   foodCapacityFor,
   GANDALF_HEAL_MULTIPLIER,
   getJourneyDate,
@@ -201,8 +203,8 @@ import {
   SHIP_BOARD_OFFSET,
   SHIP_PRESENCE_CHANCE,
   CIRDAN_SEA_SPEED,
-  CORSAIR_SEA_MIN,
   CORSAIR_SEA_MAX,
+  CORSAIR_SEA_POWER,
   unspentPointsFor,
   RING_PIERCING_FOES,
   RINGWRAITH_FOES,
@@ -364,9 +366,7 @@ export default function MiddleEarthMap() {
   // Whether the open details panel can page through the party (arrows). True
   // only when opened from the party HUD or by clicking the hero on the map.
   const [openCharacterPaging, setOpenCharacterPaging] = useState(false);
-  const [ending, setEnding] = useState<
-    "victory" | "lord" | "starved" | "battle" | "nothing" | "rogueLord" | "sauron" | null
-  >(null);
+  const [ending, setEnding] = useState<Ending | null>(null);
   // The Ring fled with this companion (bearer broke at 100% or a betrayer won);
   // null means the party holds the Ring. While set, the party is "ringless".
   const [rogueBearerId, setRogueBearerId] = useState<string | null>(null);
@@ -402,6 +402,10 @@ export default function MiddleEarthMap() {
   );
   // The Corsair captain has been talked round into letting the party sail in peace.
   const [corsairPeace, setCorsairPeace] = useState<boolean>(initialSave?.corsairPeace ?? false);
+  // The One Ring has been cast into the Fire — the Ban over the West may lift.
+  const [ringDestroyed, setRingDestroyed] = useState(false);
+  // A ship has reached the world's western edge — offer the passage to Valinor.
+  const [valinorAttempt, setValinorAttempt] = useState(false);
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
   // Result of talking to a companion: a greeting or items handed over.
   const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
@@ -1499,6 +1503,7 @@ export default function MiddleEarthMap() {
     escapeFailed !== null ||
     exploreResult !== null ||
     pendingDisembark !== null ||
+    valinorAttempt ||
     talkResult !== null;
 
   // Close the settings dropdown when clicking anywhere outside it. The panel
@@ -2042,6 +2047,7 @@ export default function MiddleEarthMap() {
       setDoomBetrayal(true);
       setEnding("lord");
     } else {
+      setRingDestroyed(true);
       setEnding("victory");
     }
   }, []);
@@ -2870,6 +2876,19 @@ export default function MiddleEarthMap() {
         nextPlayer = activeTarget;
       }
 
+      // Reached the world's western edge under sail: offer to try the Straight
+      // Road into the West rather than sail off the map.
+      if (onShip && nextPlayer.x <= 14 && getTerrainAtPoint(nextPlayer).name === "water") {
+        playerRef.current = nextPlayer;
+        setPlayer(nextPlayer);
+        setValinorAttempt(true);
+        setTarget(null);
+        setTargetLocation(null);
+        setIsMoving(false);
+        frameRef.current = null;
+        return;
+      }
+
       // Reached a harbour off a ship (canMoveTo walls every other coast): don't
       // step ashore yet — hold on the water and ask, since landing loses the ship.
       if (onShip && getTerrainAtPoint(nextPlayer).name !== "water") {
@@ -2981,6 +3000,15 @@ export default function MiddleEarthMap() {
   );
   const anyHurt = partyCharacters.some((character) => (damageById[character.id] ?? 0) > 0);
   const foodCapacity = foodCapacityFor(transport);
+  // Where food can be restocked, and up to how much: the great towns fill the
+  // full carried capacity; any harbour stocks only a foot-traveller's ration.
+  const canRestockHere =
+    !!visitedLocation &&
+    (FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id) || HARBOR_IDS.has(visitedLocation.id));
+  const supplyCap =
+    visitedLocation && FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id)
+      ? foodCapacity
+      : FOOD_DAYS_BASE;
   // Saruman at Isengard is an ally only if the bearer is duller than him and no
   // Gandalf is along; otherwise he's a boss. Once fought, he can't be recruited.
   const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
@@ -3787,10 +3815,11 @@ export default function MiddleEarthMap() {
         if (!visitedLocation && Math.random() < encounterChance) {
           wildEncounter = true;
         }
-        // Corsair raids at sea — likelier the further south you sail.
+        // Corsair raids at sea — sharply likelier the further south you sail, all
+        // but absent up at the Grey Havens' latitude.
         if (!visitedLocation && onWater && !corsairPeace) {
           const south = clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
-          if (Math.random() < CORSAIR_SEA_MIN + (CORSAIR_SEA_MAX - CORSAIR_SEA_MIN) * south) {
+          if (Math.random() < CORSAIR_SEA_MAX * Math.pow(south, CORSAIR_SEA_POWER)) {
             corsairEncounter = true;
           }
         }
@@ -4504,9 +4533,9 @@ export default function MiddleEarthMap() {
           party={party}
           iconFor={iconFor}
           charName={charName}
-          canRestock={visitedLocation ? FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id) : false}
+          canRestock={canRestockHere}
           food={food}
-          foodCapacity={foodCapacity}
+          foodCapacity={supplyCap}
           transportOffer={locationTransport}
           transportActive={transport === locationTransport}
           isMoving={isMoving}
@@ -4554,8 +4583,10 @@ export default function MiddleEarthMap() {
           onTalk={(c) => talkToCharacter(c.id)}
           hasGifts={hasGifts}
           onTakeSupplies={() => {
-            setFood(foodCapacity);
-            foodRef.current = foodCapacity;
+            // Top up to the local supply cap, but never reduce what's carried.
+            const next = Math.max(foodRef.current, supplyCap);
+            setFood(next);
+            foodRef.current = next;
           }}
           onTakeTransport={() => {
             if (!locationTransport) {
@@ -4752,6 +4783,58 @@ export default function MiddleEarthMap() {
               className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
             >
               {t("transport.disembarkNo")}
+            </button>
+          </div>
+        </Modal>
+
+        <Modal
+          open={valinorAttempt}
+          z="z-[60]"
+          overlayClassName="bg-black/80"
+          className="w-full max-w-xs border-sky-800 p-6 text-center"
+        >
+          <div className="text-5xl leading-none">⛵</div>
+          <p className="mt-3 text-sm text-sky-100">{t("ending.valinorAsk")}</p>
+          <div className="mt-5 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setValinorAttempt(false);
+                if (hasRing) {
+                  setEnding("valinorRing");
+                  return;
+                }
+                if (ringDestroyed) {
+                  setEnding("valinorWest");
+                  return;
+                }
+                const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+                if (avgLuck < 8) {
+                  setEnding("valinorSink");
+                } else {
+                  // The Straight Road stays shut, but the seas spare them — they
+                  // come about and the ship slips back onto the map from the edge.
+                  const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
+                  playerRef.current = back;
+                  setPlayer(back);
+                  setExploreResult({ found: true, message: "ending.valinorReturn", emoji: "🌫️" });
+                }
+              }}
+              className="flex-1 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"
+            >
+              {t("ending.valinorYes")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setValinorAttempt(false);
+                const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
+                playerRef.current = back;
+                setPlayer(back);
+              }}
+              className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            >
+              {t("ending.valinorNo")}
             </button>
           </div>
         </Modal>
