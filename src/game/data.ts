@@ -120,11 +120,24 @@ export const NAZGUL_ENEMY: Monster = {
   luck: 5,
 };
 
-// Captain of the orc garrison that always holds Dol Guldur — the lair's boss in
-// both states. The three wraiths posted here are plain NAZGUL_ENEMY (no named
-// lord: the Ringwraiths' leader, the Witch-king, sits at Minas Morgul and is
-// never among the slain here). The captain's a distinct name so his defeat is
-// tracked cleanly, not confused with the roaming/Weathertop "Назгул".
+// Dol Guldur has two faces. While the Nine are still abroad it's held by three
+// wraiths over an orc garrison — this one leads (and is shown on the card) so the
+// lair reads as wraith-held, not "just orcs". It's a plain Nazgûl in stats and on
+// screen (nazgul.png → "Назгул"); the distinct internal name only keeps its
+// defeat from being confused with the roaming/Weathertop "Назгул". No lord here —
+// the Ringwraiths' leader, the Witch-king, sits at Minas Morgul, untouched.
+export const DOL_GULDUR_WRAITH: Monster = {
+  name: "Назгул Дол Гулдура",
+  icon: "/enemies/nazgul.png",
+  tier: 4,
+  strength: 18,
+  defense: 18,
+  intelligence: 8,
+  luck: 5,
+};
+
+// Captain of the orc garrison — leads (and is shown) once the wraiths are gone,
+// i.e. after Minas Morgul has been seen. Distinct name for clean defeat tracking.
 export const DOL_GULDUR_CAPTAIN: Monster = {
   name: "Капитан Дол Гулдура",
   icon: "/enemies/urukhai.png",
@@ -148,8 +161,10 @@ export const DOL_GULDUR_GARRISON: Monster[] = [
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
 ];
 
-// Dol Guldur's boss is its orc captain — register it like any other lair boss.
+// Register both Dol Guldur bosses (wraith lead while the Nine are abroad, orc
+// captain after) so either's defeat is recognised. The page picks which leads.
 BOSSES_BY_LOCATION[DOL_GULDUR_ID] = DOL_GULDUR_CAPTAIN;
+BOSS_NAMES.add(DOL_GULDUR_WRAITH.name);
 BOSS_NAMES.add(DOL_GULDUR_CAPTAIN.name);
 
 // The Witch-king as he led the assault on Weathertop — stronger than his riders

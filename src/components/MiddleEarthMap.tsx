@@ -164,6 +164,8 @@ import {
   MORIA_GATE_ID,
   MOVE_SUBSTEPS,
   NAZGUL_ENEMY,
+  DOL_GULDUR_WRAITH,
+  DOL_GULDUR_CAPTAIN,
   DOL_GULDUR_GARRISON,
   WEATHERTOP_WITCHKING,
   NON_BEARERS,
@@ -1083,8 +1085,16 @@ export default function MiddleEarthMap() {
   );
 
 
+  // True during the brief "show the roll" pause after a random level-up, so a
+  // manual confirm/adjust can't sneak in and commit against the wrong hero.
+  const levelUpRollingRef = useRef(false);
   const confirmLevelUp = useCallback((override?: StatBonus) => {
     if (!levelUpCharacterId) {
+      return;
+    }
+    // The timed auto-commit passes its rolled spread as `override`; a manual
+    // confirm (no override) is ignored while a roll is still on display.
+    if (override === undefined && levelUpRollingRef.current) {
       return;
     }
     const draft = override ?? levelUpDraft;
@@ -1124,10 +1134,12 @@ export default function MiddleEarthMap() {
   }, [levelUpCharacterId, levelUpDraft, expById, statBonusById, levelUpQueue]);
 
   // Rolling a random spread on level-up doubles as confirming it — scatter the
-  // points and commit in one click, moving straight on to the next hero. (Hero
-  // creation keeps its separate roll/confirm; only post-battle level-ups chain.)
+  // points and commit in one click, moving on to the next hero. (Hero creation
+  // keeps its separate roll/confirm; only post-battle level-ups chain.) The roll
+  // shows for half a second first, so the player can see the new spread before it
+  // commits and the next hero swaps in.
   const randomizeAndConfirmLevelUp = useCallback(() => {
-    if (!levelUpCharacterId) {
+    if (!levelUpCharacterId || levelUpRollingRef.current) {
       return;
     }
     const total = unspentPointsFor(
@@ -1140,7 +1152,12 @@ export default function MiddleEarthMap() {
     for (let i = 0; i < total; i += 1) {
       rolled[stats[Math.floor(Math.random() * stats.length)]] += 1;
     }
-    confirmLevelUp(rolled);
+    levelUpRollingRef.current = true;
+    setLevelUpDraft(rolled);
+    window.setTimeout(() => {
+      confirmLevelUp(rolled);
+      levelUpRollingRef.current = false;
+    }, 500);
   }, [levelUpCharacterId, expById, statBonusById, confirmLevelUp]);
 
   // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
@@ -3186,9 +3203,18 @@ export default function MiddleEarthMap() {
   // the Nine gather in Mordor: once Minas Morgul has been laid eyes on, the
   // wraiths are gone and the captain holds it with orcs alone.
   const dolGuldurHasWraiths = !visitedLocationIds.has(MINAS_MORGUL_ID);
+  // Dol Guldur is led by a wraith while the Nine are abroad, else by the orc
+  // captain — and is cleared once either has fallen.
+  const dolGuldurBoss = dolGuldurHasWraiths ? DOL_GULDUR_WRAITH : DOL_GULDUR_CAPTAIN;
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
+    }
+    if (visitedLocation.id === DOL_GULDUR_ID) {
+      if (defeatedBosses.has(DOL_GULDUR_WRAITH.name) || defeatedBosses.has(DOL_GULDUR_CAPTAIN.name)) {
+        return null;
+      }
+      return dolGuldurBoss;
     }
     const boss = BOSSES_BY_LOCATION[visitedLocation.id];
     if (!boss || defeatedBosses.has(boss.name)) {
@@ -3730,7 +3756,14 @@ export default function MiddleEarthMap() {
       }
       // A defeated boss never returns to its lair.
       const foe = battle.enemies[0];
-      const activeBoss = visitedLocation ? BOSSES_BY_LOCATION[visitedLocation.id] : null;
+      const activeBoss = !visitedLocation
+        ? null
+        : visitedLocation.id === DOL_GULDUR_ID
+          ? // Whichever Dol Guldur boss led this fight — wraith or orc captain.
+            visitedLocationIds.has(MINAS_MORGUL_ID)
+            ? DOL_GULDUR_CAPTAIN
+            : DOL_GULDUR_WRAITH
+          : BOSSES_BY_LOCATION[visitedLocation.id];
       if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
         // Clearing Dol Guldur while its wraiths were still posted there means the
@@ -4752,7 +4785,8 @@ export default function MiddleEarthMap() {
                     ]
                   : visitedLocation?.id === DOL_GULDUR_ID
                     ? dolGuldurHasWraiths
-                      ? [locationBoss, NAZGUL_ENEMY, NAZGUL_ENEMY, NAZGUL_ENEMY, ...DOL_GULDUR_GARRISON]
+                      ? // The lead wraith plus two more — three Nazgûl over the garrison.
+                        [locationBoss, NAZGUL_ENEMY, NAZGUL_ENEMY, ...DOL_GULDUR_GARRISON]
                       : [locationBoss, ...DOL_GULDUR_GARRISON]
                     : visitedLocation?.id === WEATHERTOP_ID
                       ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
