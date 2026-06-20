@@ -16,6 +16,7 @@ export function LocationModal({
   imageSrc,
   imageInitiallyLoaded,
   boss,
+  sidekick,
   parley,
   monsterName,
   recruits,
@@ -51,6 +52,8 @@ export function LocationModal({
   imageSrc: string | null;
   imageInitiallyLoaded: boolean;
   boss: Monster | null;
+  // A second foe fought alongside the boss (e.g. Gríma at Saruman's side).
+  sidekick?: Monster | null;
   parley: Monster | null;
   monsterName: (icon: string) => string;
   recruits: Character[];
@@ -132,6 +135,20 @@ export function LocationModal({
                   >
                     {t("location.fightShort")}
                   </button>
+                </div>
+              )}
+              {boss && sidekick && (
+                <div className="flex w-24 shrink-0 flex-col items-center gap-1">
+                  <div className="size-20 border border-red-800 bg-parchment">
+                    <img src={sidekick.icon} alt="" draggable={false} className="size-full object-cover" />
+                  </div>
+                  <span className="w-full truncate text-center text-xs text-neutral-200">
+                    {monsterName(sidekick.icon)}
+                  </span>
+                  {/* He stands with the boss — the one Fight button takes them both. */}
+                  <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-400">
+                    {t("location.atBossSide")}
+                  </span>
                 </div>
               )}
               {parley && (

@@ -1226,9 +1226,24 @@ export default function MiddleEarthMap() {
         setDeathNotice({ ids: dead.join(","), cause: "battle" });
       }
       if (dead.includes(bearerId)) {
+        // The Ring can pass to an able companion still standing — here in the
+        // active party, or, if this whole group fell, in a splinter squad still
+        // abroad. Only when no one anywhere can take it up is the quest over.
+        const squadHasBearer = squadsRef.current.some((s) =>
+          s.members.some((id) => !NON_BEARERS.has(id)),
+        );
         if (livingBearerCandidates.length > 0) {
           setBearerId("");
           setReclaimedFrom(bearerId);
+        } else if (squadHasBearer) {
+          // No able heir in the fighting group, but a splinter squad still has
+          // one — hand them the Ring instead of ending. A surviving squad is
+          // focused (by the empty-party effect if this group is wiped, or the
+          // loose-Ring effect if non-bearers linger here); the chooser then
+          // offers the Ring among that squad.
+          setBearerId("");
+          setReclaimedFrom(bearerId);
+          setBattle(null);
         } else {
           setEnding((prev) => prev ?? "battle");
           setBattle(null);
@@ -3300,20 +3315,33 @@ export default function MiddleEarthMap() {
       }
       return dolGuldurBoss;
     }
+    // Isengard: Saruman holds it (unless beaten, parleyed friendly, or fled with
+    // the Ring). With him gone, a Gríma who slunk here still skulks the ruins
+    // until slain — so the player who chased him here actually finds him.
+    if (visitedLocation.id === ISENGARD_ID) {
+      const saruman = BOSSES_BY_LOCATION[ISENGARD_ID];
+      const sarumanFled =
+        !!rogueBearerId && CHARACTERS.find((c) => c.id === rogueBearerId)?.icon === saruman.icon;
+      const sarumanHere = !defeatedBosses.has(saruman.name) && !sarumanFriendly && !sarumanFled;
+      if (sarumanHere) {
+        return saruman;
+      }
+      if (grimaFled && !grimaSlain) {
+        return GRIMA_ENEMY;
+      }
+      return null;
+    }
     const boss = BOSSES_BY_LOCATION[visitedLocation.id];
     if (!boss || defeatedBosses.has(boss.name)) {
       return null;
     }
-    // A boss who fled with the Ring (e.g. Saruman) no longer holds his seat — he's
-    // hunted in the wild instead. Matched by portrait to his companion self.
+    // A boss who fled with the Ring no longer holds his seat — he's hunted in the
+    // wild instead. Matched by portrait to his companion self.
     if (rogueBearerId) {
       const rogue = CHARACTERS.find((c) => c.id === rogueBearerId);
       if (rogue && rogue.icon === boss.icon) {
         return null;
       }
-    }
-    if (visitedLocation.id === ISENGARD_ID && sarumanFriendly) {
-      return null;
     }
     // A friendly Corsair captain is parleyed with, not fought.
     if (visitedLocation.id === CORSAIRS_CITY_ID && corsairCaptainFriendly) {
@@ -3549,9 +3577,7 @@ export default function MiddleEarthMap() {
     ? unspentPointsFor(levelUpCharacterId, expById[levelUpCharacterId] ?? 0, levelUpExistingBonus)
     : 0;
   const levelUpDraftSpent = bonusPoints(levelUpDraft);
-  const levelUpLevel = levelUpCharacterId
-    ? levelForExp(expById[levelUpCharacterId] ?? 0).level
-    : 1;
+  const levelUpLevel = levelForExp(levelUpCharacterId ? (expById[levelUpCharacterId] ?? 0) : 0);
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
   // The Ring only counts for the squad actually carrying the bearer — a splinter
   // group off on its own can't destroy it at Mount Doom.
@@ -3660,8 +3686,10 @@ export default function MiddleEarthMap() {
     }
     // The active squad was wiped out, but if others still wander the map, take
     // command of one rather than ending — only an empty roster is game over.
+    // Prefer a squad that can carry the Ring (so a pending reclaim can offer it).
     if (squads.length > 0) {
-      focusSquad(squads[0].id);
+      const squad = squads.find((s) => s.members.some((id) => !NON_BEARERS.has(id))) ?? squads[0];
+      focusSquad(squad.id);
       return;
     }
     setEnding(rogueBearerId || !bearerId ? "nothing" : "battle");
@@ -3671,6 +3699,24 @@ export default function MiddleEarthMap() {
     setTargetLocation(null);
     setIsMoving(false);
   }, [created, ending, party.length, squads, rogueBearerId, bearerId, focusSquad]);
+
+  // The bearer fell and the Ring is loose (reclaim pending), but the survivors
+  // still here can't carry it — only non-bearers linger. If a splinter squad has
+  // an able member, take command of it so the bearer-chooser can offer the Ring
+  // there. (When this group is wiped entirely, the empty-party effect above does
+  // the same; this covers the case where non-bearer survivors remain.)
+  useEffect(() => {
+    if (!reclaimedFrom || ending || battle || party.length === 0) {
+      return;
+    }
+    if (party.some((id) => !NON_BEARERS.has(id))) {
+      return; // someone here can take it — the chooser handles it
+    }
+    const squad = squads.find((s) => s.members.some((id) => !NON_BEARERS.has(id)));
+    if (squad) {
+      focusSquad(squad.id);
+    }
+  }, [reclaimedFrom, ending, battle, party, squads, focusSquad]);
 
   // Re-check compatibility whenever the party changes: someone who can't abide
   // the new company (e.g. Gollum once a non-hobbit joins) walks off. One per
@@ -4771,6 +4817,16 @@ export default function MiddleEarthMap() {
               : false
           }
           boss={locationBoss}
+          sidekick={
+            // Gríma stands at Saruman's side in Isengard (until either falls); once
+            // Saruman is gone Gríma is the boss himself, so no sidekick then.
+            visitedLocation?.id === ISENGARD_ID &&
+            grimaFled &&
+            !grimaSlain &&
+            locationBoss?.name === BOSSES_BY_LOCATION[ISENGARD_ID].name
+              ? GRIMA_ENEMY
+              : null
+          }
           parley={
             visitedLocation?.id === CORSAIRS_CITY_ID && corsairCaptainFriendly
               ? BOSSES_BY_LOCATION[CORSAIRS_CITY_ID]
@@ -4826,8 +4882,12 @@ export default function MiddleEarthMap() {
                       : [locationBoss, ...DOL_GULDUR_GARRISON]
                     : visitedLocation?.id === WEATHERTOP_ID
                       ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
-                      : visitedLocation?.id === ISENGARD_ID && grimaFled
-                        ? [locationBoss, GRIMA_ENEMY]
+                      : visitedLocation?.id === ISENGARD_ID &&
+                        grimaFled &&
+                        locationBoss.name !== GRIMA_ENEMY.name
+                        ? // Saruman fights with Gríma at his side; once Saruman is
+                          // gone, Gríma (now the boss himself) skulks here alone.
+                          [locationBoss, GRIMA_ENEMY]
                         : [locationBoss];
               // Already chose the fight at the location — go straight to battle,
               // skipping the "you met a foe" encounter prompt.

@@ -796,8 +796,14 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     }
     enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
     // A foe that yields at half is never beaten below it — one big blow can't
-    // overshoot and kill it; it simply drops out at half.
-    if (battle.recruitId || FLEE_AT_HALF_FOES.has(enemies[target].name)) {
+    // overshoot and kill it; it simply drops out at half. This applies to
+    // recruit captures and to wraiths that recoil at half — but NOT in a lair
+    // where the wraiths stand and fight to the death (wraithsStand), or they'd
+    // be unkillable (floored at half, yet only "beaten" at 0 HP).
+    const yieldsAtHalf =
+      battle.recruitId ||
+      (FLEE_AT_HALF_FOES.has(enemies[target].name) && !battle.wraithsStand);
+    if (yieldsAtHalf) {
       const minHp = Math.max(1, Math.ceil(enemies[target].maxHp / 2));
       enemies[target].hp = Math.max(minHp, enemies[target].hp);
     }

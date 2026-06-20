@@ -84,6 +84,7 @@
     "helmsDeepArmory": "Éomer says he knows where to find some good gear and leads you to the Hornburg armoury. You take an ash spear, a blade, a round shield and a guardsman's mail. Share them out among the company.",
     "fight": "⚔️ Fight: {{name}}",
     "fightShort": "⚔️ Fight",
+    "atBossSide": "at his side",
     "corsairPeace": "The Corsair captain hears you out and, judging your company wise, strikes a bargain: the corsairs will not trouble you at sea from now on.",
     "supplies": "🍞 Take {{n}} days of supplies",
     "suppliesFull": "🍞 Supplies full ({{n}} days)",

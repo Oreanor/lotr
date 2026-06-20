@@ -21,7 +21,7 @@ export function LevelUpModal({
   onConfirm,
 }: {
   hero: Character | null;
-  level: number;
+  level: { level: number; intoLevel: number; nextLevelXp: number };
   damage: number;
   existingBonus: StatBonus;
   draft: StatBonus;
@@ -72,8 +72,23 @@ export function LevelUpModal({
               {charName(hero.id)}
             </span>
             <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-400">
-              {t("character.level", { n: level })}
+              {t("character.level", { n: level.level })}
             </span>
+          </div>
+
+          <div className="mt-3 text-left">
+            <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
+              <span>{t("character.level", { n: level.level })}</span>
+              <span className="tabular-nums text-neutral-200">
+                {t("character.xp", { into: level.intoLevel, next: level.nextLevelXp })}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded bg-neutral-800">
+              <div
+                className="h-full bg-amber-400"
+                style={{ width: `${(level.intoLevel / level.nextLevelXp) * 100}%` }}
+              />
+            </div>
           </div>
 
           <div className="mt-3 text-left">
