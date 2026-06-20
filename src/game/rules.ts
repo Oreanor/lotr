@@ -2,7 +2,7 @@
 // recruitment, auto-play decisions, and small geometry/terrain helpers. No React,
 // no mutable module state — every function is deterministic given its inputs
 // (aside from the explicit Math.random rolls).
-import { getJourneyDate, SEASON_FOLDER, type Season } from "@/game/calendar";
+import { SEASON_FOLDER, type Season } from "@/game/calendar";
 import {
   AUTO_SKIP_RECRUITS,
   AUTO_STORY_RECRUITS,
@@ -91,7 +91,6 @@ import type {
   MapLocation,
   Monster,
   Point,
-  RecruitmentCalendarEntry,
   RegionCode,
   StatBonus,
   TransportId,
@@ -102,7 +101,7 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 // Emotion variants live in a subfolder mirroring the base path, e.g.
-// "/icons/frodo.png" → "/icons/pain/frodo.png".
+// "/allies/frodo.png" → "/allies/pain/frodo.png".
 export function iconVariant(icon: string, kind: "pain" | "joy" | "refuse" | "dark"): string {
   const slash = icon.lastIndexOf("/");
   return `${icon.slice(0, slash)}/${kind}${icon.slice(slash)}`;
@@ -728,17 +727,21 @@ export function rollHit(attackerLuck: number, targetLuck: number): boolean {
 }
 
 export function enemyBeatenInBattle(enemy: Combatant, battle: BattleState): boolean {
+  // The "drops out at half" threshold must match the HP floor applied in
+  // advanceBattleTick (Math.ceil(maxHp/2)); otherwise an odd-HP foe is floored
+  // just above maxHp/2 and never counts as beaten — the fight can't end.
+  const half = Math.ceil(enemy.maxHp / 2);
   if (battle.recruitId) {
-    return enemy.hp <= enemy.maxHp / 2;
+    return enemy.hp <= half;
   }
   if (battle.betrayalBy === "gollum") {
     return enemy.hp <= 0;
   }
   if (battle.betrayalBy) {
-    return enemy.hp <= enemy.maxHp / 2;
+    return enemy.hp <= half;
   }
   if (FLEE_AT_HALF_FOES.has(enemy.name) && !battle.wraithsStand) {
-    return enemy.hp <= enemy.maxHp / 2;
+    return enemy.hp <= half;
   }
   return enemy.hp <= 0;
 }
@@ -882,25 +885,6 @@ export function foodCapacityFor(transport: TransportId | null): number {
   return FOOD_DAYS_BASE;
 }
 
-export function formatRecruitmentPeriod(
-  fromDay: number,
-  toDay: number | null,
-  note: string | undefined,
-  months: string[],
-  onward: string,
-  night: string,
-): string {
-  let label: string;
-  if (toDay === null) {
-    label = `${getJourneyDate(fromDay, months)} ${onward}`;
-  } else if (fromDay === toDay) {
-    label = getJourneyDate(fromDay, months);
-  } else {
-    label = `${getJourneyDate(fromDay, months)} — ${getJourneyDate(toDay, months)}`;
-  }
-  return note ? `${label} (${night})` : label;
-}
-
 export function isCharacterRecruitableHere(
   characterId: string,
   locationId: number,
@@ -984,63 +968,6 @@ export function autoPlayShouldFarm(food: number, capacity: number): boolean {
 
 export function getLocationLabel(location: MapLocation, lang: string): string {
   return lang === "en" ? location.name : (location.name_ru ?? location.name);
-}
-
-export function buildRecruitmentCalendar(
-  locations: MapLocation[],
-  journeyDay: number,
-  months: string[],
-  lang: string,
-  onward: string,
-  night: string,
-  always: string,
-): RecruitmentCalendarEntry[] {
-  const entries: RecruitmentCalendarEntry[] = [];
-
-  for (const [characterId, windows] of Object.entries(RECRUITMENT_SCHEDULES)) {
-    const character = CHARACTERS.find((entry) => entry.id === characterId);
-    if (!character) {
-      continue;
-    }
-    for (const window of windows) {
-      const location = locations.find((entry) => entry.id === window.locationId);
-      const isActive =
-        journeyDay >= window.fromDay && (window.toDay === null || journeyDay <= window.toDay);
-      entries.push({
-        character,
-        locationLabel: location ? getLocationLabel(location, lang) : String(window.locationId),
-        periodLabel: formatRecruitmentPeriod(window.fromDay, window.toDay, window.note, months, onward, night),
-        fromDay: window.fromDay,
-        isActive,
-      });
-    }
-  }
-
-  for (const [locationIdStr, characterIds] of Object.entries(RECRUITS_BY_LOCATION)) {
-    const locationId = Number(locationIdStr);
-    const location = locations.find((entry) => entry.id === locationId);
-    for (const characterId of characterIds) {
-      if (RECRUITMENT_SCHEDULES[characterId]) {
-        continue;
-      }
-      const character = CHARACTERS.find((entry) => entry.id === characterId);
-      if (!character) {
-        continue;
-      }
-      entries.push({
-        character,
-        locationLabel: location ? getLocationLabel(location, lang) : String(locationId),
-        periodLabel: always,
-        fromDay: 0,
-        isActive: true,
-      });
-    }
-  }
-
-  return entries.sort(
-    (left, right) =>
-      left.fromDay - right.fromDay || left.character.name.localeCompare(right.character.name),
-  );
 }
 
 export function getStartPosition(hobbitonPoint: Point): Point {

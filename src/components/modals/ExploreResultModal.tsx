@@ -71,7 +71,7 @@ export function ExploreResultModal({
         </>
       ) : (
         <>
-          <div className="text-5xl leading-none">🔍</div>
+          <img src="/ui/lens.png" alt="" className="mx-auto size-14 object-contain" />
           <h2 className="mt-3 font-serif text-lg text-neutral-300">{t("location.exploreEmpty")}</h2>
         </>
       )}

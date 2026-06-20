@@ -214,7 +214,12 @@ export function CharacterModal({
                     onClick={() => setPickerOpen(true)}
                     className="flex w-full items-center gap-2 rounded text-left transition hover:opacity-80"
                   >
-                    <span className="text-lg leading-none">{equippedItem.icon}</span>
+                    <img
+                      src={equippedItem.icon}
+                      alt=""
+                      draggable={false}
+                      className="size-8 shrink-0 border border-neutral-700 bg-parchment object-contain"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-sky-100">{t(`item.${itemFamilyId(equippedItem.id)}.name`)}</p>
                       <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${itemFamilyId(equippedItem.id)}.desc`)}</p>
@@ -277,7 +282,12 @@ export function CharacterModal({
                           : "border-sky-800/70 bg-sky-900/30 hover:bg-sky-800/50"
                       } disabled:cursor-default disabled:opacity-35 disabled:hover:bg-sky-900/30`}
                     >
-                      <span className="text-3xl leading-none">{item.icon}</span>
+                      <img
+                        src={item.icon}
+                        alt=""
+                        draggable={false}
+                        className="size-12 border border-neutral-700 bg-parchment object-contain"
+                      />
                       <span className="text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(item.id)}.name`)}</span>
                       <span className="text-xs text-sky-300/80">{t(`item.${itemFamilyId(item.id)}.desc`)}</span>
                     </button>

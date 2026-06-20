@@ -210,14 +210,6 @@ export interface RawRecruitmentEntry {
   source?: string;
 }
 
-export interface RecruitmentCalendarEntry {
-  character: Character;
-  locationLabel: string;
-  periodLabel: string;
-  fromDay: number;
-  isActive: boolean;
-}
-
 export interface RecruitRefusalNotice {
   message: string;
   characterId?: string;

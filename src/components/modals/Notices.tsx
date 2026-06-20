@@ -114,7 +114,7 @@ export function FarmResultModal({ farmed, onClose }: { farmed: number | null; on
   const { t } = useTranslation();
   return (
     <Modal open={farmed !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-amber-800 p-6 text-center">
-      <div className="text-4xl">🍞</div>
+      <img src="/ui/food.png" alt="" className="mx-auto size-12 object-contain" />
       <h2 className="mt-2 font-serif text-xl text-amber-200">
         {(farmed ?? 0) > 0 ? t("farmResult.got", { n: farmed ?? 0 }) : t("farmResult.full")}
       </h2>

@@ -10,7 +10,12 @@ export function ItemTile({ item, count = 1 }: { item: Item; count?: number }) {
   const family = itemFamilyId(item.id);
   return (
     <div className="flex w-24 flex-col items-center gap-1 rounded border border-sky-800/70 bg-sky-900/30 px-2 py-2 text-center">
-      <span className="text-3xl leading-none">{item.icon}</span>
+      <img
+        src={item.icon}
+        alt=""
+        draggable={false}
+        className="size-12 border border-neutral-700 bg-parchment object-contain"
+      />
       <span className="text-xs font-semibold text-sky-100">
         {t(`item.${family}.name`)}
         {count > 1 ? ` ×${count}` : ""}

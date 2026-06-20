@@ -23,7 +23,6 @@
     "heroPathShow": "Show the hero's path",
     "heroPathHide": "Hide the hero's path",
     "heroPath": "Hero's path",
-    "calendar": "Recruitment calendar",
     "split": "Split the party",
     "switchSquad": "Switch squad (Tab)",
     "switchToSquad": "Take control: {{members}}",
@@ -134,15 +133,6 @@
     "close": "Close",
     "prev": "Previous",
     "next": "Next"
-  },
-  "calendar": {
-    "title": "Recruitment calendar",
-    "today": "Today: {{date}}. No schedule — always available.",
-    "now": "now",
-    "onward": "onward",
-    "night": "at night",
-    "always": "always",
-    "close": "Close"
   },
   "orodruin": {
     "title": "Orodruin",

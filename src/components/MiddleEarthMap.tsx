@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent,
-} from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { LocateFixed, Split, Square, Users, Wheat, ZoomIn } from "lucide-react";
 import { HoverHint } from "@/components/ui/HoverHint";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
@@ -34,8 +31,9 @@ import { OrodruinModal } from "@/components/modals/OrodruinModal";
 import { RecruitOfferModal } from "@/components/modals/RecruitOfferModal";
 import { LevelUpModal } from "@/components/modals/LevelUpModal";
 import { CreationModal } from "@/components/modals/CreationModal";
+import { usePersistentState } from "@/hooks/usePersistentState";
+import { useMapCamera } from "@/hooks/useMapCamera";
 import { Preloader } from "@/components/modals/Preloader";
-import { CalendarModal } from "@/components/modals/CalendarModal";
 import { SplitModal } from "@/components/modals/SplitModal";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { CharacterModal } from "@/components/modals/CharacterModal";
@@ -74,7 +72,6 @@ import {
   BOSS_NAMES,
   BOSSES_BY_LOCATION,
   BARAD_DUR_ID,
-  buildRecruitmentCalendar,
   CARN_DUM_ID,
   CORSAIRS_CITY_ID,
   CORSAIR_ENEMY,
@@ -84,14 +81,9 @@ import {
   CLOAKS_ENCOUNTER_MULTIPLIER,
   clamp,
   computeCharacterStats,
-  coverZoom,
   createEncounter,
   CREATION_POINTS,
   DEFAULT_PARTY,
-  DEFAULT_VIEW_SIZE,
-  DEFAULT_VISIBLE_FRACTION,
-  DEFAULT_ZOOM,
-  DEFAULT_ZOOM_BOOST,
   EAGLE_PRESENCE_CHANCE,
   EAGLE_STAY_DAYS,
   effectiveStats,
@@ -100,7 +92,6 @@ import {
   ENCOUNTER_CHANCE_PER_DAY,
   BOMBADIL_SLOW_FACTOR,
   EOMER_SPEED_MULTIPLIER,
-  fitZoom,
   FOLLOW_MARGIN_RATIO,
   FOOD_SUPPLY_LOCATION_IDS,
   FOOD_DAYS_BASE,
@@ -134,7 +125,6 @@ import {
   THEME_PREF_KEY,
   MAX_PATH_POINTS,
   MAX_WATER_CROSSING_CELLS,
-  MAX_ZOOM_FACTOR,
   MEMBER_PICKUP_RANGE,
   MILES_PER_DAY,
   MINAS_MORGUL_ID,
@@ -207,14 +197,12 @@ import {
   RINGWRAITH_FOES,
   writeSave,
   ZERO_BONUS,
-  ZOOM_WHEEL_SENSITIVITY,
 } from "@/game";
 import type {
   BattleState,
   Character,
   Combatant,
   DeathCause,
-  DragState,
   EncounterState,
   MapLocation,
   Monster,
@@ -225,6 +213,16 @@ import type {
   TransportId,
 } from "@/game";
 
+// Stable parse/serialize helpers for the persistent UI prefs (kept at module
+// scope so usePersistentState's effect doesn't re-run every render).
+const parsePrefBool = (raw: string) => raw === "1";
+const serializePrefBool = (value: boolean) => (value ? "1" : "0");
+const parseMapIndex = (raw: string) => {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 && n < MAP_VARIANTS.length ? n : MAP_VARIANTS.length - 1;
+};
+const parsePrefTheme = (raw: string): "dark" | "light" => (raw === "light" ? "light" : "dark");
+const identityPref = (value: string) => value;
 
 export default function MiddleEarthMap() {
   const { t, i18n } = useTranslation();
@@ -275,39 +273,13 @@ export default function MiddleEarthMap() {
   // these (to turn back) but can't enter more than MAX new ones — so a band of
   // water wider than that simply can't be crossed on foot.
   const waterRunRef = useRef<Set<string>>(new Set());
-  const dragRef = useRef<DragState>({
-    active: false,
-    moved: false,
-    pointerId: null,
-    startX: 0,
-    startY: 0,
-    startOffset: { x: 0, y: 0 },
-  });
-  // Active touch points and pinch-zoom gesture state (two-finger zoom on mobile).
-  const pointersRef = useRef<Map<number, Point>>(new Map());
-  const pinchRef = useRef<{ active: boolean; startDist: number; startZoom: number }>({
-    active: false,
-    startDist: 0,
-    startZoom: 1,
-  });
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  // The three camera layers (map, terrain overlay, marker overlay). During a
-  // pan we write their transforms straight to the DOM so a drag doesn't re-render
-  // the whole component every frame; React state catches up once on release.
-  const mapImgRef = useRef<HTMLImageElement | null>(null);
-  const terrainImgRef = useRef<HTMLImageElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
   // The travelling figure, moved imperatively each frame during a march so the
   // journey doesn't re-render the whole component 60×/sec (see the rAF loop).
   const figureRef = useRef<HTMLButtonElement | null>(null);
-  const offsetRef = useRef<Point | null>(null);
-  const zoomRef = useRef(DEFAULT_ZOOM);
-  const baseZoomRef = useRef(DEFAULT_ZOOM);
-  const viewRef = useRef<Size>({ width: DEFAULT_VIEW_SIZE, height: DEFAULT_VIEW_SIZE });
-  const initializedRef = useRef(false);
-  // Set when the user manually pans during a journey; suspends auto-follow until
-  // the next target so the camera doesn't snap back to the figure.
-  const followDisabledRef = useRef(false);
+  // Live "a modal is up — ignore map input" flag + tap-to-move handler, fed to
+  // the camera hook via refs so its gesture handlers stay stable.
+  const mapInputLockedRef = useRef(false);
+  const onTapRef = useRef<(clientX: number, clientY: number) => void>(() => {});
   // Current transport, mirrored into a ref so the rAF loop reads it live.
   const transportRef = useRef<TransportId | null>(null);
   const partyRef = useRef<string[]>(DEFAULT_PARTY);
@@ -337,16 +309,43 @@ export default function MiddleEarthMap() {
     [locations],
   );
 
-  const [view, setView] = useState<Size>({ width: DEFAULT_VIEW_SIZE, height: DEFAULT_VIEW_SIZE });
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const { animationSpeed, battleSpeed, cycleSpeed, cycleBattleSpeed } = useSpeedSettings();
-  const [offset, setOffset] = useState<Point>(() => {
-    const start = getStartPosition(hobbiton.point);
-    return {
-      x: DEFAULT_VIEW_SIZE / 2 - start.x * DEFAULT_ZOOM,
-      y: DEFAULT_VIEW_SIZE / 2 - start.y * DEFAULT_ZOOM,
-    };
+  // The whole map camera (zoom/offset/pan/pinch/wheel/follow/centering) lives in
+  // one hook; values come back under the same names the rest of the file uses.
+  const {
+    view,
+    zoom,
+    offset,
+    setOffset,
+    dragRef,
+    viewportRef,
+    mapImgRef,
+    terrainImgRef,
+    overlayRef,
+    offsetRef,
+    zoomRef,
+    baseZoomRef,
+    viewRef,
+    followDisabledRef,
+    clampOffset,
+    mapToLayer,
+    screenToMap,
+    centerOnPlayer,
+    cycleZoom,
+    writePanTransform,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    handlePointerCancel,
+  } = useMapCamera({
+    mapSize,
+    initialFocus: getStartPosition(hobbiton.point),
+    resizeFocus: hobbiton.point,
+    playerRef,
+    mapInputLockedRef,
+    onTapRef,
   });
+  const { terrainReady, getTerrainAtPoint } = useTerrainGrid(mapSize);
   const [player, setPlayer] = useState<Point>(() => {
     const start = initialSave?.player ?? getStartPosition(hobbiton.point);
     playerRef.current = start;
@@ -371,62 +370,34 @@ export default function MiddleEarthMap() {
   // Manually halted mid-journey: the destination (and its marker) is kept so the
   // march can be resumed; only a fresh target clears it.
   const [stopped, setStopped] = useState(false);
-  const [showTerrain, setShowTerrain] = useState(() => {
-    try {
-      return localStorage.getItem(TERRAIN_PREF_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(TERRAIN_PREF_KEY, showTerrain ? "1" : "0");
-    } catch {
-      // ignore storage errors (private mode, quota…)
-    }
-  }, [showTerrain]);
-  // Which of MAP_VARIANTS to draw as the background, remembered per browser.
-  // Defaults to the last variant (the colour-rendered map3).
-  const [mapIndex, setMapIndex] = useState(() => {
-    const fallback = MAP_VARIANTS.length - 1;
-    try {
-      const raw = localStorage.getItem(MAP_PREF_KEY);
-      if (raw === null) {
-        return fallback;
-      }
-      const saved = Number(raw);
-      return Number.isInteger(saved) && saved >= 0 && saved < MAP_VARIANTS.length ? saved : fallback;
-    } catch {
-      return fallback;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(MAP_PREF_KEY, String(mapIndex));
-    } catch {
-      // ignore storage errors (private mode, quota…)
-    }
-  }, [mapIndex]);
-  // Interface theme: "dark" (default) or "light" (parchment). Applied to the
-  // document root so the CSS-variable palette in index.css swaps everywhere.
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    try {
-      return localStorage.getItem(THEME_PREF_KEY) === "light" ? "light" : "dark";
-    } catch {
-      return "dark";
-    }
-  });
+  // Per-browser UI preferences, each mirrored to localStorage (see usePersistentState).
+  const [showTerrain, setShowTerrain] = usePersistentState(
+    TERRAIN_PREF_KEY,
+    false,
+    parsePrefBool,
+    serializePrefBool,
+  );
+  // Which of MAP_VARIANTS to draw as the background; defaults to the last (colour map3).
+  const [mapIndex, setMapIndex] = usePersistentState(
+    MAP_PREF_KEY,
+    MAP_VARIANTS.length - 1,
+    parseMapIndex,
+    String,
+  );
+  // Interface theme: "dark" (default) or "light" (parchment).
+  const [theme, setTheme] = usePersistentState<"dark" | "light">(
+    THEME_PREF_KEY,
+    "dark",
+    parsePrefTheme,
+    identityPref,
+  );
+  // Apply the theme to the document root so index.css's CSS-variable palette swaps.
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "light") {
       root.dataset.theme = "light";
     } else {
       delete root.dataset.theme;
-    }
-    try {
-      localStorage.setItem(THEME_PREF_KEY, theme);
-    } catch {
-      // ignore storage errors (private mode, quota…)
     }
   }, [theme]);
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
@@ -487,7 +458,6 @@ export default function MiddleEarthMap() {
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
   // Result of talking to a companion: a greeting or items handed over.
   const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
-  const [calendarOpen, setCalendarOpen] = useState(false);
   const [bearerId, setBearerId] = useState(initialSave?.bearerId ?? RING_BEARER_ID);
   const [transport, setTransport] = useState<TransportId | null>(initialSave?.transport ?? null);
   // Eagles of Manwë: offered only on some Carn Dûm visits, and they leave after
@@ -1503,17 +1473,8 @@ export default function MiddleEarthMap() {
     setOpenCharacterPaging(paging);
   }, []);
 
-  // Mirror view state into refs so the rAF loop reads current values without
-  // being a dependency (which would restart the animation on every pan/zoom).
-  useEffect(() => {
-    offsetRef.current = offset;
-  }, [offset]);
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
-  useEffect(() => {
-    viewRef.current = view;
-  }, [view]);
+  // Mirror transport into a ref so the rAF loop reads it live. (Camera state is
+  // mirrored inside useMapCamera.)
   useEffect(() => {
     transportRef.current = transport;
   }, [transport]);
@@ -1529,7 +1490,6 @@ export default function MiddleEarthMap() {
       !created ||
       ending !== null ||
       visitedLocation !== null ||
-      calendarOpen ||
       splitOpen ||
       openCharacterId !== null ||
       recruitOffer !== null ||
@@ -1549,7 +1509,6 @@ export default function MiddleEarthMap() {
       created,
       ending,
       visitedLocation,
-      calendarOpen,
       splitOpen,
       openCharacterId,
       recruitOffer,
@@ -1624,6 +1583,8 @@ export default function MiddleEarthMap() {
     valinorAttempt ||
     talkResult !== null ||
     tharbadSpeech !== null;
+  // Feed the live lock flag to the camera hook's gesture handlers.
+  mapInputLockedRef.current = mapInputLocked;
 
   // Close the settings dropdown when clicking anywhere outside it. The panel
   // wrapper stops pointer propagation, so in-panel clicks never reach here.
@@ -1757,45 +1718,6 @@ export default function MiddleEarthMap() {
     }
   }, [ending]);
 
-  const clampOffset = useCallback(
-    (nextOffset: Point, nextZoom: number): Point => {
-      const scaledWidth = mapSize.width * nextZoom;
-      const scaledHeight = mapSize.height * nextZoom;
-      return {
-        x: clamp(nextOffset.x, view.width - scaledWidth, 0),
-        y: clamp(nextOffset.y, view.height - scaledHeight, 0),
-      };
-    },
-    [mapSize, view],
-  );
-
-  // Position inside the overlay layer, which itself is translated by `offset`.
-  // Depends only on zoom (not offset), so panning the camera every frame doesn't
-  // re-project the markers/figure — only the layer's transform shifts.
-  const mapToLayer = useCallback((point: Point): Point => ({ x: point.x * zoom, y: point.y * zoom }), [zoom]);
-
-  const screenToMap = useCallback(
-    (screenPoint: Point): Point => ({
-      x: clamp((screenPoint.x - offset.x) / zoom, 0, mapSize.width),
-      y: clamp((screenPoint.y - offset.y) / zoom, 0, mapSize.height),
-    }),
-    [mapSize, offset, zoom],
-  );
-
-  const centerOnPlayer = useCallback(() => {
-    const figure = playerRef.current;
-    if (!figure) {
-      return;
-    }
-
-    const next = clampOffset(
-      { x: view.width / 2 - figure.x * zoom, y: view.height / 2 - figure.y * zoom },
-      zoom,
-    );
-    offsetRef.current = next;
-    setOffset(next);
-  }, [clampOffset, view, zoom]);
-
   // Take control of a splinter squad: park the current active party where it
   // stands, make the chosen squad live, halt any travel, and recenter on it.
   // Used by the squad switcher, marker taps, and the auto-refocus when a
@@ -1892,83 +1814,6 @@ export default function MiddleEarthMap() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mapInputLocked]);
 
-  // Step the zoom to the next preset (0.5× / 1× / 2× of the default fit) above
-  // the *current* zoom — so it stays in sync after a pinch — keeping the
-  // viewport centre fixed; wraps back to the smallest.
-  const cycleZoom = useCallback(() => {
-    if (mapInputLocked) {
-      return;
-    }
-    const presets = [0.5, 1, 2];
-    const base = baseZoomRef.current || 1;
-    const current = zoom / base;
-    const nextPreset = presets.find((p) => p > current + 0.05) ?? presets[0];
-    const minZoom = coverZoom(view, mapSize);
-    const maxZoom = Math.max(minZoom, base * MAX_ZOOM_FACTOR);
-    const nextZoom = clamp(base * nextPreset, minZoom, maxZoom);
-    const center = { x: view.width / 2, y: view.height / 2 };
-    const anchor = screenToMap(center);
-    const nextOffset = clampOffset(
-      { x: center.x - anchor.x * nextZoom, y: center.y - anchor.y * nextZoom },
-      nextZoom,
-    );
-    zoomRef.current = nextZoom;
-    setZoom(nextZoom);
-    offsetRef.current = nextOffset;
-    setOffset(nextOffset);
-  }, [mapInputLocked, zoom, view, mapSize, screenToMap, clampOffset]);
-
-
-  const { terrainReady, getTerrainAtPoint } = useTerrainGrid(mapSize);
-
-  const handleWheel = useCallback(
-    (event: WheelEvent) => {
-      const viewport = viewportRef.current;
-      if (!viewport || mapInputLocked) {
-        return;
-      }
-
-      event.preventDefault();
-      const bounds = viewport.getBoundingClientRect();
-      const cursor = {
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
-      };
-      const mapPoint = screenToMap(cursor);
-      const minZoom = coverZoom(view, mapSize);
-      const maxZoom = Math.max(minZoom, baseZoomRef.current * MAX_ZOOM_FACTOR);
-      // Multiplicative, delta-proportional zoom → smooth glide, not fixed steps.
-      const factor = Math.exp(-event.deltaY * ZOOM_WHEEL_SENSITIVITY);
-      const nextZoom = clamp(zoom * factor, minZoom, maxZoom);
-
-      if (nextZoom === zoom) {
-        return;
-      }
-
-      const nextOffset = clampOffset(
-        {
-          x: cursor.x - mapPoint.x * nextZoom,
-          y: cursor.y - mapPoint.y * nextZoom,
-        },
-        nextZoom,
-      );
-
-      setZoom(nextZoom);
-      setOffset(nextOffset);
-    },
-    [mapInputLocked, clampOffset, mapSize, screenToMap, view, zoom],
-  );
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) {
-      return undefined;
-    }
-
-    viewport.addEventListener("wheel", handleWheel, { passive: false });
-    return () => viewport.removeEventListener("wheel", handleWheel);
-  }, [handleWheel]);
-
   const setTargetFromClientPoint = useCallback(
     (clientX: number, clientY: number) => {
       if (autoPlayRef.current || !viewportRef.current) {
@@ -1992,190 +1837,8 @@ export default function MiddleEarthMap() {
     },
     [getTerrainAtPoint, screenToMap],
   );
-
-  // Begin a two-finger pinch: freeze the drag and remember the start spread/zoom.
-  const beginPinch = useCallback(() => {
-    const pts = [...pointersRef.current.values()];
-    if (pts.length < 2) {
-      return;
-    }
-    dragRef.current = { ...dragRef.current, active: false, pointerId: null };
-    pinchRef.current = {
-      active: true,
-      startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
-      startZoom: zoomRef.current,
-    };
-    followDisabledRef.current = true;
-  }, []);
-
-  const handlePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      // A modal is up: the map is inert (no pan, pinch, or click-to-move).
-      if (mapInputLocked) {
-        return;
-      }
-      // Touch/pen always tracked; for mouse only the primary button drags.
-      if (event.pointerType === "mouse" && event.button !== 0) {
-        return;
-      }
-
-      event.currentTarget.setPointerCapture(event.pointerId);
-      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-      if (pointersRef.current.size >= 2) {
-        beginPinch();
-        return;
-      }
-
-      dragRef.current = {
-        active: true,
-        moved: false,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        startOffset: offset,
-      };
-    },
-    [mapInputLocked, beginPinch, offset],
-  );
-
-  // Write the camera transform straight to the three layer nodes (map, terrain,
-  // marker overlay) — used to pan without a React re-render each frame.
-  const writePanTransform = useCallback((off: Point) => {
-    const translate = `translate(${off.x}px, ${off.y}px)`;
-    const scaled = `${translate} scale(${zoomRef.current})`;
-    if (mapImgRef.current) {
-      mapImgRef.current.style.transform = scaled;
-    }
-    if (terrainImgRef.current) {
-      terrainImgRef.current.style.transform = scaled;
-    }
-    if (overlayRef.current) {
-      overlayRef.current.style.transform = translate;
-    }
-  }, []);
-
-  const handlePointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (pointersRef.current.has(event.pointerId)) {
-        pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      }
-
-      // Two fingers → pinch-zoom around their midpoint.
-      if (pinchRef.current.active && pointersRef.current.size >= 2) {
-        const viewport = viewportRef.current;
-        if (!viewport) {
-          return;
-        }
-        const [a, b] = [...pointersRef.current.values()];
-        const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        if (dist <= 0) {
-          return;
-        }
-        const bounds = viewport.getBoundingClientRect();
-        const mid = { x: (a.x + b.x) / 2 - bounds.left, y: (a.y + b.y) / 2 - bounds.top };
-        const minZoom = coverZoom(view, mapSize);
-        const maxZoom = Math.max(minZoom, baseZoomRef.current * MAX_ZOOM_FACTOR);
-        const nextZoom = clamp(
-          (pinchRef.current.startZoom * dist) / pinchRef.current.startDist,
-          minZoom,
-          maxZoom,
-        );
-        const liveOffset = offsetRef.current ?? offset;
-        const liveZoom = zoomRef.current;
-        const mapPoint = { x: (mid.x - liveOffset.x) / liveZoom, y: (mid.y - liveOffset.y) / liveZoom };
-        const nextOffset = clampOffset(
-          { x: mid.x - mapPoint.x * nextZoom, y: mid.y - mapPoint.y * nextZoom },
-          nextZoom,
-        );
-        zoomRef.current = nextZoom;
-        offsetRef.current = nextOffset;
-        setZoom(nextZoom);
-        setOffset(nextOffset);
-        return;
-      }
-
-      const drag = dragRef.current;
-      if (!drag.active || drag.pointerId !== event.pointerId) {
-        return;
-      }
-
-      const deltaX = event.clientX - drag.startX;
-      const deltaY = event.clientY - drag.startY;
-
-      if (Math.hypot(deltaX, deltaY) > 3) {
-        drag.moved = true;
-        // User took over the camera — stop auto-following for this journey.
-        followDisabledRef.current = true;
-      }
-
-      const draggedOffset = clampOffset(
-        {
-          x: drag.startOffset.x + deltaX,
-          y: drag.startOffset.y + deltaY,
-        },
-        zoom,
-      );
-      // Pan imperatively: write the layer transforms straight to the DOM and keep
-      // offsetRef in sync, but DON'T setState — that would re-render this whole
-      // component every frame. The committed offset is set once on release. (The
-      // render reads offsetRef while a drag is active, so any incidental re-render
-      // mid-drag still uses the live position rather than the stale state.)
-      offsetRef.current = draggedOffset;
-      writePanTransform(draggedOffset);
-    },
-    [clampOffset, mapSize, offset, view, zoom, writePanTransform],
-  );
-
-  const releasePointer = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    pointersRef.current.delete(event.pointerId);
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      // pointer may already be released
-    }
-    if (pointersRef.current.size < 2) {
-      pinchRef.current.active = false;
-    }
-  }, []);
-
-  const handlePointerUp = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const wasPinching = pinchRef.current.active;
-      const drag = dragRef.current;
-      releasePointer(event);
-
-      if (wasPinching || pinchRef.current.active) {
-        return;
-      }
-      if (drag.active && drag.pointerId === event.pointerId) {
-        dragRef.current = { ...drag, active: false, pointerId: null };
-        if (drag.moved) {
-          // Commit the imperatively-panned offset to state now that the drag is done.
-          if (offsetRef.current) {
-            setOffset(offsetRef.current);
-          }
-        } else {
-          setTargetFromClientPoint(event.clientX, event.clientY);
-        }
-      }
-    },
-    [releasePointer, setTargetFromClientPoint],
-  );
-
-  const handlePointerCancel = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      releasePointer(event);
-      const drag = dragRef.current;
-      if (drag.active && drag.pointerId === event.pointerId) {
-        dragRef.current = { ...drag, active: false, pointerId: null };
-        if (drag.moved && offsetRef.current) {
-          setOffset(offsetRef.current);
-        }
-      }
-    },
-    [releasePointer],
-  );
+  // Let the camera hook's pointer-up call tap-to-move without a stale closure.
+  onTapRef.current = setTargetFromClientPoint;
 
   const handleMarkerClick = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>, location: MapLocation) => {
@@ -2724,62 +2387,6 @@ export default function MiddleEarthMap() {
     return () => window.clearTimeout(timer);
   }, [autoPlay, battle]);
 
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) {
-      return undefined;
-    }
-
-    const observer = new ResizeObserver(([entry]) => {
-      const width = Math.round(entry.contentRect.width);
-      const height = Math.round(entry.contentRect.height);
-      if (width === 0 || height === 0) {
-        return;
-      }
-
-      const nextView = { width, height };
-      setView(nextView);
-      viewRef.current = nextView;
-
-      const cover = coverZoom(nextView, mapSize);
-
-      // On the first real measurement, fit the default ~quarter-of-map view and
-      // center it on the figure (default zoom depends on the actual viewport).
-      if (!initializedRef.current) {
-        initializedRef.current = true;
-        const figure = playerRef.current ?? hobbiton.point;
-        const fit = Math.max(fitZoom(nextView, mapSize, DEFAULT_VISIBLE_FRACTION) * DEFAULT_ZOOM_BOOST, cover);
-        baseZoomRef.current = fit;
-        const centered = {
-          x: clamp(width / 2 - figure.x * fit, width - mapSize.width * fit, 0),
-          y: clamp(height / 2 - figure.y * fit, height - mapSize.height * fit, 0),
-        };
-        setZoom(fit);
-        zoomRef.current = fit;
-        setOffset(centered);
-        offsetRef.current = centered;
-        return;
-      }
-
-      // On later resizes, if the current zoom no longer covers the viewport,
-      // bump it up to the cover zoom and re-clamp the offset.
-      if (zoomRef.current < cover) {
-        const o = offsetRef.current ?? { x: 0, y: 0 };
-        const clampedOffset = {
-          x: clamp(o.x, width - mapSize.width * cover, 0),
-          y: clamp(o.y, height - mapSize.height * cover, 0),
-        };
-        setZoom(cover);
-        zoomRef.current = cover;
-        setOffset(clampedOffset);
-        offsetRef.current = clampedOffset;
-      }
-    });
-
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [hobbiton, mapSize]);
-
 
   useEffect(() => {
     // No destination, or the march is manually halted: stay put. When `stopped`
@@ -3278,6 +2885,9 @@ export default function MiddleEarthMap() {
           isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
           (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
           !banishedTraitors.has(character.id) &&
+          // The dead don't return — a companion who fell (in battle or to hunger)
+          // is never offered for recruitment again.
+          !deathCauseById[character.id] &&
           // A companion who bolted with the Ring is hunted in the wild, not found
           // waiting at his old haunt (Boromir at Rivendell, Saruman at Isengard…).
           character.id !== rogueBearerId &&
@@ -3478,19 +3088,6 @@ export default function MiddleEarthMap() {
       centerOnPlayer();
     },
     [locations, applyTransport, centerOnPlayer, getTerrainAtPoint],
-  );
-  const recruitmentCalendar = useMemo(
-    () =>
-      buildRecruitmentCalendar(
-        locations,
-        journeyDay,
-        months,
-        lang,
-        t("calendar.onward"),
-        t("calendar.night"),
-        t("calendar.always"),
-      ),
-    [locations, journeyDay, months, lang, t],
   );
   // Markers only re-project when the camera (offset/zoom) or labels change — not
   // on every movement frame where only the figure moves.
@@ -4610,7 +4207,10 @@ export default function MiddleEarthMap() {
                   onPointerUp={(event) => event.stopPropagation()}
                   className="pointer-events-auto flex h-9 w-fit items-center gap-2 rounded border border-neutral-700 bg-neutral-900/90 px-2 text-sm text-neutral-200"
                 >
-                  <HoverHint label={t("ui.foodTitle")}>🍞 {food}</HoverHint>
+                  <HoverHint label={t("ui.foodTitle")} className="inline-flex items-center gap-1">
+                    <img src="/ui/food.png" alt="" className="size-5 object-contain" />
+                    {food}
+                  </HoverHint>
                   <HoverHint
                     label={
                       transport
@@ -4936,14 +4536,6 @@ export default function MiddleEarthMap() {
             setVisitedLocation(null);
             setTargetLocation(null);
           }}
-        />
-
-        <CalendarModal
-          open={calendarOpen}
-          entries={recruitmentCalendar}
-          journeyDate={journeyDate}
-          charName={charName}
-          onClose={() => setCalendarOpen(false)}
         />
 
         <SplitModal
