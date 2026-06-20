@@ -8,6 +8,7 @@ import {
   CIRITH_UNGOL_ID,
   CORSAIRS_CITY_ID,
   ISENGARD_ID,
+  KHAMUL_NAME,
   MINAS_MORGUL_ID,
   MORIA_GATE_ID,
   RECRUITMENT_PLACE_IDS,
@@ -119,6 +120,51 @@ export const NAZGUL_ENEMY: Monster = {
   luck: 5,
 };
 
+// Khamûl, Lord of Dol Guldur — a full Nazgûl (same build as NAZGUL_ENEMY) but a
+// distinct name so his defeat is tracked separately. Heads the wraith garrison
+// while the Nine are still abroad; not in FLEE_AT_HALF_FOES, so he stands to the
+// death here. The two riders flanking him do too (the fight sets wraithsStand).
+export const KHAMUL_ENEMY: Monster = {
+  name: KHAMUL_NAME,
+  icon: "/enemies/nazgul.png",
+  tier: 4,
+  strength: 18,
+  defense: 18,
+  intelligence: 8,
+  luck: 5,
+};
+
+// Captain of the orc garrison left holding Dol Guldur once the wraiths are gone.
+export const DOL_GULDUR_CAPTAIN: Monster = {
+  name: "Капитан Дол Гулдура",
+  icon: "/enemies/urukhai.png",
+  tier: 4,
+  strength: 12,
+  defense: 12,
+  intelligence: 4,
+  luck: 4,
+};
+
+// The rank-and-file orcs garrisoning Dol Guldur, fought alongside its captain
+// (and the wraiths, if the Nine haven't yet gathered in Mordor). Sized so that
+// with the three wraiths the whole pack runs ~7 Nazgûl-equivalent in HP — below
+// the nine-strong Minas Morgul host, not above it.
+export const DOL_GULDUR_GARRISON: Monster[] = [
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
+  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
+  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
+];
+
+// Dol Guldur's two possible bosses (wraith lord or, once the Nine are in Mordor,
+// the orc captain) are tracked like any other lair boss.
+BOSS_NAMES.add(KHAMUL_ENEMY.name);
+BOSS_NAMES.add(DOL_GULDUR_CAPTAIN.name);
+
 // The Witch-king as he led the assault on Weathertop — stronger than his riders
 // and the pack's anchor, but here (like them) driven off at half rather than
 // slain. A far cry from the terror he becomes at Minas Morgul, where the wraiths
@@ -202,6 +248,7 @@ export const ROHAN_ARMORY_IDS = ["rohan_spear", "rohan_sword", "rohan_shield", "
 
 export const ITEMS: Item[] = [
   { id: "numenor_dagger", icon: "🗡️", strengthVsUndead: 3 },
+  { id: "old_helmet", icon: "🪖", defense: 2 },
   { id: "sting", icon: "⚔️", strength: 3 },
   { id: "mithril_mail", icon: "🛡️", defense: 3 },
   { id: "palantir", icon: "🔮", intelligence: 3 },
@@ -216,7 +263,9 @@ export const ITEMS: Item[] = [
   { id: "galadriel_hairs", icon: "💛", holders: ["gimli"], luck: 3 },
   { id: "mithril_helmet", icon: "🪖", defense: 2 },
   { id: "numenor_blade", icon: "🔪", strengthVsUndead: 3 },
-  { id: "book_of_mazarbul", icon: "📖", holders: ["gimli"], luck: 5 },
+  { id: "book_of_mazarbul", icon: "📖", intelligence: 3 },
+  // Ring of Durin — only a dwarf (Gimli) may bear it.
+  { id: "durin_ring", icon: "💍", holders: ["gimli"], defense: 5, luck: 5 },
   { id: "elven_arrows", icon: "🎯", strengthVsOrcs: 4 },
   { id: "rohan_spear", icon: "🔱", strength: 3 },
   { id: "rohan_sword", icon: "🗡️", strength: 3 },
@@ -306,6 +355,8 @@ export const LOCATION_IMAGE_FILE: Record<number, string> = {
   29: "29_umbar.jpg",
   30: "30_buckland.jpg",
   31: "31_esgaroth.jpg",
+  32: "32_tharbad.jpg",
+  33: "33_dol_guldur.jpg",
 };
 
 export const INITIAL_HERO_PROGRESS = heroProgressDataJson as Record<string, HeroInitialProgress>;

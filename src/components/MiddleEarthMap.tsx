@@ -36,6 +36,7 @@ import {
   SamCatchUpModal,
 } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
+import { SpeechModal } from "@/components/modals/SpeechModal";
 import type { Ending } from "@/components/modals/EndingModal";
 import { RogueFledModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
@@ -136,6 +137,8 @@ import {
   ISENGARD_ID,
   ERECH_ID,
   WEATHERTOP_ID,
+  THARBAD_ID,
+  DOL_GULDUR_ID,
   levelForExp,
   loadSave,
   locationData,
@@ -161,6 +164,9 @@ import {
   MORIA_GATE_ID,
   MOVE_SUBSTEPS,
   NAZGUL_ENEMY,
+  KHAMUL_ENEMY,
+  DOL_GULDUR_CAPTAIN,
+  DOL_GULDUR_GARRISON,
   WEATHERTOP_WITCHKING,
   NON_BEARERS,
   ORODRUIN_ID,
@@ -460,6 +466,10 @@ export default function MiddleEarthMap() {
   // Gandalf has cowed Gríma at Edoras, but he stays on the card until the player
   // dismisses the "he flees" notice — only then does he actually slip away.
   const [grimaFleePending, setGrimaFleePending] = useState(false);
+  // Entry speeches at Tharbad (Gandalf, then Boromir, whoever is along), shown
+  // one modal after another. Reset on leaving so each visit greets afresh.
+  const [tharbadSpeech, setTharbadSpeech] = useState<"gandalf" | "boromir" | null>(null);
+  const tharbadGreetedRef = useRef(false);
   // The Osgiliath ruins yield a Gondorian armoury cache exactly once.
   const [osgiliathCacheFound, setOsgiliathCacheFound] = useState<boolean>(
     initialSave?.osgiliathCacheFound ?? false,
@@ -1200,11 +1210,14 @@ export default function MiddleEarthMap() {
           setBattle(null);
         }
       } else if (survivors.length === 0) {
-        setEnding((prev) => prev ?? "battle");
+        // The whole group fell, but the bearer wasn't among them — he'd already
+        // fled with the Ring (or there's no bearer). That's "all for nothing",
+        // not "the bearer fell in battle".
+        setEnding((prev) => prev ?? (rogueBearerId || !bearerId ? "nothing" : "battle"));
         setBattle(null);
       }
     },
-    [bearerId, party],
+    [bearerId, party, rogueBearerId],
   );
 
   // Flee: a single luck-weighted attempt per battle. Succeed and you leave
@@ -1570,7 +1583,8 @@ export default function MiddleEarthMap() {
     exploreResult !== null ||
     pendingDisembark !== null ||
     valinorAttempt ||
-    talkResult !== null;
+    talkResult !== null ||
+    tharbadSpeech !== null;
 
   // Close the settings dropdown when clicking anywhere outside it. The panel
   // wrapper stops pointer propagation, so in-panel clicks never reach here.
@@ -2450,7 +2464,13 @@ export default function MiddleEarthMap() {
         }
         const bossPack =
           loc.id === MINAS_MORGUL_ID
-            ? [lockedBoss, ...Array.from({ length: 8 }, () => NAZGUL_ENEMY)]
+            ? [
+                lockedBoss,
+                ...Array.from(
+                  { length: defeatedBosses.has(KHAMUL_ENEMY.name) ? 5 : 8 },
+                  () => NAZGUL_ENEMY,
+                ),
+              ]
             : [lockedBoss];
         setEncounter({
           monster: lockedBoss,
@@ -3153,9 +3173,22 @@ export default function MiddleEarthMap() {
   // The Ringwraiths stop roaming once leaderless (Witch-king thrown down) or once
   // the Ring they hunt is unmade.
   const nazgulGone = wraithsBroken || ringDestroyed;
+  // Dol Guldur fields three wraiths (Khamûl + two riders) over its orc garrison
+  // — but only until the Nine gather in Mordor: once Minas Morgul has been laid
+  // eyes on, the wraiths are no longer here and only the orc captain holds it.
+  const dolGuldurHasWraiths = !visitedLocationIds.has(MINAS_MORGUL_ID);
+  const dolGuldurBoss = dolGuldurHasWraiths ? KHAMUL_ENEMY : DOL_GULDUR_CAPTAIN;
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
+    }
+    // Dol Guldur's boss swaps with the wraith state and is cleared by either
+    // version's defeat, so a half-finished orc fight can't reopen as a wraith one.
+    if (visitedLocation.id === DOL_GULDUR_ID) {
+      if (defeatedBosses.has(KHAMUL_ENEMY.name) || defeatedBosses.has(DOL_GULDUR_CAPTAIN.name)) {
+        return null;
+      }
+      return dolGuldurBoss;
     }
     const boss = BOSSES_BY_LOCATION[visitedLocation.id];
     if (!boss || defeatedBosses.has(boss.name)) {
@@ -3689,7 +3722,14 @@ export default function MiddleEarthMap() {
       }
       // A defeated boss never returns to its lair.
       const foe = battle.enemies[0];
-      const activeBoss = visitedLocation ? BOSSES_BY_LOCATION[visitedLocation.id] : null;
+      const activeBoss = !visitedLocation
+        ? null
+        : visitedLocation.id === DOL_GULDUR_ID
+          ? // Whichever Dol Guldur boss led this fight — wraith lord or orc captain.
+            visitedLocationIds.has(MINAS_MORGUL_ID)
+            ? DOL_GULDUR_CAPTAIN
+            : KHAMUL_ENEMY
+          : BOSSES_BY_LOCATION[visitedLocation.id];
       if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
       }
@@ -3699,7 +3739,7 @@ export default function MiddleEarthMap() {
         setGrimaSlain(true);
       }
     }
-  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, banishTraitor]);
+  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, visitedLocationIds, banishTraitor]);
 
   // Show the next level-up allocation modal when the queue advances — but only
   // after the battle modal is dismissed, so it doesn't pop up over the fight.
@@ -3759,6 +3799,24 @@ export default function MiddleEarthMap() {
       setEnding((prev) => prev ?? "sauron");
     }
   }, [visitedLocation]);
+
+  // Arriving at the ruins of Tharbad: Gandalf, then Boromir (whoever is along)
+  // each say their piece. With neither present the place is just empty.
+  useEffect(() => {
+    if (visitedLocation?.id !== THARBAD_ID) {
+      tharbadGreetedRef.current = false;
+      return;
+    }
+    if (tharbadGreetedRef.current) {
+      return;
+    }
+    tharbadGreetedRef.current = true;
+    if (party.includes("gandalf")) {
+      setTharbadSpeech("gandalf");
+    } else if (party.includes("boromir")) {
+      setTharbadSpeech("boromir");
+    }
+  }, [visitedLocation, party]);
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
   // per member for 2 food while anyone is hurt, or starve (5% max health/day)
@@ -4689,12 +4747,23 @@ export default function MiddleEarthMap() {
             if (locationBoss) {
               const bossPack =
                 visitedLocation?.id === MINAS_MORGUL_ID
-                  ? [locationBoss, ...Array.from({ length: 8 }, () => NAZGUL_ENEMY)]
-                  : visitedLocation?.id === WEATHERTOP_ID
-                    ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
-                    : visitedLocation?.id === ISENGARD_ID && grimaFled
-                      ? [locationBoss, GRIMA_ENEMY]
-                      : [locationBoss];
+                  ? // Three of the Nine fall at Dol Guldur — leaving six here, not nine.
+                    [
+                      locationBoss,
+                      ...Array.from(
+                        { length: defeatedBosses.has(KHAMUL_ENEMY.name) ? 5 : 8 },
+                        () => NAZGUL_ENEMY,
+                      ),
+                    ]
+                  : visitedLocation?.id === DOL_GULDUR_ID
+                    ? dolGuldurHasWraiths
+                      ? [locationBoss, NAZGUL_ENEMY, NAZGUL_ENEMY, ...DOL_GULDUR_GARRISON]
+                      : [locationBoss, ...DOL_GULDUR_GARRISON]
+                    : visitedLocation?.id === WEATHERTOP_ID
+                      ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
+                      : visitedLocation?.id === ISENGARD_ID && grimaFled
+                        ? [locationBoss, GRIMA_ENEMY]
+                        : [locationBoss];
               // Already chose the fight at the location — go straight to battle,
               // skipping the "you met a foe" encounter prompt.
               startBattle({
@@ -4702,8 +4771,11 @@ export default function MiddleEarthMap() {
                 dangerous: true,
                 solo: bossPack.length === 1,
                 pack: bossPack,
-                // The wraiths stand and fight to the death in their own lair.
-                wraithsStand: visitedLocation?.id === MINAS_MORGUL_ID,
+                // Wraiths stand and fight to the death in their lairs (Minas
+                // Morgul, and Dol Guldur while the Nine are still abroad).
+                wraithsStand:
+                  visitedLocation?.id === MINAS_MORGUL_ID ||
+                  (visitedLocation?.id === DOL_GULDUR_ID && dolGuldurHasWraiths),
               });
             }
           }}
@@ -5045,6 +5117,19 @@ export default function MiddleEarthMap() {
         />
 
         <EaglesLeftModal open={eaglesLeft} onClose={() => setEaglesLeft(false)} />
+
+        <SpeechModal
+          open={tharbadSpeech !== null}
+          icon={tharbadSpeech ? (CHARACTERS.find((c) => c.id === tharbadSpeech)?.icon ?? "") : ""}
+          name={tharbadSpeech ? charName(tharbadSpeech) : ""}
+          text={tharbadSpeech ? t(`tharbad.${tharbadSpeech}`) : ""}
+          buttonLabel={t(
+            tharbadSpeech === "gandalf" && party.includes("boromir") ? "tharbad.next" : "tharbad.close",
+          )}
+          onClose={() =>
+            setTharbadSpeech((cur) => (cur === "gandalf" && party.includes("boromir") ? "boromir" : null))
+          }
+        />
 
         <SamCatchUpModal
           open={samCatchUpOpen && !ending}

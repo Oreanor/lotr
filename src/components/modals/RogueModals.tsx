@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import { iconVariant } from "@/game";
 import type { Character } from "@/game";
 
 // Shown once when a companion succumbs to the Ring (or a betrayer wins) and bolts
@@ -20,9 +19,9 @@ export function RogueFledModal({
       {fled && (
         <>
           <img
-            src={iconVariant(fled.icon, "dark")}
+            src={fled.icon}
             alt=""
-            className="mx-auto mb-3 size-24 border border-amber-800 object-cover"
+            className="mx-auto mb-3 size-24 border border-amber-800 bg-parchment object-cover"
           />
           <h2 className="font-serif text-2xl text-amber-400">{t("rogue.fledTitle")}</h2>
           <p className="mt-3 text-sm text-neutral-300">

@@ -102,6 +102,8 @@ export const OSGILIATH_ID = 25;
 export const UMBAR_ID = 29;
 export const BUCKLAND_ID = 30;
 export const ESGAROTH_ID = 31;
+export const THARBAD_ID = 32;
+export const DOL_GULDUR_ID = 33;
 
 // Locations that can be searched for a hidden item (location id → item id).
 // Isengard's palantír only turns up once Saruman is beaten there.
@@ -111,6 +113,8 @@ export const EXPLORE_ITEM_BY_LOCATION: Record<number, string> = {
   [EREBOR_ID]: "mithril_helmet",
   [MORIA_GATE_ID]: "book_of_mazarbul",
   [OLD_FOREST_ID]: "numenor_blade",
+  [THARBAD_ID]: "old_helmet",
+  [DOL_GULDUR_ID]: "durin_ring",
 };
 
 // Auto-play march: Buckland → Bree → Rivendell → Moria → Lothlórien → Rohan → Minas Tirith → Doom.
@@ -311,13 +315,16 @@ export const ELF_IDS = new Set([
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
 export const NAZGUL_NAME = "Назгул";
 export const WITCHKING_NAME = "Король-чародей";
-export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, WITCHKING_NAME]);
+// Khamûl, the wraith lord of Dol Guldur — a Ringwraith for invisibility/Éowyn
+// purposes, but absent from FLEE_AT_HALF_FOES so he is slain outright, not driven off.
+export const KHAMUL_NAME = "Кхамул";
+export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, WITCHKING_NAME, KHAMUL_NAME]);
 // The Ringwraiths are driven off at half strength instead of slain — at
 // Weathertop and on the open road. Only in Minas Morgul, the seat of their
 // power, do they stand and fight to the death (the battle sets `wraithsStand`).
 export const FLEE_AT_HALF_FOES = new Set([NAZGUL_NAME, WITCHKING_NAME]);
 // The Ringwraiths — Éowyn, no living man, strikes them a touch harder.
-export const RINGWRAITH_FOES = new Set([NAZGUL_NAME, WITCHKING_NAME]);
+export const RINGWRAITH_FOES = new Set([NAZGUL_NAME, WITCHKING_NAME, KHAMUL_NAME]);
 export const EOWYN_NAZGUL_BONUS = 3;
 // Haldir, marchwarden, lands heavier blows on orc-kin; Thranduil crits trolls
 // far more often. Both are secondary-elf combat abilities.

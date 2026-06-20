@@ -237,6 +237,12 @@
     "chooseNewBearer": "Who shall carry the Ring?",
     "giveRing": "Give the Ring to {{name}}"
   },
+  "tharbad": {
+    "gandalf": "Desolation holds this place now. But the Greenway will open again, and between the Isen and the Greyflood, where the land ran wild, men and fields will return.",
+    "boromir": "The crossing at Tharbad... The ford over the Gwathló was so perilous that I lost my horse here and went on afoot.",
+    "next": "Next",
+    "close": "Leave"
+  },
   "creation": {
     "title": "Create your hero",
     "pointsLeft": "Points left: {{n}}",
@@ -337,6 +343,10 @@
       "name": "Gondorian hauberk",
       "desc": "+3 defense"
     },
+    "old_helmet": {
+      "name": "Old helmet",
+      "desc": "+2 to defense"
+    },
     "numenor_dagger": {
       "name": "Númenórean dagger",
       "desc": "+3 strength against the undead"
@@ -395,7 +405,11 @@
     },
     "book_of_mazarbul": {
       "name": "Book of Mazarbul",
-      "desc": "+5 luck for a dwarf"
+      "desc": "+3 to intelligence"
+    },
+    "durin_ring": {
+      "name": "Ring of Durin",
+      "desc": "+5 defense and +5 luck (dwarf only)"
     },
     "elven_arrows": {
       "name": "Elven arrows",
