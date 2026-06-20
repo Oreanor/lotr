@@ -1,9 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Hourglass } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
-import { LocationPreview } from "@/components/ui/LocationPreview";
+import { ZoomableImage } from "@/components/ui/ZoomableImage";
 import { ScrollRow } from "@/components/ui/ScrollRow";
 import { TransportIcon } from "@/components/ui/TransportIcon";
 import type { Character, MapLocation, Monster, TransportId } from "@/game";
@@ -83,11 +81,7 @@ export function LocationModal({
   note?: string | null;
 }) {
   const { t } = useTranslation();
-  const [imageOpen, setImageOpen] = useState(false);
   const blocked = refusalOpen ? " pointer-events-none" : "";
-  useEffect(() => {
-    setImageOpen(false);
-  }, [imageSrc, location]);
 
   return (
     <Modal
@@ -111,37 +105,13 @@ export function LocationModal({
           </button>
 
           {imageSrc && (
-            <LocationPreview
+            <ZoomableImage
               key={imageSrc}
               src={imageSrc}
               alt={locationName}
               initiallyLoaded={imageInitiallyLoaded}
-              onOpen={() => setImageOpen(true)}
             />
           )}
-
-          {imageOpen &&
-            imageSrc &&
-            createPortal(
-              <div
-                className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
-                onClick={() => setImageOpen(false)}
-                onPointerDown={(event) => event.stopPropagation()}
-                onPointerUp={(event) => event.stopPropagation()}
-              >
-                <div
-                  className="inline-flex max-h-[calc(100dvh-2rem)] max-w-[calc(100dvw-2rem)] overflow-hidden rounded border-2 border-amber-700 bg-neutral-950 p-1 shadow-2xl shadow-black/60"
-                >
-                  <img
-                    src={imageSrc}
-                    alt={locationName}
-                    draggable="false"
-                    className="max-h-[calc(100dvh-2.75rem)] max-w-[calc(100dvw-2.75rem)] select-none object-contain md:h-[calc(100dvh-2.75rem)] md:w-auto"
-                  />
-                </div>
-              </div>,
-              document.body,
-            )}
 
           {note && <p className="mt-3 text-sm text-neutral-400">{note}</p>}
 

@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme palette. Values are space-separated RGB channels so Tailwind's
+   /opacity modifiers (e.g. bg-neutral-900/90) keep working via <alpha-value>.
+   Dark theme (default) mirrors Tailwind's stock neutral scale; light theme
+   inverts the ramp into warm parchment tones. Parchment stays light in both so
+   portraits never alias against a dark fill. */
+:root {
+  --parchment: 241 209 138;
+  --n-50: 250 250 250;
+  --n-100: 245 245 245;
+  --n-200: 229 229 229;
+  --n-300: 212 212 212;
+  --n-400: 163 163 163;
+  --n-500: 115 115 115;
+  --n-600: 82 82 82;
+  --n-700: 64 64 64;
+  --n-800: 38 38 38;
+  --n-900: 23 23 23;
+  --n-950: 10 10 10;
+}
+[data-theme="light"] {
+  --parchment: 241 209 138;
+  --n-50: 251 246 230;
+  --n-100: 42 34 22;
+  --n-200: 63 52 34;
+  --n-300: 92 78 52;
+  --n-400: 125 106 71;
+  --n-500: 156 133 89;
+  --n-600: 185 160 106;
+  --n-700: 216 192 132;
+  --n-800: 232 214 163;
+  --n-900: 241 226 184;
+  --n-950: 247 239 216;
+}
+
 /* Short translucent white stripe sweeping across a struck unit. The sweep
    angle is set per hit via --sweep-angle so it runs from one of four sides. */
 @keyframes hit-sweep {

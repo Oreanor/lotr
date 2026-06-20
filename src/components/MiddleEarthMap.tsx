@@ -11,11 +11,13 @@ import {
   Gauge,
   LocateFixed,
   Map as MapIcon,
+  Moon,
   RotateCcw,
   Route,
   Settings,
   Split,
   Square,
+  Sun,
   Users,
   Wheat,
   ZoomIn,
@@ -142,6 +144,7 @@ import {
   mapImage,
   MAP_VARIANTS,
   MAP_PREF_KEY,
+  THEME_PREF_KEY,
   MAX_PATH_POINTS,
   MAX_WATER_CROSSING_CELLS,
   MAX_ZOOM_FACTOR,
@@ -395,6 +398,28 @@ export default function MiddleEarthMap() {
       // ignore storage errors (private mode, quota…)
     }
   }, [mapIndex]);
+  // Interface theme: "dark" (default) or "light" (parchment). Applied to the
+  // document root so the CSS-variable palette in index.css swaps everywhere.
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    try {
+      return localStorage.getItem(THEME_PREF_KEY) === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "light") {
+      root.dataset.theme = "light";
+    } else {
+      delete root.dataset.theme;
+    }
+    try {
+      localStorage.setItem(THEME_PREF_KEY, theme);
+    } catch {
+      // ignore storage errors (private mode, quota…)
+    }
+  }, [theme]);
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
   // Whether the open details panel can page through the party (arrows). True
   // only when opened from the party HUD or by clicking the hero on the map.
@@ -3099,6 +3124,9 @@ export default function MiddleEarthMap() {
   // The Witch-king cast down at Minas Morgul breaks the wraiths: they stop
   // roaming and any unfought riding (e.g. still lurking at Weathertop) disperses.
   const wraithsBroken = defeatedBosses.has(BOSSES_BY_LOCATION[MINAS_MORGUL_ID].name);
+  // The Ringwraiths stop roaming once leaderless (Witch-king thrown down) or once
+  // the Ring they hunt is unmade.
+  const nazgulGone = wraithsBroken || ringDestroyed;
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
@@ -3985,8 +4013,7 @@ export default function MiddleEarthMap() {
         parkedMembers.map((id) => ({ id })),
         slainRoamingRecruits,
         grimaRoaming,
-        // With the Ring gone the leaderless wraiths no longer hunt the wilds.
-        wraithsBroken || ringDestroyed,
+        nazgulGone,
       );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
       if (rolled.monster.recruitId === "eomer" && kinPresent) {
@@ -4015,7 +4042,7 @@ export default function MiddleEarthMap() {
       }
       setEncounter({ monster: CORSAIR_ENEMY, dangerous: true, solo: pack.length === 1, pack });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, wraithsBroken, ringDestroyed, corsairPeace, mapSize]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, nazgulGone, ringDestroyed, corsairPeace, mapSize]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -4069,7 +4096,7 @@ export default function MiddleEarthMap() {
       others.map((id) => ({ id })),
       slainRoamingRecruits,
       grimaRoaming,
-      wraithsBroken || ringDestroyed,
+      nazgulGone,
     );
     if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
       return; // the roused Dead deter barrow-wights — no fight
@@ -4099,8 +4126,7 @@ export default function MiddleEarthMap() {
     slainRoamingRecruits,
     deadSummoned,
     grimaRoaming,
-    wraithsBroken,
-    ringDestroyed,
+    nazgulGone,
     focusSquad,
   ]);
 
@@ -4305,6 +4331,17 @@ export default function MiddleEarthMap() {
                   </span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
+                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+              >
+                {theme === "light" ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
+                <span className="flex-1">{t("ui.theme")}</span>
+                <span className="text-xs text-neutral-400">
+                  {theme === "light" ? t("ui.themeLight") : t("ui.themeDark")}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={cycleSpeed}

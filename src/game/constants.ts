@@ -63,6 +63,8 @@ export const TERRAIN_OVERLAY_OPACITY = 0.3;
 export const TERRAIN_PREF_KEY = "lotr-terrain";
 // Remembers the chosen MAP_VARIANTS index between sessions.
 export const MAP_PREF_KEY = "lotr-map";
+// Remembers the light/dark interface theme between sessions.
+export const THEME_PREF_KEY = "lotr-theme";
 // Narrow water (rivers) up to this many cells can be forded; wider water blocks.
 export const MAX_WATER_CROSSING_CELLS = 2;
 // The figure stays within this margin (share of viewport) from each edge.
