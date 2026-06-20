@@ -110,7 +110,9 @@ export function BattleModal({
                 return (
                   <div key={ally.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                     <div
-                      className={`relative size-14 overflow-hidden border bg-parchment sm:size-20 ${
+                      className={`relative size-14 overflow-hidden border sm:size-20 ${
+                        ally.hp <= 0 ? "bg-neutral-600" : "bg-parchment"
+                      } ${
                         battle.attacker === ally.key
                           ? "border-amber-400 ring-2 ring-amber-400"
                           : "border-neutral-700"
@@ -120,7 +122,7 @@ export function BattleModal({
                         src={allyIcon(ally)}
                         alt=""
                         className={`size-full object-cover ${
-                          ally.hp <= 0 ? "opacity-30 grayscale" : invisible ? "opacity-40" : ""
+                          ally.hp <= 0 ? "grayscale opacity-50" : invisible ? "opacity-40" : ""
                         }`}
                       />
                       {invisible && (
@@ -160,7 +162,9 @@ export function BattleModal({
               {battle.enemies.map((enemy) => (
                 <div key={enemy.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                   <div
-                    className={`relative flex size-14 items-center justify-center overflow-hidden border bg-parchment text-2xl sm:size-20 sm:text-3xl ${
+                    className={`relative flex size-14 items-center justify-center overflow-hidden border text-2xl sm:size-20 sm:text-3xl ${
+                      enemyDown(enemy) ? "bg-neutral-600" : "bg-parchment"
+                    } ${
                       battle.attacker === enemy.key
                         ? "border-amber-400 ring-2 ring-amber-400"
                         : "border-neutral-700"
@@ -171,7 +175,7 @@ export function BattleModal({
                         src={enemyIcon(enemy)}
                         alt=""
                         className={`size-full object-cover ${
-                          enemyDown(enemy) ? "opacity-30 grayscale" : battle.invisibleEnemy ? "opacity-40" : ""
+                          enemyDown(enemy) ? "grayscale opacity-50" : battle.invisibleEnemy ? "opacity-40" : ""
                         }`}
                       />
                     ) : (

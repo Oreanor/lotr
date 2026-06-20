@@ -49,13 +49,17 @@ function StatRow({ label, value }: { label: string; value: string }) {
 function Portrait({ src, label, found }: { src: string; label: string; found: boolean }) {
   return (
     <div title={label} className="flex flex-col items-center gap-0.5">
-      <div className="aspect-square w-full overflow-hidden rounded border border-neutral-700 bg-parchment">
+      <div
+        className={`aspect-square w-full overflow-hidden rounded border border-neutral-700 ${
+          found ? "bg-parchment" : "bg-neutral-600"
+        }`}
+      >
         <img
           src={src}
           alt={label}
           draggable={false}
           className={`size-full select-none object-cover transition ${
-            found ? "" : "opacity-20 grayscale"
+            found ? "" : "grayscale opacity-50"
           }`}
         />
       </div>

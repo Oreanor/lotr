@@ -4244,32 +4244,24 @@ export default function MiddleEarthMap() {
             transformOrigin: "0 0",
           }}
         />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 max-w-none select-none"
-          style={{
-            width: mapSize.width,
-            height: mapSize.height,
-            backgroundColor: "#d8b777",
-            mixBlendMode: "multiply",
-            opacity: 0.24,
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-            transformOrigin: "0 0",
-          }}
-        />
-        <img
-          alt="Terrain overlay"
-          draggable="false"
-          src={terrainImage}
-          className="pointer-events-none absolute left-0 top-0 max-w-none select-none [image-rendering:pixelated] mix-blend-multiply"
-          style={{
-            width: mapSize.width,
-            height: mapSize.height,
-            opacity: showTerrain && terrainReady ? TERRAIN_OVERLAY_OPACITY : 0,
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-            transformOrigin: "0 0",
-          }}
-        />
+        {/* Terrain overlay only mounts when enabled — otherwise its mix-blend
+            layer would keep re-compositing every frame for nothing. (The warm
+            sepia tone is baked into the map art itself, so no tint layer here.) */}
+        {showTerrain && terrainReady && (
+          <img
+            alt="Terrain overlay"
+            draggable="false"
+            src={terrainImage}
+            className="pointer-events-none absolute left-0 top-0 max-w-none select-none [image-rendering:pixelated] mix-blend-multiply"
+            style={{
+              width: mapSize.width,
+              height: mapSize.height,
+              opacity: TERRAIN_OVERLAY_OPACITY,
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              transformOrigin: "0 0",
+            }}
+          />
+        )}
 
         {/* Overlay layer: only the container's translate tracks the camera each
             frame, so markers/figure aren't re-projected on pan. Children sit at
