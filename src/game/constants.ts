@@ -34,6 +34,10 @@ export const DEFAULT_ZOOM = 1;
 // so the map always at least covers the viewport (no empty gaps).
 export const MAX_ZOOM_FACTOR = 4;
 export const ZOOM_STEP = 0.5;
+// Wheel/trackpad zoom is multiplicative and proportional to the scroll delta
+// (zoom × e^(−deltaY × this)), so it glides smoothly instead of jumping by a
+// fixed step. ~1.16× per typical 100px wheel notch; trackpads nudge finely.
+export const ZOOM_WHEEL_SENSITIVITY = 0.0015;
 // Roughly this share of the whole map area is visible by default.
 export const DEFAULT_VISIBLE_FRACTION = 0.25;
 // Start zoomed in a bit more than the plain fit (×1.5 closer).

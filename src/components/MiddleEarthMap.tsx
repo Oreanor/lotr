@@ -4,24 +4,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  BarChart3,
-  Eye,
-  EyeOff,
-  Gauge,
-  LocateFixed,
-  Map as MapIcon,
-  Moon,
-  RotateCcw,
-  Route,
-  Settings,
-  Split,
-  Square,
-  Sun,
-  Users,
-  Wheat,
-  ZoomIn,
-} from "lucide-react";
+import { LocateFixed, Split, Square, Users, Wheat, ZoomIn } from "lucide-react";
 import { HoverHint } from "@/components/ui/HoverHint";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { TransportIcon } from "@/components/ui/TransportIcon";
@@ -37,6 +20,7 @@ import {
 } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
 import { SpeechModal } from "@/components/modals/SpeechModal";
+import { MapSettingsMenu } from "@/components/map/MapSettingsMenu";
 import type { Ending } from "@/components/modals/EndingModal";
 import { RogueFledModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
@@ -223,7 +207,7 @@ import {
   RINGWRAITH_FOES,
   writeSave,
   ZERO_BONUS,
-  ZOOM_STEP,
+  ZOOM_WHEEL_SENSITIVITY,
 } from "@/game";
 import type {
   BattleState,
@@ -307,6 +291,12 @@ export default function MiddleEarthMap() {
     startZoom: 1,
   });
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  // The three camera layers (map, terrain overlay, marker overlay). During a
+  // pan we write their transforms straight to the DOM so a drag doesn't re-render
+  // the whole component every frame; React state catches up once on release.
+  const mapImgRef = useRef<HTMLImageElement | null>(null);
+  const terrainImgRef = useRef<HTMLImageElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const offsetRef = useRef<Point | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const baseZoomRef = useRef(DEFAULT_ZOOM);
@@ -1858,6 +1848,26 @@ export default function MiddleEarthMap() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canSwitchSquads, switchSquad]);
 
+  // Space halts the march — same as the Stop button. Ignored while a modal is up
+  // or when a control/field has focus (so it still activates buttons / types).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" && event.key !== " ") {
+        return;
+      }
+      const el = event.target as HTMLElement | null;
+      if (mapInputLocked || (el && el.closest("button, input, textarea, select"))) {
+        return;
+      }
+      event.preventDefault();
+      setTarget(null);
+      setTargetLocation(null);
+      setStopped(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mapInputLocked]);
+
   // Step the zoom to the next preset (0.5× / 1× / 2× of the default fit) above
   // the *current* zoom — so it stays in sync after a pinch — keeping the
   // viewport centre fixed; wraps back to the smallest.
@@ -1901,10 +1911,11 @@ export default function MiddleEarthMap() {
         y: event.clientY - bounds.top,
       };
       const mapPoint = screenToMap(cursor);
-      const direction = event.deltaY > 0 ? -1 : 1;
       const minZoom = coverZoom(view, mapSize);
       const maxZoom = Math.max(minZoom, baseZoomRef.current * MAX_ZOOM_FACTOR);
-      const nextZoom = clamp(zoom + direction * ZOOM_STEP, minZoom, maxZoom);
+      // Multiplicative, delta-proportional zoom → smooth glide, not fixed steps.
+      const factor = Math.exp(-event.deltaY * ZOOM_WHEEL_SENSITIVITY);
+      const nextZoom = clamp(zoom * factor, minZoom, maxZoom);
 
       if (nextZoom === zoom) {
         return;
@@ -2004,6 +2015,22 @@ export default function MiddleEarthMap() {
     [mapInputLocked, beginPinch, offset],
   );
 
+  // Write the camera transform straight to the three layer nodes (map, terrain,
+  // marker overlay) — used to pan without a React re-render each frame.
+  const writePanTransform = useCallback((off: Point) => {
+    const translate = `translate(${off.x}px, ${off.y}px)`;
+    const scaled = `${translate} scale(${zoomRef.current})`;
+    if (mapImgRef.current) {
+      mapImgRef.current.style.transform = scaled;
+    }
+    if (terrainImgRef.current) {
+      terrainImgRef.current.style.transform = scaled;
+    }
+    if (overlayRef.current) {
+      overlayRef.current.style.transform = translate;
+    }
+  }, []);
+
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (pointersRef.current.has(event.pointerId)) {
@@ -2065,12 +2092,15 @@ export default function MiddleEarthMap() {
         },
         zoom,
       );
-      // Keep the ref in sync so the auto-camera resumes from where the user
-      // dropped the map, not from a stale value.
+      // Pan imperatively: write the layer transforms straight to the DOM and keep
+      // offsetRef in sync, but DON'T setState — that would re-render this whole
+      // component every frame. The committed offset is set once on release. (The
+      // render reads offsetRef while a drag is active, so any incidental re-render
+      // mid-drag still uses the live position rather than the stale state.)
       offsetRef.current = draggedOffset;
-      setOffset(draggedOffset);
+      writePanTransform(draggedOffset);
     },
-    [clampOffset, mapSize, offset, view, zoom],
+    [clampOffset, mapSize, offset, view, zoom, writePanTransform],
   );
 
   const releasePointer = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2096,7 +2126,12 @@ export default function MiddleEarthMap() {
       }
       if (drag.active && drag.pointerId === event.pointerId) {
         dragRef.current = { ...drag, active: false, pointerId: null };
-        if (!drag.moved) {
+        if (drag.moved) {
+          // Commit the imperatively-panned offset to state now that the drag is done.
+          if (offsetRef.current) {
+            setOffset(offsetRef.current);
+          }
+        } else {
           setTargetFromClientPoint(event.clientX, event.clientY);
         }
       }
@@ -2110,6 +2145,9 @@ export default function MiddleEarthMap() {
       const drag = dragRef.current;
       if (drag.active && drag.pointerId === event.pointerId) {
         dragRef.current = { ...drag, active: false, pointerId: null };
+        if (drag.moved && offsetRef.current) {
+          setOffset(offsetRef.current);
+        }
       }
     },
     [releasePointer],
@@ -4253,6 +4291,11 @@ export default function MiddleEarthMap() {
     focusSquad,
   ]);
 
+  // While a pan is in flight the camera is driven imperatively (offsetRef), so
+  // any incidental re-render must read the live offset — not the stale state —
+  // or it would snap the map back. Otherwise the committed state is the source.
+  const panOffset = dragRef.current.active && offsetRef.current ? offsetRef.current : offset;
+
   return (
     <section className="fixed inset-0 bg-white p-1 sm:p-[18px]">
       <div
@@ -4266,6 +4309,7 @@ export default function MiddleEarthMap() {
         onPointerCancel={handlePointerCancel}
       >
         <img
+          ref={mapImgRef}
           alt="Middle-earth map"
           draggable="false"
           src={MAP_VARIANTS[mapIndex] ?? mapImage}
@@ -4273,7 +4317,7 @@ export default function MiddleEarthMap() {
           style={{
             width: mapSize.width,
             height: mapSize.height,
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
             transformOrigin: "0 0",
           }}
         />
@@ -4282,6 +4326,7 @@ export default function MiddleEarthMap() {
             sepia tone is baked into the map art itself, so no tint layer here.) */}
         {showTerrain && terrainReady && (
           <img
+            ref={terrainImgRef}
             alt="Terrain overlay"
             draggable="false"
             src={terrainImage}
@@ -4290,7 +4335,7 @@ export default function MiddleEarthMap() {
               width: mapSize.width,
               height: mapSize.height,
               opacity: TERRAIN_OVERLAY_OPACITY,
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
             }}
           />
@@ -4300,8 +4345,9 @@ export default function MiddleEarthMap() {
             frame, so markers/figure aren't re-projected on pan. Children sit at
             point×zoom (constant pixel size — no scale on this layer). */}
         <div
+          ref={overlayRef}
           className="pointer-events-none absolute left-0 top-0"
-          style={{ transform: `translate(${offset.x}px, ${offset.y}px)`, transformOrigin: "0 0" }}
+          style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, transformOrigin: "0 0" }}
         >
           {locationMarkers}
 
@@ -4398,121 +4444,35 @@ export default function MiddleEarthMap() {
           </button>
         </div>
 
-        <div
-          className="absolute right-4 top-4 z-50"
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((prev) => !prev)}
-            aria-label={t("ui.settings")}
-            title={t("ui.settings")}
-            aria-pressed={settingsOpen}
-            className="flex size-9 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800 aria-pressed:bg-neutral-800"
-          >
-            <Settings className="size-4" />
-          </button>
-          {settingsOpen && (
-            <div className="absolute right-0 top-full mt-2 flex w-52 flex-col gap-0.5 rounded border border-neutral-700 bg-neutral-900/95 p-1.5 shadow-2xl">
-              <button
-                type="button"
-                onClick={() => setShowTerrain((prev) => !prev)}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                {showTerrain ? <Eye className="size-4 shrink-0" /> : <EyeOff className="size-4 shrink-0" />}
-                <span className="flex-1">{t("ui.terrain")}</span>
-                <span className="text-xs text-neutral-400">{showTerrain ? t("ui.on") : t("ui.off")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowHeroPath((prev) => !prev)}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <Route className="size-4 shrink-0" />
-                <span className="flex-1">{t("ui.heroPath")}</span>
-                <span className="text-xs text-neutral-400">{showHeroPath ? t("ui.on") : t("ui.off")}</span>
-              </button>
-              {MAP_VARIANTS.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setMapIndex((prev) => (prev + 1) % MAP_VARIANTS.length)}
-                  className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-                >
-                  <MapIcon className="size-4 shrink-0" />
-                  <span className="flex-1">{t("ui.map")}</span>
-                  <span className="text-xs text-neutral-400">
-                    {mapIndex + 1}/{MAP_VARIANTS.length}
-                  </span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                {theme === "light" ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
-                <span className="flex-1">{t("ui.theme")}</span>
-                <span className="text-xs text-neutral-400">
-                  {theme === "light" ? t("ui.themeLight") : t("ui.themeDark")}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={cycleSpeed}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <Gauge className="size-4 shrink-0" />
-                <span className="flex-1">{t("ui.speed")}</span>
-                <span className="text-xs text-neutral-400">{animationSpeed}×</span>
-              </button>
-              <div className="my-1 border-t border-neutral-800" />
-              <button
-                type="button"
-                onClick={toggleLang}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <span className="flex size-4 shrink-0 items-center justify-center text-[11px] font-bold">
-                  {lang === "en" ? "RU" : "EN"}
-                </span>
-                <span className="flex-1">{lang === "en" ? "Русский" : "English"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStatsOpen(true);
-                  setSettingsOpen(false);
-                }}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <BarChart3 className="size-4 shrink-0" />
-                <span className="flex-1">{t("ui.stats")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setHelpOpen(true);
-                  setSettingsOpen(false);
-                }}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <span className="flex size-4 shrink-0 items-center justify-center text-base font-bold">?</span>
-                <span className="flex-1">{t("ui.help")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRestartConfirm(true);
-                  setSettingsOpen(false);
-                }}
-                className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
-              >
-                <RotateCcw className="size-4 shrink-0" />
-                <span className="flex-1">{t("ui.restart")}</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <MapSettingsMenu
+          open={settingsOpen}
+          onToggle={() => setSettingsOpen((prev) => !prev)}
+          showTerrain={showTerrain}
+          onToggleTerrain={() => setShowTerrain((prev) => !prev)}
+          showHeroPath={showHeroPath}
+          onToggleHeroPath={() => setShowHeroPath((prev) => !prev)}
+          mapIndex={mapIndex}
+          mapCount={MAP_VARIANTS.length}
+          onCycleMap={() => setMapIndex((prev) => (prev + 1) % MAP_VARIANTS.length)}
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
+          speed={animationSpeed}
+          onCycleSpeed={cycleSpeed}
+          lang={lang}
+          onToggleLang={toggleLang}
+          onStats={() => {
+            setStatsOpen(true);
+            setSettingsOpen(false);
+          }}
+          onHelp={() => {
+            setHelpOpen(true);
+            setSettingsOpen(false);
+          }}
+          onRestart={() => {
+            setRestartConfirm(true);
+            setSettingsOpen(false);
+          }}
+        />
 
         {/* HUD overlay: date + controls + party float above the map, top-left */}
         <div className="pointer-events-none absolute left-0 top-0 z-40 flex flex-col gap-3 p-4 text-neutral-200">
