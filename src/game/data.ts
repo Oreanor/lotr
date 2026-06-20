@@ -59,6 +59,7 @@ export const CHARACTERS: Character[] = [
   { id: "grima", name: "Грима Гнилоуст", icon: "/icons/grima.png", strength: 5, defense: 2, intelligence: 7, luck: 2, resilience: 10 },
   { id: "gollum", name: "Голлум", icon: "/icons/gollum.png", strength: 4, defense: 3, intelligence: 5, luck: 9, resilience: 20, ringExposure: 0.6 },
   { id: "king_dead", name: "Король Мёртвых", icon: "/icons/wight.png", strength: 8, defense: 8, intelligence: 6, luck: 4, resilience: 999 },
+  { id: "treebeard", name: "Древобород", icon: "/icons/treebeard.png", strength: 12, defense: 5, intelligence: 12, luck: 3, resilience: 999 },
 ];
 
 export const PLAYER_ICON = CHARACTERS[0].icon;
@@ -191,6 +192,19 @@ export const EOMER_ENEMY: Monster = {
   intelligence: 6,
   luck: 6,
   recruitId: "eomer",
+};
+// Treebeard roams Fangorn. Met peacefully he offers to join; with Saruman in the
+// company he turns on it instead (the page decides which, and strips recruitId
+// for the hostile fight). Same combat build as his character self.
+export const TREEBEARD_ENEMY: Monster = {
+  name: "Древобород",
+  icon: "/icons/treebeard.png",
+  tier: 4,
+  strength: 12,
+  defense: 5,
+  intelligence: 12,
+  luck: 3,
+  recruitId: "treebeard",
 };
 export const GOLLUM_ENEMY: Monster = {
   name: "Голлум",

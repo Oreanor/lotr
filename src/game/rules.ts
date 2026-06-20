@@ -19,6 +19,9 @@ import {
   ENEMY_TARGET_INT_FLOOR,
   ENEMY_TARGET_INT_CEIL,
   EOMER_ENCOUNTER_CHANCE,
+  FANGORN_CENTER,
+  FANGORN_HALF,
+  TREEBEARD_ENCOUNTER_CHANCE,
   FOOD_DAYS_BASE,
   FOOD_DAYS_HORSE,
   CRIT_MAX_CHANCE,
@@ -69,6 +72,7 @@ import {
   AUTO_RIVENDELL_COUNCIL_DAY,
   CHARACTERS,
   EOMER_ENEMY,
+  TREEBEARD_ENEMY,
   GOLLUM_ENEMY,
   GRIMA_ENEMY,
   LOCATION_IMAGE_FILE,
@@ -250,6 +254,7 @@ export function rollEncounter(
   slainRoamingRecruits: ReadonlySet<string>,
   grimaRoaming = false,
   wraithsBroken = false,
+  treebeardGone = false,
 ): { monster: Monster; dangerous: boolean; solo: boolean } {
   // A masterless Gríma, skulking the wilds — a rare, feeble foe.
   if (grimaRoaming && Math.random() < GRIMA_ENCOUNTER_CHANCE) {
@@ -268,6 +273,19 @@ export function rollEncounter(
     Math.random() < EOMER_ENCOUNTER_CHANCE
   ) {
     return { monster: EOMER_ENEMY, dangerous: false, solo: true };
+  }
+  // Treebeard in Fangorn (gone once the Ents have taken Isengard). The page reads
+  // his recruitId to greet or fight him; he comes alone.
+  const inFangorn =
+    Math.abs(point.x - FANGORN_CENTER.x) < FANGORN_HALF &&
+    Math.abs(point.y - FANGORN_CENTER.y) < FANGORN_HALF;
+  if (
+    inFangorn &&
+    !treebeardGone &&
+    !roamingRecruitBlocked("treebeard", party, leftBehind, slainRoamingRecruits) &&
+    Math.random() < TREEBEARD_ENCOUNTER_CHANCE
+  ) {
+    return { monster: TREEBEARD_ENEMY, dangerous: false, solo: true };
   }
   // With the Witch-king thrown down, the leaderless wraiths no longer roam.
   if (!wraithsBroken && Math.random() < NAZGUL_ENCOUNTER_CHANCE) {

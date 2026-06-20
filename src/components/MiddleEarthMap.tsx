@@ -297,6 +297,9 @@ export default function MiddleEarthMap() {
   const mapImgRef = useRef<HTMLImageElement | null>(null);
   const terrainImgRef = useRef<HTMLImageElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  // The travelling figure, moved imperatively each frame during a march so the
+  // journey doesn't re-render the whole component 60×/sec (see the rAF loop).
+  const figureRef = useRef<HTMLButtonElement | null>(null);
   const offsetRef = useRef<Point | null>(null);
   const zoomRef = useRef(DEFAULT_ZOOM);
   const baseZoomRef = useRef(DEFAULT_ZOOM);
@@ -353,6 +356,10 @@ export default function MiddleEarthMap() {
     () => [initialSave?.player ?? getStartPosition(hobbiton.point)],
   );
   const [showHeroPath, setShowHeroPath] = useState(false);
+  // Latest-value ref for the rAF travel loop (which closes over stale state):
+  // only churn the hero-path state per frame while the trail is actually shown.
+  const showHeroPathRef = useRef(showHeroPath);
+  showHeroPathRef.current = showHeroPath;
   const [journeyDay, setJourneyDay] = useState(initialSave?.journeyDay ?? 0);
   const [target, setTarget] = useState<Point | null>(null);
   const [targetLocation, setTargetLocation] = useState<MapLocation | null>(null);
@@ -456,6 +463,8 @@ export default function MiddleEarthMap() {
   // Gandalf has cowed Gríma at Edoras, but he stays on the card until the player
   // dismisses the "he flees" notice — only then does he actually slip away.
   const [grimaFleePending, setGrimaFleePending] = useState(false);
+  // Shown once: Treebeard's farewell at fallen Isengard (he stays to tend it).
+  const [treebeardFarewell, setTreebeardFarewell] = useState(false);
   // Entry speeches at Tharbad (Gandalf, then Boromir, whoever is along), shown
   // one modal after another. Reset on leaving so each visit greets afresh.
   const [tharbadSpeech, setTharbadSpeech] = useState<"gandalf" | "boromir" | null>(null);
@@ -2823,7 +2832,20 @@ export default function MiddleEarthMap() {
       }
     }
 
+    // Commit the imperatively-driven figure/camera back into React state. Called
+    // at every stop so the rest of the app (figure render, save, camera) picks up
+    // the final position once the per-frame imperative march ends.
+    function syncTravelState() {
+      if (playerRef.current) {
+        setPlayer(playerRef.current);
+      }
+      if (offsetRef.current) {
+        setOffset(offsetRef.current);
+      }
+    }
+
     function finishTravel(visitLocation: MapLocation | null) {
+      syncTravelState();
       if (visitLocation) {
         openVisitedLocationRef.current(visitLocation);
       } else {
@@ -3035,6 +3057,7 @@ export default function MiddleEarthMap() {
           frameRef.current = requestAnimationFrame(step);
           return;
         }
+        syncTravelState();
         setIsMoving(false);
         frameRef.current = null;
         return;
@@ -3049,7 +3072,7 @@ export default function MiddleEarthMap() {
       // Road into the West rather than sail off the map.
       if (onShip && nextPlayer.x <= 14 && getTerrainAtPoint(nextPlayer).name === "water") {
         playerRef.current = nextPlayer;
-        setPlayer(nextPlayer);
+        syncTravelState();
         setValinorAttempt(true);
         setTarget(null);
         setTargetLocation(null);
@@ -3063,6 +3086,8 @@ export default function MiddleEarthMap() {
       // On landing, put ashore exactly at the harbour (if a marker was clicked) or
       // at the point that was tapped, not wherever the hull happened to touch land.
       if (onShip && getTerrainAtPoint(nextPlayer).name !== "water") {
+        playerRef.current = nextPlayer;
+        syncTravelState();
         setPendingDisembark({
           point: arrivalLocation ? arrivalLocation.point : activeTarget,
           location: arrivalLocation,
@@ -3079,8 +3104,18 @@ export default function MiddleEarthMap() {
 
       journeyMilesRef.current = nextJourneyMiles;
       playerRef.current = nextPlayer;
-      setPlayer(nextPlayer);
-      setHeroPath((path) => appendPathPoint(path, nextPlayer, trailCapRef.current));
+      // Move the figure imperatively — no per-frame setState, so the march no
+      // longer re-renders the whole component every frame. State is committed at
+      // the next stop (see syncTravelState). The render reads playerRef while
+      // isMoving, so any incidental re-render mid-march stays in sync.
+      if (figureRef.current) {
+        figureRef.current.style.left = `${nextPlayer.x * zoomRef.current}px`;
+        figureRef.current.style.top = `${nextPlayer.y * zoomRef.current}px`;
+      }
+      // Only churn the trail's state when it's actually being drawn.
+      if (showHeroPathRef.current) {
+        setHeroPath((path) => appendPathPoint(path, nextPlayer, trailCapRef.current));
+      }
 
       // Pan the map only once the figure crosses the margin band near an edge,
       // but never while the user is dragging — otherwise both fight over offset.
@@ -3113,7 +3148,8 @@ export default function MiddleEarthMap() {
             y: clamp(nextOffsetY, camView.height - mapSize.height * camZoom, 0),
           };
           offsetRef.current = clampedOffset;
-          setOffset(clampedOffset);
+          // Follow imperatively too (committed at the next stop).
+          writePanTransform(clampedOffset);
         }
       }
 
@@ -3149,7 +3185,9 @@ export default function MiddleEarthMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animationSpeed, defeatedBosses, getTerrainAtPoint, locations, recruitCharacter, target, targetLocation, stopped]);
 
-  const playerLayer = mapToLayer(player);
+  // While marching the figure is driven imperatively (playerRef), so an
+  // incidental re-render must read the live position, not the stale state.
+  const playerLayer = mapToLayer(isMoving && playerRef.current ? playerRef.current : player);
   const targetLayer = target ? mapToLayer(target) : null;
   // Only project the trail when it's actually shown. Layer coords (zoom-only),
   // so panning doesn't remap it.
@@ -3188,7 +3226,12 @@ export default function MiddleEarthMap() {
   const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
   const sarumanFriendly = (() => {
     // Once Wormtongue has slunk to Isengard, Saruman is beyond parley.
-    if (party.includes("gandalf") || defeatedBosses.has(sarumanBossName) || grimaFled) {
+    if (
+      party.includes("gandalf") ||
+      party.includes("treebeard") ||
+      defeatedBosses.has(sarumanBossName) ||
+      grimaFled
+    ) {
       return false;
     }
     const bearer = CHARACTERS.find((c) => c.id === bearerId);
@@ -3211,6 +3254,9 @@ export default function MiddleEarthMap() {
   // A fled Gríma with no Isengard left to run to (Saruman already beaten) skulks
   // the wild until someone puts him down.
   const grimaRoaming = grimaFled && !grimaSlain && defeatedBosses.has(sarumanBossName);
+  // Once Saruman falls the Ents take Isengard — Treebeard settles there and no
+  // longer roams Fangorn or agrees to join.
+  const treebeardSettled = defeatedBosses.has(sarumanBossName);
   const recruitsHere = visitedLocation
     ? CHARACTERS.filter(
         (character) =>
@@ -3877,6 +3923,21 @@ export default function MiddleEarthMap() {
     }
   }, [visitedLocation]);
 
+  // At fallen Isengard, Treebeard (if met but not recruited) bids farewell once —
+  // he stays to heal the land the Ents have taken, and won't march.
+  useEffect(() => {
+    if (
+      visitedLocation?.id === ISENGARD_ID &&
+      treebeardSettled &&
+      metCharacterIds.has("treebeard") &&
+      !party.includes("treebeard") &&
+      !treebeardFarewell
+    ) {
+      setTreebeardFarewell(true);
+      showRecruitRefusal(t("refuse.treebeardStays"), "treebeard");
+    }
+  }, [visitedLocation, treebeardSettled, metCharacterIds, party, treebeardFarewell, showRecruitRefusal, t]);
+
   // Arriving at the ruins of Tharbad: Gandalf, then Boromir (whoever is along)
   // each say their piece. With neither present the place is just empty.
   useEffect(() => {
@@ -4175,9 +4236,20 @@ export default function MiddleEarthMap() {
         slainRoamingRecruits,
         grimaRoaming,
         nazgulGone,
+        treebeardSettled,
       );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
-      if (rolled.monster.recruitId === "eomer" && kinPresent) {
+      if (rolled.monster.recruitId === "treebeard") {
+        if (party.includes("saruman")) {
+          // The company harbours Saruman — Treebeard falls on it (no joining).
+          const hostile = { ...rolled, monster: { ...rolled.monster, recruitId: undefined } };
+          setEncounter(createEncounter(hostile, party.length, position));
+        } else {
+          // Met in peace among the trees, he offers to come along.
+          setPeacefulOffer(true);
+          setRecruitOffer("treebeard");
+        }
+      } else if (rolled.monster.recruitId === "eomer" && kinPresent) {
         // With his kin along, Éomer meets the party peacefully and offers to join.
         setPeacefulOffer(true);
         setRecruitOffer("eomer");
@@ -4203,7 +4275,7 @@ export default function MiddleEarthMap() {
       }
       setEncounter({ monster: CORSAIR_ENEMY, dangerous: true, solo: pack.length === 1, pack });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, nazgulGone, ringDestroyed, corsairPeace, mapSize]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, nazgulGone, ringDestroyed, treebeardSettled, corsairPeace, mapSize]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -4258,6 +4330,8 @@ export default function MiddleEarthMap() {
       slainRoamingRecruits,
       grimaRoaming,
       nazgulGone,
+      // Treebeard only seeks the main company, never a splinter group.
+      true,
     );
     if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
       return; // the roused Dead deter barrow-wights — no fight
@@ -4294,7 +4368,8 @@ export default function MiddleEarthMap() {
   // While a pan is in flight the camera is driven imperatively (offsetRef), so
   // any incidental re-render must read the live offset — not the stale state —
   // or it would snap the map back. Otherwise the committed state is the source.
-  const panOffset = dragRef.current.active && offsetRef.current ? offsetRef.current : offset;
+  const panOffset =
+    (dragRef.current.active || isMoving) && offsetRef.current ? offsetRef.current : offset;
 
   return (
     <section className="fixed inset-0 bg-white p-1 sm:p-[18px]">
@@ -4416,6 +4491,7 @@ export default function MiddleEarthMap() {
           )}
 
           <button
+            ref={figureRef}
             type="button"
             aria-label={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}
             title={figureCharacter ? charName(figureCharacter.id) : t("character.bearer")}

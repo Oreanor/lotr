@@ -331,6 +331,7 @@
     "traitorReturns": "{{name}} comes to his senses and leaves the party in shame.",
     "bombadilLeaves": "Tom Bombadil misses his home and leaves the party.",
     "eomerSendsEowyn": "Éomer: \"Sister, ride back to Edoras.\" Éowyn heads home.",
+    "treebeardStays": "Hoom, hom… go, my friends. I will not come. I will stay, and grow again what Saruman cut down.",
     "evicted": "{{name}} leaves the party. {{line}}"
   },
   "item": {
@@ -493,7 +494,8 @@
     "denethor": "Denethor",
     "gollum": "Gollum",
     "grima": "Gríma Wormtongue",
-    "king_dead": "King of the Dead"
+    "king_dead": "King of the Dead",
+    "treebeard": "Treebeard"
   },
   "monster": {
     "grima": "Gríma Wormtongue",
@@ -520,7 +522,8 @@
     "corsair": "Corsair",
     "saruman": "Saruman",
     "eomer": "Éomer",
-    "gollum": "Gollum"
+    "gollum": "Gollum",
+    "treebeard": "Treebeard"
   },
   "months": [
     "January", "February", "March", "April", "May", "June",

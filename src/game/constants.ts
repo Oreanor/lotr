@@ -246,13 +246,18 @@ export const EDORAS_POINT = { x: 909, y: 1062 };
 export const ROHAN_RADIUS = 280;
 export const GOLLUM_ENCOUNTER_CHANCE = 0.033;
 export const EOMER_ENCOUNTER_CHANCE = 0.2;
+// Fangorn: a ~6×6-cell wood between Isengard and Lothlórien where Treebeard
+// roams (centre + half-extent in map px; cell ≈ 9.6px).
+export const FANGORN_CENTER = { x: 894, y: 885 };
+export const FANGORN_HALF = 30;
+export const TREEBEARD_ENCOUNTER_CHANCE = 0.25;
 // A masterless Gríma skulks the wilds if Isengard fell before he fled there —
 // uncommon, and no real threat to a couple of stout hobbits.
 export const GRIMA_ENCOUNTER_CHANCE = 0.04;
 // Rare roaming Nazgul patrols: about one in five road encounters.
 export const NAZGUL_ENCOUNTER_CHANCE = 0.2;
 export const NAZGUL_PACK_MAX = 3;
-export const ROAMING_RECRUIT_IDS = new Set(["gollum", "eomer"]);
+export const ROAMING_RECRUIT_IDS = new Set(["gollum", "eomer", "treebeard"]);
 export const BOMBADIL_LEAVE_CHANCE = 1 / 40;
 
 // Betrayal: a traitor must travel with the party a while before the Ring works
@@ -385,7 +390,7 @@ export const RANDOM_PRESENCE: Record<string, number> = {
   grimbeorn: 1 / 2,
 };
 // The One Ring has no hold on these — they can never become its bearer.
-export const NON_BEARERS = new Set<string>(["bombadil", "boromir", "saruman", "gollum", "king_dead"]);
+export const NON_BEARERS = new Set<string>(["bombadil", "boromir", "saruman", "gollum", "king_dead", "treebeard"]);
 // Bilbo only relents after much pestering — he gives in on this many tries.
 // Reluctant recruits who only relent after this many pestering attempts.
 export const RELUCTANT_RECRUIT_ATTEMPTS: Record<string, number> = {
