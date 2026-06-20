@@ -1,5 +1,8 @@
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
+import { LocationPreview } from "@/components/ui/LocationPreview";
 import { iconVariant } from "@/game";
 import type { Character } from "@/game";
 
@@ -15,6 +18,16 @@ export type Ending =
   | "valinorRing"
   | "valinorSink";
 
+// Artwork for the endings that have it (in /public/endings). The two "Valar
+// refuse" sea endings share the one painting.
+const ENDING_IMAGE: Partial<Record<Ending, string>> = {
+  victory: "/endings/ring_destroyed.jpg",
+  sauron: "/endings/sauron.jpg",
+  valinorWest: "/endings/to_valinor.jpg",
+  valinorRing: "/endings/valar_refuse.jpg",
+  valinorSink: "/endings/valar_refuse.jpg",
+};
+
 // Terminal game-over screen. The page passes the outcome and the bearer.
 export function EndingModal({
   open,
@@ -25,6 +38,7 @@ export function EndingModal({
   doomBetrayal = false,
   onReplay,
   onViewStats,
+  onContinue,
 }: {
   open: boolean;
   ending: Ending;
@@ -34,8 +48,12 @@ export function EndingModal({
   doomBetrayal?: boolean;
   onReplay: () => void;
   onViewStats: () => void;
+  // Victory only: dismiss the screen and keep wandering a Ring-free Middle-earth.
+  onContinue?: () => void;
 }) {
   const { t } = useTranslation();
+  const [imageOpen, setImageOpen] = useState(false);
+  const endingImage = ENDING_IMAGE[ending] ?? null;
   const borderClass =
     ending === "victory" || ending === "valinorWest"
       ? "border-emerald-700"
@@ -57,6 +75,31 @@ export function EndingModal({
 
   return (
     <Modal open={open} overlayClassName="bg-black/85" className={`w-full max-w-sm p-6 text-center ${borderClass}`}>
+      {endingImage && (
+        <LocationPreview key={endingImage} src={endingImage} alt="" onOpen={() => setImageOpen(true)} />
+      )}
+
+      {imageOpen &&
+        endingImage &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
+            onClick={() => setImageOpen(false)}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+          >
+            <div className="inline-flex max-h-[calc(100dvh-2rem)] max-w-[calc(100dvw-2rem)] overflow-hidden rounded border-2 border-amber-700 bg-neutral-950 p-1 shadow-2xl shadow-black/60">
+              <img
+                src={endingImage}
+                alt=""
+                draggable="false"
+                className="max-h-[calc(100dvh-2.75rem)] max-w-[calc(100dvw-2.75rem)] select-none object-contain md:h-[calc(100dvh-2.75rem)] md:w-auto"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {ending === "starved" ? (
           <>
             <h2 className="font-serif text-2xl text-red-400">{t("ending.starvedTitle")}</h2>
@@ -79,11 +122,6 @@ export function EndingModal({
           </>
         ) : ending === "sauron" ? (
           <>
-            <img
-              src="/enemies/sauron.png"
-              alt=""
-              className="mx-auto mb-3 size-28 border border-red-900 object-cover"
-            />
             <h2 className="font-serif text-2xl text-red-400">{t("ending.sauronTitle")}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.sauronText", { name: bearerName })}</p>
           </>
@@ -128,6 +166,15 @@ export function EndingModal({
           </>
         )}
         <div className="mt-5 flex flex-col gap-2">
+          {ending === "victory" && onContinue && (
+            <button
+              type="button"
+              className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-900/70"
+              onClick={onContinue}
+            >
+              {t("ending.wander")}
+            </button>
+          )}
           <button
             type="button"
             className="rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"

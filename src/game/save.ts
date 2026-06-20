@@ -56,6 +56,8 @@ export interface GameSave {
   metCharacterIds?: string[];
   // The Corsair captain has granted safe passage — no more corsair sea raids.
   corsairPeace?: boolean;
+  // The Ring has been cast into the fire — the party roams a freed Middle-earth.
+  ringDestroyed?: boolean;
 }
 
 export function loadSave(): GameSave | null {

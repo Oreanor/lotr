@@ -417,7 +417,7 @@ export default function MiddleEarthMap() {
   // The Corsair captain has been talked round into letting the party sail in peace.
   const [corsairPeace, setCorsairPeace] = useState<boolean>(initialSave?.corsairPeace ?? false);
   // The One Ring has been cast into the Fire — the Ban over the West may lift.
-  const [ringDestroyed, setRingDestroyed] = useState(false);
+  const [ringDestroyed, setRingDestroyed] = useState(initialSave?.ringDestroyed ?? false);
   // A ship has reached the world's western edge — offer the passage to Valinor.
   const [valinorAttempt, setValinorAttempt] = useState(false);
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
@@ -1594,6 +1594,7 @@ export default function MiddleEarthMap() {
       grimaSlain,
       osgiliathCacheFound,
       corsairPeace,
+      ringDestroyed,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -1635,6 +1636,7 @@ export default function MiddleEarthMap() {
     grimaSlain,
     osgiliathCacheFound,
     corsairPeace,
+    ringDestroyed,
     visitedLocationIds,
     enemiesKilled,
     defeatedEnemyIcons,
@@ -3326,7 +3328,10 @@ export default function MiddleEarthMap() {
   const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
   // The Ring only counts for the squad actually carrying the bearer — a splinter
   // group off on its own can't destroy it at Mount Doom.
-  const hasRing = !!bearerId && rogueBearerId === null && party.includes(bearerId);
+  // Once cast into the fire the party no longer carries the Ring: the Doom prompt
+  // won't reopen and all Ring-driven events (betrayal, the bearer's fall) cease.
+  const hasRing =
+    !ringDestroyed && !!bearerId && rogueBearerId === null && party.includes(bearerId);
   // The figure on the map is the bearer (when travelling with the active squad),
   // or — for a splinter / while the Ring is fled — the group's lead, i.e. the
   // first member in party order (for a splinter, whoever was left first). Using
@@ -3403,7 +3408,7 @@ export default function MiddleEarthMap() {
   // away with the Ring and bolts for Mount Doom. The party has two months to
   // catch him before he crowns himself.
   useEffect(() => {
-    if (!(hasFallen && rogueBearerId === null && ending === null && bearerId)) {
+    if (ringDestroyed || !(hasFallen && rogueBearerId === null && ending === null && bearerId)) {
       return;
     }
     // One event at a time: let the active squad finish its battle first.
@@ -3420,7 +3425,7 @@ export default function MiddleEarthMap() {
       }
     }
     triggerRingFlight(bearerId);
-  }, [hasFallen, rogueBearerId, ending, bearerId, battle, encounter, party, squads, focusSquad, triggerRingFlight]);
+  }, [ringDestroyed, hasFallen, rogueBearerId, ending, bearerId, battle, encounter, party, squads, focusSquad, triggerRingFlight]);
 
   useEffect(() => {
     if (!created || ending || party.length > 0) {
@@ -3823,7 +3828,14 @@ export default function MiddleEarthMap() {
             TRAITORS.has(id) &&
             day + 1 - (joinDayRef.current[id] ?? day + 1) >= BETRAYAL_GRACE_DAYS,
         );
-        if (!onEagles && !pendingTraitor && traitors.length > 0 && Math.random() < BETRAYAL_CHANCE) {
+        // No one turns traitor over a Ring that's already in the fire.
+        if (
+          !ringDestroyed &&
+          !onEagles &&
+          !pendingTraitor &&
+          traitors.length > 0 &&
+          Math.random() < BETRAYAL_CHANCE
+        ) {
           pendingTraitor = traitors[Math.floor(Math.random() * traitors.length)];
         }
         if (!visitedLocation && Math.random() < encounterChance) {
@@ -3951,7 +3963,8 @@ export default function MiddleEarthMap() {
         parkedMembers.map((id) => ({ id })),
         slainRoamingRecruits,
         grimaRoaming,
-        wraithsBroken,
+        // With the Ring gone the leaderless wraiths no longer hunt the wilds.
+        wraithsBroken || ringDestroyed,
       );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
       if (rolled.monster.recruitId === "eomer" && kinPresent) {
@@ -3980,7 +3993,7 @@ export default function MiddleEarthMap() {
       }
       setEncounter({ monster: CORSAIR_ENEMY, dangerous: true, solo: pack.length === 1, pack });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, wraithsBroken, corsairPeace, mapSize]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, wraithsBroken, ringDestroyed, corsairPeace, mapSize]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -4034,7 +4047,7 @@ export default function MiddleEarthMap() {
       others.map((id) => ({ id })),
       slainRoamingRecruits,
       grimaRoaming,
-      wraithsBroken,
+      wraithsBroken || ringDestroyed,
     );
     if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
       return; // the roused Dead deter barrow-wights — no fight
@@ -4065,6 +4078,7 @@ export default function MiddleEarthMap() {
     deadSummoned,
     grimaRoaming,
     wraithsBroken,
+    ringDestroyed,
     focusSquad,
   ]);
 
@@ -5012,6 +5026,8 @@ export default function MiddleEarthMap() {
               window.location.reload();
             }}
             onViewStats={() => setStatsOpen(true)}
+            // The Ring is gone — let the player keep roaming a freed Middle-earth.
+            onContinue={() => setEnding(null)}
           />
         )}
       </div>
