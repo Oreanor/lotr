@@ -1605,27 +1605,28 @@ export default function MiddleEarthMap() {
     return () => document.removeEventListener("pointerdown", close);
   }, [settingsOpen]);
 
-  // Ring corruption days accrue only for whoever currently carries it.
+  // Ring corruption days accrue only for whoever currently carries it — and not
+  // once the Ring is unmade (freeplay): the bearer is Ring-free, so it freezes.
   useEffect(() => {
     const delta = journeyDay - prevJourneyDayForRingRef.current;
-    if (delta > 0 && bearerId && rogueBearerId === null) {
+    if (delta > 0 && bearerId && rogueBearerId === null && !ringDestroyed) {
       setRingDaysById((days) => ({
         ...days,
         [bearerId]: (days[bearerId] ?? 0) + delta,
       }));
     }
     prevJourneyDayForRingRef.current = journeyDay;
-  }, [journeyDay, bearerId, rogueBearerId]);
+  }, [journeyDay, bearerId, rogueBearerId, ringDestroyed]);
   useEffect(() => {
     const delta = ringWear - prevRingWearForRingRef.current;
-    if (delta > 0 && bearerId && rogueBearerId === null) {
+    if (delta > 0 && bearerId && rogueBearerId === null && !ringDestroyed) {
       setRingDaysById((days) => ({
         ...days,
         [bearerId]: (days[bearerId] ?? 0) + delta,
       }));
     }
     prevRingWearForRingRef.current = ringWear;
-  }, [ringWear, bearerId, rogueBearerId]);
+  }, [ringWear, bearerId, rogueBearerId, ringDestroyed]);
 
   // Auto-save the full game state, but only at rest — never mid-move, mid-battle,
   // or with an encounter pending — so a reload resumes from a clean stop/town.
@@ -3161,6 +3162,9 @@ export default function MiddleEarthMap() {
           isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
           (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
           !banishedTraitors.has(character.id) &&
+          // A companion who bolted with the Ring is hunted in the wild, not found
+          // waiting at his old haunt (Boromir at Rivendell, Saruman at Isengard…).
+          character.id !== rogueBearerId &&
           (character.id !== "sam" || !samCaughtUp) &&
           (character.id !== "saruman" || sarumanFriendly) &&
           // Wormtongue only lurks at Edoras until Gandalf drives him out.
@@ -3189,6 +3193,14 @@ export default function MiddleEarthMap() {
     const boss = BOSSES_BY_LOCATION[visitedLocation.id];
     if (!boss || defeatedBosses.has(boss.name)) {
       return null;
+    }
+    // A boss who fled with the Ring (e.g. Saruman) no longer holds his seat — he's
+    // hunted in the wild instead. Matched by portrait to his companion self.
+    if (rogueBearerId) {
+      const rogue = CHARACTERS.find((c) => c.id === rogueBearerId);
+      if (rogue && rogue.icon === boss.icon) {
+        return null;
+      }
     }
     if (visitedLocation.id === ISENGARD_ID && sarumanFriendly) {
       return null;
