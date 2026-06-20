@@ -383,12 +383,18 @@ export default function MiddleEarthMap() {
     }
   }, [showTerrain]);
   // Which of MAP_VARIANTS to draw as the background, remembered per browser.
+  // Defaults to the last variant (the colour-rendered map3).
   const [mapIndex, setMapIndex] = useState(() => {
+    const fallback = MAP_VARIANTS.length - 1;
     try {
-      const saved = Number(localStorage.getItem(MAP_PREF_KEY));
-      return Number.isInteger(saved) && saved >= 0 && saved < MAP_VARIANTS.length ? saved : 0;
+      const raw = localStorage.getItem(MAP_PREF_KEY);
+      if (raw === null) {
+        return fallback;
+      }
+      const saved = Number(raw);
+      return Number.isInteger(saved) && saved >= 0 && saved < MAP_VARIANTS.length ? saved : fallback;
     } catch {
-      return 0;
+      return fallback;
     }
   });
   useEffect(() => {
@@ -2705,14 +2711,33 @@ export default function MiddleEarthMap() {
       blockedGateCells.add(`${cellX + 1}:${cellY}`);
     }
 
-    // Harbour cells — the only land a boarded ship may step onto (and lose the
-    // ship doing so). A plain "is this land cell a harbour?" check, no radius.
-    const harborCells = new Set<string>();
+    // Cells a boarded ship may step onto (losing the ship): every harbour, plus
+    // any coastal city — one whose cell has open water on a neighbouring cell.
+    // Only real harbours sell passage back out, so a coastal landing strands the
+    // party ashore on purpose.
+    const NEIGHBOR_CELL = 10;
+    const landfallCells = new Set<string>();
     for (const location of locations) {
+      const key = getTerrainAtPoint(location.point).cellKey;
+      if (!key) {
+        continue;
+      }
       if (HARBOR_IDS.has(location.id)) {
-        const key = getTerrainAtPoint(location.point).cellKey;
-        if (key) {
-          harborCells.add(key);
+        landfallCells.add(key);
+        continue;
+      }
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) {
+            continue;
+          }
+          const neighbor = getTerrainAtPoint({
+            x: location.point.x + dx * NEIGHBOR_CELL,
+            y: location.point.y + dy * NEIGHBOR_CELL,
+          });
+          if (neighbor.name === "water") {
+            landfallCells.add(key);
+          }
         }
       }
     }
@@ -2803,7 +2828,8 @@ export default function MiddleEarthMap() {
       const travel = Math.min(routeRadius, visibleSpeed * elapsedSeconds);
 
       // A boarded ship is a one-way passage: it may only step ashore onto a
-      // harbour cell (and is lost when it does). Any other land is a wall.
+      // harbour or coastal-city cell (and is lost when it does). Other land is a
+      // wall.
       const onShip = transportRef.current === "ship";
 
       function canMoveTo(point: Point): boolean {
@@ -2821,7 +2847,7 @@ export default function MiddleEarthMap() {
         if (
           onShip &&
           terrain.name !== "water" &&
-          !(terrain.cellKey !== null && harborCells.has(terrain.cellKey))
+          !(terrain.cellKey !== null && landfallCells.has(terrain.cellKey))
         ) {
           return false;
         }

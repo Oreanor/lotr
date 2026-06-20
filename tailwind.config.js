@@ -1,3 +1,14 @@
+// Builds a full 50–950 colour scale whose channels come from CSS variables
+// (e.g. --amber-700), so themes can swap them. The <alpha-value> placeholder
+// keeps Tailwind's /opacity modifiers working.
+const ramp = (name) =>
+  Object.fromEntries(
+    [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((shade) => [
+      shade,
+      `rgb(var(--${name}-${shade}) / <alpha-value>)`,
+    ]),
+  );
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
@@ -13,19 +24,16 @@ module.exports = {
         parchment: "rgb(var(--parchment) / <alpha-value>)",
         // The neutral chrome scale is theme-driven: dark theme uses Tailwind's
         // defaults, light theme inverts to a parchment ramp. See src/index.css.
-        neutral: {
-          50: "rgb(var(--n-50) / <alpha-value>)",
-          100: "rgb(var(--n-100) / <alpha-value>)",
-          200: "rgb(var(--n-200) / <alpha-value>)",
-          300: "rgb(var(--n-300) / <alpha-value>)",
-          400: "rgb(var(--n-400) / <alpha-value>)",
-          500: "rgb(var(--n-500) / <alpha-value>)",
-          600: "rgb(var(--n-600) / <alpha-value>)",
-          700: "rgb(var(--n-700) / <alpha-value>)",
-          800: "rgb(var(--n-800) / <alpha-value>)",
-          900: "rgb(var(--n-900) / <alpha-value>)",
-          950: "rgb(var(--n-950) / <alpha-value>)",
-        },
+        neutral: ramp("n"),
+        // Accent ramps are themed too: light theme reverses each (see index.css)
+        // so accent text darkens and accent button fills lighten, staying legible
+        // on parchment. Saturated mid shades (~500) are unchanged by the reversal,
+        // keeping health bars and the like identical in both themes.
+        amber: ramp("amber"),
+        emerald: ramp("emerald"),
+        sky: ramp("sky"),
+        red: ramp("red"),
+        yellow: ramp("yellow"),
       },
     },
   },
