@@ -58,6 +58,8 @@ export interface GameSave {
   corsairPeace?: boolean;
   // The Ring has been cast into the fire — the party roams a freed Middle-earth.
   ringDestroyed?: boolean;
+  // Dol Guldur's three wraiths were slain — Minas Morgul musters six, not nine.
+  dolGuldurNazgulSlain?: boolean;
 }
 
 export function loadSave(): GameSave | null {

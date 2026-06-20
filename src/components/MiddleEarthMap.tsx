@@ -164,8 +164,6 @@ import {
   MORIA_GATE_ID,
   MOVE_SUBSTEPS,
   NAZGUL_ENEMY,
-  KHAMUL_ENEMY,
-  DOL_GULDUR_CAPTAIN,
   DOL_GULDUR_GARRISON,
   WEATHERTOP_WITCHKING,
   NON_BEARERS,
@@ -476,6 +474,11 @@ export default function MiddleEarthMap() {
   );
   // The Corsair captain has been talked round into letting the party sail in peace.
   const [corsairPeace, setCorsairPeace] = useState<boolean>(initialSave?.corsairPeace ?? false);
+  // The three wraiths posted at Dol Guldur have been slain — so Minas Morgul
+  // musters six of the Nine, not nine.
+  const [dolGuldurNazgulSlain, setDolGuldurNazgulSlain] = useState<boolean>(
+    initialSave?.dolGuldurNazgulSlain ?? false,
+  );
   // The One Ring has been cast into the Fire — the Ban over the West may lift.
   const [ringDestroyed, setRingDestroyed] = useState(initialSave?.ringDestroyed ?? false);
   // A ship has reached the world's western edge — offer the passage to Valinor.
@@ -1079,42 +1082,27 @@ export default function MiddleEarthMap() {
     [levelUpCharacterId, expById, statBonusById],
   );
 
-  const randomizeLevelUpDraft = useCallback(() => {
-    if (!levelUpCharacterId) {
-      return;
-    }
-    const total = unspentPointsFor(
-      levelUpCharacterId,
-      expById[levelUpCharacterId] ?? 0,
-      statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
-    );
-    const stats: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
-    const rolled: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
-    for (let i = 0; i < total; i += 1) {
-      rolled[stats[Math.floor(Math.random() * stats.length)]] += 1;
-    }
-    setLevelUpDraft(rolled);
-  }, [levelUpCharacterId, expById, statBonusById]);
 
-  const confirmLevelUp = useCallback(() => {
+  const confirmLevelUp = useCallback((override?: StatBonus) => {
     if (!levelUpCharacterId) {
       return;
     }
+    const draft = override ?? levelUpDraft;
     const total = unspentPointsFor(
       levelUpCharacterId,
       expById[levelUpCharacterId] ?? 0,
       statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
     );
-    if (bonusPoints(levelUpDraft) !== total) {
+    if (bonusPoints(draft) !== total) {
       return;
     }
     setStatBonusById((prev) => {
       const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
-      return { ...prev, [levelUpCharacterId]: addBonus(current, levelUpDraft) };
+      return { ...prev, [levelUpCharacterId]: addBonus(current, draft) };
     });
     // Leveling raises the max HP pool but doesn't heal: the extra capacity comes
     // in "empty", so carry the gain into damage to leave current health untouched.
-    const hpGain = maxHpFromStats(levelUpDraft.strength, levelUpDraft.defense);
+    const hpGain = maxHpFromStats(draft.strength, draft.defense);
     if (hpGain > 0) {
       const nextDamage = {
         ...damageRef.current,
@@ -1134,6 +1122,26 @@ export default function MiddleEarthMap() {
       setLevelUpCharacterId(null);
     }
   }, [levelUpCharacterId, levelUpDraft, expById, statBonusById, levelUpQueue]);
+
+  // Rolling a random spread on level-up doubles as confirming it — scatter the
+  // points and commit in one click, moving straight on to the next hero. (Hero
+  // creation keeps its separate roll/confirm; only post-battle level-ups chain.)
+  const randomizeAndConfirmLevelUp = useCallback(() => {
+    if (!levelUpCharacterId) {
+      return;
+    }
+    const total = unspentPointsFor(
+      levelUpCharacterId,
+      expById[levelUpCharacterId] ?? 0,
+      statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
+    );
+    const stats: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
+    const rolled: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
+    for (let i = 0; i < total; i += 1) {
+      rolled[stats[Math.floor(Math.random() * stats.length)]] += 1;
+    }
+    confirmLevelUp(rolled);
+  }, [levelUpCharacterId, expById, statBonusById, confirmLevelUp]);
 
   // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
   const adjustCreation = useCallback((stat: keyof StatBonus, delta: number) => {
@@ -1659,6 +1667,7 @@ export default function MiddleEarthMap() {
       osgiliathCacheFound,
       corsairPeace,
       ringDestroyed,
+      dolGuldurNazgulSlain,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -1701,6 +1710,7 @@ export default function MiddleEarthMap() {
     osgiliathCacheFound,
     corsairPeace,
     ringDestroyed,
+    dolGuldurNazgulSlain,
     visitedLocationIds,
     enemiesKilled,
     defeatedEnemyIcons,
@@ -2464,13 +2474,7 @@ export default function MiddleEarthMap() {
         }
         const bossPack =
           loc.id === MINAS_MORGUL_ID
-            ? [
-                lockedBoss,
-                ...Array.from(
-                  { length: defeatedBosses.has(KHAMUL_ENEMY.name) ? 5 : 8 },
-                  () => NAZGUL_ENEMY,
-                ),
-              ]
+            ? [lockedBoss, ...Array.from({ length: dolGuldurNazgulSlain ? 5 : 8 }, () => NAZGUL_ENEMY)]
             : [lockedBoss];
         setEncounter({
           monster: lockedBoss,
@@ -2597,6 +2601,7 @@ export default function MiddleEarthMap() {
     transport,
     hasCloaks,
     defeatedBosses,
+    dolGuldurNazgulSlain,
     isMoving,
     target,
     locations,
@@ -3173,22 +3178,13 @@ export default function MiddleEarthMap() {
   // The Ringwraiths stop roaming once leaderless (Witch-king thrown down) or once
   // the Ring they hunt is unmade.
   const nazgulGone = wraithsBroken || ringDestroyed;
-  // Dol Guldur fields three wraiths (Khamûl + two riders) over its orc garrison
-  // — but only until the Nine gather in Mordor: once Minas Morgul has been laid
-  // eyes on, the wraiths are no longer here and only the orc captain holds it.
+  // Dol Guldur posts three plain wraiths over its orc garrison — but only until
+  // the Nine gather in Mordor: once Minas Morgul has been laid eyes on, the
+  // wraiths are gone and the captain holds it with orcs alone.
   const dolGuldurHasWraiths = !visitedLocationIds.has(MINAS_MORGUL_ID);
-  const dolGuldurBoss = dolGuldurHasWraiths ? KHAMUL_ENEMY : DOL_GULDUR_CAPTAIN;
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
-    }
-    // Dol Guldur's boss swaps with the wraith state and is cleared by either
-    // version's defeat, so a half-finished orc fight can't reopen as a wraith one.
-    if (visitedLocation.id === DOL_GULDUR_ID) {
-      if (defeatedBosses.has(KHAMUL_ENEMY.name) || defeatedBosses.has(DOL_GULDUR_CAPTAIN.name)) {
-        return null;
-      }
-      return dolGuldurBoss;
     }
     const boss = BOSSES_BY_LOCATION[visitedLocation.id];
     if (!boss || defeatedBosses.has(boss.name)) {
@@ -3722,16 +3718,14 @@ export default function MiddleEarthMap() {
       }
       // A defeated boss never returns to its lair.
       const foe = battle.enemies[0];
-      const activeBoss = !visitedLocation
-        ? null
-        : visitedLocation.id === DOL_GULDUR_ID
-          ? // Whichever Dol Guldur boss led this fight — wraith lord or orc captain.
-            visitedLocationIds.has(MINAS_MORGUL_ID)
-            ? DOL_GULDUR_CAPTAIN
-            : KHAMUL_ENEMY
-          : BOSSES_BY_LOCATION[visitedLocation.id];
+      const activeBoss = visitedLocation ? BOSSES_BY_LOCATION[visitedLocation.id] : null;
       if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
+        // Clearing Dol Guldur while its wraiths were still posted there means the
+        // three were slain — Minas Morgul will muster six of the Nine, not nine.
+        if (visitedLocation?.id === DOL_GULDUR_ID && !visitedLocationIds.has(MINAS_MORGUL_ID)) {
+          setDolGuldurNazgulSlain(true);
+        }
       }
       // Wormtongue felled (at Isengard alongside Saruman, or cornered in the
       // wild) is gone for good — he won't haunt the roads again.
@@ -4750,14 +4744,11 @@ export default function MiddleEarthMap() {
                   ? // Three of the Nine fall at Dol Guldur — leaving six here, not nine.
                     [
                       locationBoss,
-                      ...Array.from(
-                        { length: defeatedBosses.has(KHAMUL_ENEMY.name) ? 5 : 8 },
-                        () => NAZGUL_ENEMY,
-                      ),
+                      ...Array.from({ length: dolGuldurNazgulSlain ? 5 : 8 }, () => NAZGUL_ENEMY),
                     ]
                   : visitedLocation?.id === DOL_GULDUR_ID
                     ? dolGuldurHasWraiths
-                      ? [locationBoss, NAZGUL_ENEMY, NAZGUL_ENEMY, ...DOL_GULDUR_GARRISON]
+                      ? [locationBoss, NAZGUL_ENEMY, NAZGUL_ENEMY, NAZGUL_ENEMY, ...DOL_GULDUR_GARRISON]
                       : [locationBoss, ...DOL_GULDUR_GARRISON]
                     : visitedLocation?.id === WEATHERTOP_ID
                       ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
@@ -5147,8 +5138,8 @@ export default function MiddleEarthMap() {
           draftSpent={levelUpDraftSpent}
           charName={charName}
           onAdjust={adjustLevelUpDraft}
-          onRandomize={randomizeLevelUpDraft}
-          onConfirm={confirmLevelUp}
+          onRandomize={randomizeAndConfirmLevelUp}
+          onConfirm={() => confirmLevelUp()}
         />
 
         {/* Solid cover so the map never flashes behind the creation modal's fade-in. */}

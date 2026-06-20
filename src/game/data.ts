@@ -7,8 +7,8 @@ import { isoDateToDayOffset } from "@/game/calendar";
 import {
   CIRITH_UNGOL_ID,
   CORSAIRS_CITY_ID,
+  DOL_GULDUR_ID,
   ISENGARD_ID,
-  KHAMUL_NAME,
   MINAS_MORGUL_ID,
   MORIA_GATE_ID,
   RECRUITMENT_PLACE_IDS,
@@ -120,21 +120,11 @@ export const NAZGUL_ENEMY: Monster = {
   luck: 5,
 };
 
-// Khamûl, Lord of Dol Guldur — a full Nazgûl (same build as NAZGUL_ENEMY) but a
-// distinct name so his defeat is tracked separately. Heads the wraith garrison
-// while the Nine are still abroad; not in FLEE_AT_HALF_FOES, so he stands to the
-// death here. The two riders flanking him do too (the fight sets wraithsStand).
-export const KHAMUL_ENEMY: Monster = {
-  name: KHAMUL_NAME,
-  icon: "/enemies/nazgul.png",
-  tier: 4,
-  strength: 18,
-  defense: 18,
-  intelligence: 8,
-  luck: 5,
-};
-
-// Captain of the orc garrison left holding Dol Guldur once the wraiths are gone.
+// Captain of the orc garrison that always holds Dol Guldur — the lair's boss in
+// both states. The three wraiths posted here are plain NAZGUL_ENEMY (no named
+// lord: the Ringwraiths' leader, the Witch-king, sits at Minas Morgul and is
+// never among the slain here). The captain's a distinct name so his defeat is
+// tracked cleanly, not confused with the roaming/Weathertop "Назгул".
 export const DOL_GULDUR_CAPTAIN: Monster = {
   name: "Капитан Дол Гулдура",
   icon: "/enemies/urukhai.png",
@@ -153,16 +143,13 @@ export const DOL_GULDUR_GARRISON: Monster[] = [
   { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
   { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
   { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
-  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
-  { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
 ];
 
-// Dol Guldur's two possible bosses (wraith lord or, once the Nine are in Mordor,
-// the orc captain) are tracked like any other lair boss.
-BOSS_NAMES.add(KHAMUL_ENEMY.name);
+// Dol Guldur's boss is its orc captain — register it like any other lair boss.
+BOSSES_BY_LOCATION[DOL_GULDUR_ID] = DOL_GULDUR_CAPTAIN;
 BOSS_NAMES.add(DOL_GULDUR_CAPTAIN.name);
 
 // The Witch-king as he led the assault on Weathertop — stronger than his riders
