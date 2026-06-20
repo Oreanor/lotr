@@ -8,6 +8,7 @@
     "terrainShow": "Show terrain layer",
     "terrainHide": "Hide terrain layer",
     "terrain": "Terrain layer",
+    "map": "Map",
     "speed": "Speed",
     "speedValue": "Speed {{n}}x",
     "waitDay": "Wait a day",

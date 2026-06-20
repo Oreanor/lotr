@@ -4,6 +4,9 @@ import type { StatBonus, TerrainType, TransportId } from "@/game/types";
 // Static assets live in public/ and are served from the site root by URL.
 export const mapImage = "/map.jpg";
 export const terrainImage = "/map.gif";
+// Selectable background maps, all sharing the terrain mask's projection. Add a
+// file here to offer it in settings; the chosen index is remembered per browser.
+export const MAP_VARIANTS = [mapImage, "/map2.jpg", "/map3.jpg"] as const;
 export const ringImage = "/ring.png";
 
 export const TRANSPORT_ICONS: Record<TransportId, string> = {
@@ -58,6 +61,8 @@ export const MEMBER_PICKUP_RANGE = 24;
 export const TERRAIN_OVERLAY_OPACITY = 0.3;
 // Remembers the terrain-layer toggle between sessions.
 export const TERRAIN_PREF_KEY = "lotr-terrain";
+// Remembers the chosen MAP_VARIANTS index between sessions.
+export const MAP_PREF_KEY = "lotr-map";
 // Narrow water (rivers) up to this many cells can be forded; wider water blocks.
 export const MAX_WATER_CROSSING_CELLS = 2;
 // The figure stays within this margin (share of viewport) from each edge.

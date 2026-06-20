@@ -10,6 +10,7 @@ import {
   EyeOff,
   Gauge,
   LocateFixed,
+  Map as MapIcon,
   RotateCcw,
   Route,
   Settings,
@@ -139,6 +140,8 @@ import {
   locationImage,
   LOTHLORIEN_ID,
   mapImage,
+  MAP_VARIANTS,
+  MAP_PREF_KEY,
   MAX_PATH_POINTS,
   MAX_WATER_CROSSING_CELLS,
   MAX_ZOOM_FACTOR,
@@ -376,6 +379,22 @@ export default function MiddleEarthMap() {
       // ignore storage errors (private mode, quota…)
     }
   }, [showTerrain]);
+  // Which of MAP_VARIANTS to draw as the background, remembered per browser.
+  const [mapIndex, setMapIndex] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem(MAP_PREF_KEY));
+      return Number.isInteger(saved) && saved >= 0 && saved < MAP_VARIANTS.length ? saved : 0;
+    } catch {
+      return 0;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_PREF_KEY, String(mapIndex));
+    } catch {
+      // ignore storage errors (private mode, quota…)
+    }
+  }, [mapIndex]);
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
   // Whether the open details panel can page through the party (arrows). True
   // only when opened from the party HUD or by clicking the hero on the map.
@@ -2095,9 +2114,12 @@ export default function MiddleEarthMap() {
     journeyDayRef.current = nextDay;
     setJourneyDay(nextDay);
     // Weathertop: Gandalf's rune left on a stone (only reachable once the Nazgul
-    // is beaten). Pure lore note, nothing to pick up.
+    // is beaten). Pure lore note, nothing to pick up. If Gandalf already travels
+    // with the party his mark pointing east to Rivendell is meaningless — skip it.
     if (loc.id === WEATHERTOP_ID) {
-      setExploreResult({ found: true, message: "location.weathertopRune" });
+      setExploreResult(
+        party.includes("gandalf") ? { found: false } : { found: true, message: "location.weathertopRune" },
+      );
       return;
     }
     // Erech: only Aragorn, heir of Isildur, can rouse the Dead.
@@ -4097,7 +4119,7 @@ export default function MiddleEarthMap() {
         <img
           alt="Middle-earth map"
           draggable="false"
-          src={mapImage}
+          src={MAP_VARIANTS[mapIndex] ?? mapImage}
           className="absolute left-0 top-0 max-w-none select-none"
           style={{
             width: mapSize.width,
@@ -4270,6 +4292,19 @@ export default function MiddleEarthMap() {
                 <span className="flex-1">{t("ui.heroPath")}</span>
                 <span className="text-xs text-neutral-400">{showHeroPath ? t("ui.on") : t("ui.off")}</span>
               </button>
+              {MAP_VARIANTS.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setMapIndex((prev) => (prev + 1) % MAP_VARIANTS.length)}
+                  className="flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800"
+                >
+                  <MapIcon className="size-4 shrink-0" />
+                  <span className="flex-1">{t("ui.map")}</span>
+                  <span className="text-xs text-neutral-400">
+                    {mapIndex + 1}/{MAP_VARIANTS.length}
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={cycleSpeed}
