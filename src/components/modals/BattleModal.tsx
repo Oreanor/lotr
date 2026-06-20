@@ -103,7 +103,7 @@ export function BattleModal({
             )}
           </div>
           <div className="my-6 flex items-start justify-center gap-3">
-            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2.5 sm:max-w-[17rem] sm:gap-3">
+            <div className="grid grid-cols-2 content-start justify-items-center gap-2.5 sm:flex sm:max-w-[17rem] sm:flex-wrap sm:justify-center sm:gap-3">
               {battle.allies.map((ally) => {
                 const invisible =
                   battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
@@ -158,7 +158,7 @@ export function BattleModal({
 
             <div className="self-center text-2xl text-neutral-500">⚔️</div>
 
-            <div className="flex max-w-[46%] flex-wrap content-start justify-center gap-2.5 sm:max-w-[17rem] sm:gap-3">
+            <div className="grid grid-cols-2 content-start justify-items-center gap-2.5 sm:flex sm:max-w-[17rem] sm:flex-wrap sm:justify-center sm:gap-3">
               {battle.enemies.map((enemy) => (
                 <div key={enemy.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                   <div

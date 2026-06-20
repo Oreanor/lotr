@@ -71,9 +71,6 @@ export function LevelUpModal({
             <span className="w-full truncate text-center text-xs text-neutral-200">
               {charName(hero.id)}
             </span>
-            <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-400">
-              {t("character.level", { n: level.level })}
-            </span>
           </div>
 
           <div className="mt-3 text-left">
