@@ -8,19 +8,27 @@ export function ZoomableImage({
   src,
   alt,
   initiallyLoaded,
+  className,
 }: {
   src: string;
   alt: string;
   initiallyLoaded?: boolean;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <LocationPreview src={src} alt={alt} initiallyLoaded={initiallyLoaded} onOpen={() => setOpen(true)} />
+      <LocationPreview
+        src={src}
+        alt={alt}
+        initiallyLoaded={initiallyLoaded}
+        onOpen={() => setOpen(true)}
+        className={className}
+      />
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
+            className="modal-overlay fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
             onClick={() => setOpen(false)}
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}

@@ -42,7 +42,7 @@ export function CreationModal({
       >
         {i18n.language === "en" ? "RU" : "EN"}
       </button>
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
       <h2 className="font-serif text-2xl text-neutral-100">{t("creation.title")}</h2>
       <div className="mx-auto mt-4 flex w-24 flex-col items-center gap-1">
         <div className="size-20 border border-neutral-700 bg-parchment">
@@ -87,7 +87,7 @@ export function CreationModal({
       </p>
       </div>
 
-      <div className="border-t border-amber-900/40 p-6 pt-4">
+      <div className="border-t border-amber-900/40 p-4 sm:p-6 pt-4">
       <button
         type="button"
         onClick={onRandomize}

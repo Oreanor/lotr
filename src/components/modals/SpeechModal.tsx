@@ -24,7 +24,7 @@ export function SpeechModal({
       open={open}
       z="z-[60]"
       overlayClassName="bg-black/60"
-      className="w-full max-w-xs border-neutral-700 p-6 text-center"
+      className="w-full max-w-xs border-neutral-700 p-4 sm:p-6 text-center"
     >
       <img
         src={icon}

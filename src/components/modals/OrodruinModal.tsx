@@ -13,7 +13,7 @@ export function OrodruinModal({
 }) {
   const { t } = useTranslation();
   return (
-    <Modal open={open} className="w-full max-w-sm border-amber-700 p-6 text-center">
+    <Modal open={open} className="w-full max-w-sm border-amber-700 p-4 sm:p-6 text-center">
       <h2 className="font-serif text-2xl text-neutral-100">{t("orodruin.title")}</h2>
       <p className="mt-3 text-sm text-neutral-300">{t("orodruin.text")}</p>
       <div className="mt-5 flex flex-col gap-2">

@@ -109,7 +109,7 @@ export function EndingModal({
 
   return (
     <Modal open={open} overlayClassName="bg-black/85" className={`flex max-h-[90vh] w-full max-w-sm flex-col text-center ${borderClass}`}>
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
       {endingImage && <ZoomableImage key={endingImage} src={endingImage} alt="" />}
 
       {ending === "starved" ? (

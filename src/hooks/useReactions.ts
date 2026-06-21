@@ -7,6 +7,10 @@ export interface Reaction {
   charId: string;
   text: string;
   mood: ReactionMood;
+  // Optional staleness check, run just before showing: a queued line that's no
+  // longer true by the time the map clears (e.g. "we need supplies" after you've
+  // already restocked) is skipped.
+  valid?: () => boolean;
 }
 
 // A small queue + timer that shows one speech bubble at a time. `paused` holds
@@ -26,7 +30,10 @@ export function useReactions(paused: boolean) {
     if (busyRef.current || pausedRef.current) {
       return;
     }
-    const next = queueRef.current.shift();
+    let next = queueRef.current.shift();
+    while (next && next.valid && !next.valid()) {
+      next = queueRef.current.shift(); // drop lines that went stale while queued
+    }
     if (!next) {
       return;
     }
@@ -60,12 +67,17 @@ export function useReactions(paused: boolean) {
     [],
   );
 
+  const lastTextRef = useRef<string | null>(null);
   const enqueue = useCallback(
-    (charId: string, text: string, mood: ReactionMood) => {
+    (charId: string, text: string, mood: ReactionMood, valid?: () => boolean) => {
+      if (text === lastTextRef.current) {
+        return; // don't echo the very same line twice in a row
+      }
       if (queueRef.current.length >= REACTION_QUEUE_MAX) {
         return; // already enough waiting — stay quiet rather than pile up
       }
-      queueRef.current.push({ key: `rx${seqRef.current++}`, charId, text, mood });
+      lastTextRef.current = text;
+      queueRef.current.push({ key: `rx${seqRef.current++}`, charId, text, mood, valid });
       pump();
     },
     [pump],

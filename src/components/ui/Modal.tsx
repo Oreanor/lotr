@@ -107,8 +107,8 @@ export function Modal({
 
   return (
     <div
-      className={`absolute inset-0 ${z} flex cursor-default justify-center ${overlayClassName} p-6 transition-opacity duration-150 ${
-        align === "top" ? "items-start pt-8" : "items-center"
+      className={`modal-overlay absolute inset-0 ${z} flex cursor-default justify-center ${overlayClassName} p-4 transition-opacity duration-150 ${
+        align === "top" ? "items-start pt-4" : "items-center"
       } ${shown ? "opacity-100" : "pointer-events-none opacity-0"}`}
       onPointerDown={(event) => {
         event.stopPropagation();

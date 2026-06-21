@@ -45,7 +45,7 @@ export function ExploreResultModal({
       open={result !== null}
       z="z-[60]"
       overlayClassName="bg-black/70"
-      className="w-full max-w-xs border-sky-800 p-6 text-center"
+      className="w-full max-w-xs border-sky-800 p-4 sm:p-6 text-center"
     >
       {grouped.length > 0 ? (
         <>

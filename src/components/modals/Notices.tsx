@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
-import { iconVariant } from "@/game";
+import { CHARACTERS, iconVariant } from "@/game";
 import type { Character, DeathCause, RecruitRefusalNotice } from "@/game";
 
 const REFUSAL_GAP_PX = 12;
@@ -96,6 +96,17 @@ export function RecruitRefusalModal({
         } ${shown ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}
         style={anchored ? { top } : { top: "50%" }}
       >
+        {(() => {
+          const speaker = CHARACTERS.find((c) => c.id === lastNotice.current?.characterId);
+          return speaker ? (
+            <img
+              src={speaker.icon}
+              alt=""
+              draggable={false}
+              className="mx-auto mb-2 size-14 border border-neutral-700 bg-parchment object-cover"
+            />
+          ) : null;
+        })()}
         <p className="text-sm text-neutral-200">{lastNotice.current.message}</p>
         <button
           type="button"
@@ -113,7 +124,7 @@ export function RecruitRefusalModal({
 export function FarmResultModal({ farmed, onClose }: { farmed: number | null; onClose: () => void }) {
   const { t } = useTranslation();
   return (
-    <Modal open={farmed !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-amber-800 p-6 text-center">
+    <Modal open={farmed !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-amber-800 p-4 sm:p-6 text-center">
       <img src="/ui/food.png" alt="" className="mx-auto size-12 object-contain" />
       <h2 className="mt-2 font-serif text-xl text-amber-200">
         {(farmed ?? 0) > 0 ? t("farmResult.got", { n: farmed ?? 0 }) : t("farmResult.full")}
@@ -147,8 +158,11 @@ export function DeathNoticeModal({
         .join(", ")
     : "";
   return (
-    <Modal open={notice !== null} className="w-full max-w-sm border-red-800 p-6 text-center">
-      <h2 className="font-serif text-2xl text-red-400">{t("death.title", { names })}</h2>
+    <Modal open={notice !== null} className="w-full max-w-sm border-red-800 p-4 sm:p-6 text-center">
+      <h2 className="flex items-center justify-center gap-2 font-serif text-2xl text-red-400">
+        <img src="/ui/skull.png" alt="" className="size-7 object-contain" />
+        {t("death.title", { names })}
+      </h2>
       <p className="mt-3 text-sm text-neutral-300">
         {t(notice?.cause === "battle" ? "death.battleText" : "death.text", {
           count: notice ? notice.ids.split(",").length : 1,
@@ -177,7 +191,7 @@ export function SamCatchUpModal({
 }) {
   const { t } = useTranslation();
   return (
-    <Modal open={open} overlayClassName="bg-black/70" className="w-full max-w-sm border-amber-700 p-6 text-center">
+    <Modal open={open} overlayClassName="bg-black/70" className="w-full max-w-sm border-amber-700 p-4 sm:p-6 text-center">
       {sam && (
         <>
           <img

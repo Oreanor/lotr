@@ -6,7 +6,7 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
   const { t } = useTranslation();
   return (
     <Modal open={open} onClose={onClose} className="flex max-h-[85vh] w-full max-w-md flex-col border-neutral-700">
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
         <h2 className="font-serif text-2xl text-neutral-100">{t("help.title")}</h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-neutral-300">
           <p>{t("help.p1")}</p>

@@ -2,6 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Reaction speech bubble: pops in fast from transparent + 80% scale with a small
+   slide out of the portrait, holds, then fades back the same way. Total ~1.8s
+   (matches REACTION_SHOW_MS). Left-tail bubbles slide right; down-tail slide up.
+   transform-origin (set per tail) makes it grow out of the portrait. */
+@keyframes bubble-pop-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-15px) scale(0.8);
+  }
+  6% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  92% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-15px) scale(0.8);
+  }
+}
+@keyframes bubble-pop-down {
+  0% {
+    opacity: 0;
+    transform: translateY(15px) scale(0.8);
+  }
+  6% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  92% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(15px) scale(0.8);
+  }
+}
+/* Forage tally: "+N -M" drifts up off the food icon and fades (no scale, crisp). */
+@keyframes food-float {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-12px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+.food-float {
+  animation: food-float 1300ms ease-out forwards;
+}
+
+/* In the light (parchment) theme the modal scrim lightens rather than darkens —
+   a warm parchment wash instead of black, overriding any bg-black/NN overlay. */
+[data-theme="light"] .modal-overlay {
+  background-color: rgb(236 222 188 / 0.72) !important;
+}
+
+.reaction-pop-left {
+  animation: bubble-pop-left 1800ms ease-out both;
+}
+.reaction-pop-down {
+  animation: bubble-pop-down 1800ms ease-out both;
+}
+
 /* Theme palette. Values are space-separated RGB channels so Tailwind's
    /opacity modifiers (e.g. bg-neutral-900/90) keep working via <alpha-value>.
    Dark theme (default) mirrors Tailwind's stock scales; light theme reverses

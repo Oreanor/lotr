@@ -44,7 +44,7 @@ import {
   HEALTH_PER_DEF,
   HOBBIT_IDS,
   LEVEL_BASE_XP,
-  LEVEL_XP_STEP,
+  LEVEL_XP_EXPONENT,
   MAP_GRID_COLS,
   MAX_PACK_SIZE,
   MIN_DAMAGE_FRACTION,
@@ -200,15 +200,29 @@ export function recruitRefusalKey(characterId: string, party: string[]): string 
 // Party-wide stat auras from companions, added on top of allocated bonuses.
 export function auraBonus(character: Character, party: string[]): StatBonus {
   const bonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
+  // Party-wide auras — everyone in the company benefits.
   if (party.includes("bombadil")) {
     bonus.luck += 1;
   }
+  if (party.includes("gimli")) {
+    bonus.defense += 1;
+  }
+  if (party.includes("legolas")) {
+    bonus.luck += 1;
+  }
+  if (party.includes("boromir")) {
+    bonus.strength += 1;
+  }
+  // Elf-lords' auras — only the elves of the company are lifted by them.
   if (ELF_IDS.has(character.id) || character.id === "legolas") {
     if (party.includes("elrond")) {
-      bonus.strength += 1;
+      bonus.strength += 2;
     }
     if (party.includes("galadriel")) {
-      bonus.defense += 1;
+      bonus.defense += 2;
+    }
+    if (party.includes("celeborn")) {
+      bonus.intelligence += 2;
     }
   }
   return bonus;
@@ -525,7 +539,7 @@ export function levelForExp(exp: number): { level: number; intoLevel: number; ne
   while (exp >= acc + need) {
     acc += need;
     level += 1;
-    need += LEVEL_XP_STEP;
+    need = Math.round(LEVEL_BASE_XP * Math.pow(level, LEVEL_XP_EXPONENT));
   }
   return { level, intoLevel: exp - acc, nextLevelXp: need };
 }
@@ -620,8 +634,8 @@ export function critChance(intelligence: number): number {
   return clamp((intelligence - CRIT_INT_FLOOR) * CRIT_PER_INT, 0, CRIT_MAX_CHANCE);
 }
 
-export function rollCrit(intelligence: number, bonus = 0): boolean {
-  return Math.random() < critChance(intelligence) + bonus;
+export function rollCrit(intelligence: number, bonus = 0, mult = 1): boolean {
+  return Math.random() < critChance(intelligence) * mult + bonus;
 }
 
 // A crit's bite is a flat multiplier — intelligence governs frequency, not size,
@@ -798,7 +812,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     let didCrit = false;
     if (lands) {
       dealt = hitDamage(allies[i], enemies[target]);
-      if (rollCrit(allies[i].intelligence, critBonus)) {
+      if (rollCrit(allies[i].intelligence, critBonus, battle.allyCritMult ?? 1)) {
         dealt = Math.round(dealt * critMultiplier());
         didCrit = true;
       }
@@ -874,7 +888,7 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   let didCrit = false;
   if (lands) {
     dealt = hitDamage(enemies[j], allies[target]);
-    if (rollCrit(enemies[j].intelligence)) {
+    if (rollCrit(enemies[j].intelligence, 0, battle.noEnemyCrit ? 0 : 1)) {
       dealt = Math.round(dealt * critMultiplier());
       didCrit = true;
     }
@@ -998,6 +1012,8 @@ export function createBattleState(opts: CreateBattleOpts): BattleState {
     phialBlinded,
     wraithsStand: opts.wraithsStand ?? false,
     sarumanParley: opts.sarumanParley ?? false,
+    noEnemyCrit: party.includes("arwen"),
+    allyCritMult: party.includes("theoden") ? 1.5 : 1,
   };
 }
 

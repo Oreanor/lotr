@@ -51,7 +51,7 @@ function Portrait({ src, label, found }: { src: string; label: string; found: bo
     <div title={label} className="flex flex-col items-center gap-0.5">
       <div
         className={`aspect-square w-full overflow-hidden rounded border border-neutral-700 ${
-          found ? "bg-parchment" : "bg-[#525252]"
+          found ? "bg-parchment" : "bg-[#7a7a7a]"
         }`}
       >
         <img
@@ -99,12 +99,14 @@ export function StatsModal({
       onClose={onClose}
       align="top"
       z="z-[60]"
-      className="flex max-h-[88vh] w-full max-w-2xl flex-col border-neutral-700"
+      className="flex h-full w-full max-w-2xl flex-col border-neutral-700"
     >
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <h2 className="font-serif text-2xl text-neutral-100">{t("stats.title")}</h2>
-
-      <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
+      {/* Fixed header — stays put while the galleries scroll under it. */}
+      <h2 className="border-b border-neutral-800 px-4 sm:px-6 pb-3 pt-4 sm:pt-6 font-serif text-2xl text-neutral-100">
+        {t("stats.title")}
+      </h2>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
         {/* Exploration */}
         <StatRow
           label={t("stats.locations")}

@@ -17,7 +17,7 @@ export function TransportConfirmModal({
 }) {
   const { t } = useTranslation();
   return (
-    <Modal open={to !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-neutral-700 p-6 text-center">
+    <Modal open={to !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-neutral-700 p-4 sm:p-6 text-center">
       {to && (
         <div className="mb-4 flex items-center justify-center gap-3">
           <TransportIcon transport={from} className="size-8 object-contain opacity-80" />
@@ -55,7 +55,7 @@ export function TransportConfirmModal({
 export function EaglesLeftModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   return (
-    <Modal open={open} overlayClassName="bg-black/60" className="w-full max-w-xs border-amber-800 p-6 text-center">
+    <Modal open={open} overlayClassName="bg-black/60" className="w-full max-w-xs border-amber-800 p-4 sm:p-6 text-center">
       <TransportIcon transport="eagle" className="mx-auto size-12 object-contain" />
       <h2 className="mt-2 font-serif text-xl text-amber-200">{t("transport.eaglesLeftTitle")}</h2>
       <p className="mt-2 text-sm text-neutral-300">{t("transport.eaglesLeftText")}</p>

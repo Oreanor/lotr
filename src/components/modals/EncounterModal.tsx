@@ -19,7 +19,7 @@ export function EncounterModal({
 }) {
   const { t } = useTranslation();
   return (
-    <Modal open={encounter !== null} className="w-full max-w-sm border-red-800 p-6 text-center">
+    <Modal open={encounter !== null} className="w-full max-w-sm border-red-800 p-4 sm:p-6 text-center">
       {encounter && (
         <>
       <h2 className="font-serif text-2xl text-red-300">{t("encounter.title")}</h2>

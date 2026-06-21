@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Flame, Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
-import { ReactionBubble } from "@/components/ui/ReactionBubble";
+import { PortalBubble } from "@/components/ui/PortalBubble";
 import { StatBar } from "@/components/ui/StatBar";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { ABILITIES, itemFamilyId, ringImage } from "@/game";
@@ -30,6 +30,7 @@ export function CharacterModal({
   onCall,
   onClose,
   reaction,
+  ringDestroyed = false,
 }: {
   character: Character | null;
   stats: CharacterStats | null;
@@ -51,10 +52,13 @@ export function CharacterModal({
   onClose: () => void;
   // A spoken item reaction shown at this hero's portrait (null = none).
   reaction?: string | null;
+  // Freeplay: the Ring is gone — hide all bearer/Ring UI.
+  ringDestroyed?: boolean;
 }) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
   const itemListRef = useRef<HTMLDivElement>(null);
+  const portraitRef = useRef<HTMLImageElement>(null);
   const suppressItemClick = useRef(false);
   // Close the item picker when switching to another character.
   useEffect(() => {
@@ -112,22 +116,24 @@ export function CharacterModal({
             ) : (
               <span className="size-7 shrink-0" aria-hidden="true" />
             )}
-            <span className="relative shrink-0">
-              <img
-                src={iconFor(character)}
-                alt=""
-                className="size-14 border border-neutral-700 bg-parchment object-cover"
+            <img
+              ref={portraitRef}
+              src={iconFor(character)}
+              alt=""
+              className="mr-2 size-14 shrink-0 border border-neutral-700 bg-parchment object-cover"
+            />
+            {reaction && (
+              <PortalBubble
+                getEl={() => portraitRef.current}
+                text={reaction}
+                tail="down"
+                maxWClass="max-w-[18rem]"
               />
-              {reaction && (
-                <span className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 -translate-y-1/2">
-                  <ReactionBubble text={reaction} />
-                </span>
-              )}
-            </span>
+            )}
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-serif text-xl text-neutral-100">{charName(character.id)}</h2>
               <p className="flex h-4 items-center gap-1 text-xs text-amber-400">
-                {stats.isBearer && (
+                {stats.isBearer && !ringDestroyed && (
                   <>
                     <img
                       src={ringImage}
@@ -155,7 +161,8 @@ export function CharacterModal({
           </div>
 
           {stats.dead && (
-            <p className="text-center text-sm font-semibold text-red-400">
+            <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-red-400">
+              <img src="/ui/skull.png" alt="" className="size-4 object-contain" />
               {t(deadInBattle ? "character.deadBattle" : "character.deadHunger")}
             </p>
           )}
@@ -195,13 +202,15 @@ export function CharacterModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1 text-yellow-500">
-              <Flame className="size-4" />
-              {t("character.ringPower")}
-            </span>
-            <span className="font-semibold tabular-nums text-yellow-400">{stats.corruption}%</span>
-          </div>
+          {!ringDestroyed && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-1 text-yellow-500">
+                <Flame className="size-4" />
+                {t("character.ringPower")}
+              </span>
+              <span className="font-semibold tabular-nums text-yellow-400">{stats.corruption}%</span>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <StatBar label={t("character.strength")} hint={t("character.strengthHint")} value={stats.strength} max={10} color="bg-red-500" />
@@ -256,7 +265,7 @@ export function CharacterModal({
             open={pickerOpen}
             z="z-[60]"
             overlayClassName="bg-black/70"
-            className="w-full max-w-xs border-sky-800 p-5 text-center"
+            className="w-full max-w-xs border-sky-800 p-4 sm:p-5 text-center"
           >
             <h2 className="font-serif text-xl text-sky-200">{t("item.chooseTitle")}</h2>
             <div
@@ -341,7 +350,7 @@ export function CharacterModal({
 
           <div className="border-t border-neutral-800 p-4">
           <div className="flex flex-col gap-2">
-            {isInParty && (
+            {isInParty && !ringDestroyed && (
               <button
                 type="button"
                 disabled={!canMakeBearer}

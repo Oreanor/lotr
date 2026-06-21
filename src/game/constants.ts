@@ -288,7 +288,9 @@ export const ROGUE_ENCOUNTER_CHANCE = 0.08;
 
 // Leveling.
 export const LEVEL_BASE_XP = 300; // xp from level 1 to 2
-export const LEVEL_XP_STEP = 120; // each further level needs this much more
+// XP to reach the next level = LEVEL_BASE_XP × level^LEVEL_XP_EXPONENT. A root
+// curve (0.5): the requirement jumps early, then the climb gradually eases.
+export const LEVEL_XP_EXPONENT = 0.5;
 // Intelligence is learning aptitude: each point above XP_INT_FLOOR grants a
 // per-battle XP bonus of XP_BONUS_PER_INT, applied to each survivor's share
 // individually (a wits-7 hero earns +5%, wits-10 earns +20%).
@@ -296,7 +298,7 @@ export const XP_INT_FLOOR = 6;
 export const XP_BONUS_PER_INT = 0.05;
 
 // Spoken companion reactions (speech bubbles over the party figure).
-export const REACTION_SHOW_MS = 3000; // how long a bubble lingers
+export const REACTION_SHOW_MS = 1800; // how long a bubble lingers (matches the pop animation)
 export const REACTION_GAP_MS = 450; // quiet beat between consecutive bubbles
 export const REACTION_QUEUE_MAX = 3; // drop extras so chatter never piles up
 export const REACTION_CHANCE = 0.6; // most events only sometimes draw a remark

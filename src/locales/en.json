@@ -127,8 +127,8 @@
     "itemRemove": "Remove item",
     "talk": "Talk",
     "bearer": "Ring-bearer",
-    "deadHunger": "💀 Starved to death",
-    "deadBattle": "💀 Fell in battle",
+    "deadHunger": "Starved to death",
+    "deadBattle": "Fell in battle",
     "becomeLord": "Become the Lord",
     "makeBearer": "Make ring-bearer",
     "close": "Close",
@@ -180,7 +180,7 @@
     "close": "Close"
   },
   "death": {
-    "title": "💀 {{names}}",
+    "title": "{{names}}",
     "text_one": "Supplies ran out, and {{names}} did not survive the hunger. The party travels on.",
     "text_other": "Supplies ran out, and {{names}} did not survive the hunger. The party travels on without them.",
     "battleText_one": "{{names}} fell in battle. The party travels on.",
@@ -321,10 +321,10 @@
       "food": ["My belly's about to shrink to a pea!", "Will there be second breakfast? …First?"],
       "transport": ["A pony! No more trudging on my poor feet!", "Riding? My heels are saved!"],
       "eagles": ["I'm flyiiing! Just don't look down… oh.", "An eagle! Main thing — don't fall off."],
-      "levelStr": ["Feeling strong — I'd wrestle a troll now!"],
-      "levelDef": ["Now you couldn't dent me with an anvil!"],
-      "levelInt": ["I think I got smarter! …or did I?"],
-      "levelLuck": ["I feel lucky! I'd bet a button on it."],
+      "levelStr": ["Feeling strong — I'd wrestle a troll now!", "I feel a surge of strength!", "Whoa, I'm a powerhouse now!", "My muscles are buzzing!", "Who's the strong one? Me!"],
+      "levelDef": ["Now you couldn't dent me with an anvil!", "Tough as a nut, that's me!", "Go on, hit me — doesn't hurt!", "My hide's like leather now!", "You won't knock me down easy!"],
+      "levelInt": ["I think I got smarter! …or did I?", "Ooh, my head cleared up!", "I'm practically a sage now!", "My thoughts run quicker!", "I got smart — scares me a bit!"],
+      "levelLuck": ["I feel lucky! I'd bet a button on it.", "Today's my day!", "Luck loves me!", "Ooh, lucky lucky!", "Born under a lucky star, I was!"],
       "bearer60": ["It's gone heavy. And it whispers. I hate the whispering."],
       "bearer80": ["I don't want to give it up. It's mine!… oh, what am I saying."],
       "idle": ["Did no one bring the dice?", "I'd give anything for some pipe-weed…", "Why are we standing? Moss is growing on my boots."],
@@ -337,9 +337,9 @@
       "sea": ["I think I'm going to be seasick… bleh.", "Always dreamed of sailing! …maybe I was wrong."],
       "mourn": ["Poor {{name}}… how could it be."],
       "hurt": ["Ow… I could use a rest, I'm all battered.", "I think I've had enough — need a breather!"],
-      "battleEasy": ["Ha! That was too easy!", "That's it? I was just warming up!"],
-      "battleHard": ["Phew! That was rough…", "What a brawl — nearly knocked the wind out of me!"],
-      "battleNarrow": ["Got out by a miracle! I thought we were done for.", "A hair's breadth more and that'd be it!"]
+      "battleEasy": ["Ha! That was too easy!", "That's it? I was just warming up!", "Blew the enemy away!", "Didn't even nick my blade."],
+      "battleHard": ["Phew! That was rough…", "What a brawl — nearly knocked the wind out of me!", "What a mess, my bones are humming.", "A bit more and we'd have been done for."],
+      "battleNarrow": ["Got out by a miracle! I thought we were done for.", "A hair's breadth more and that'd be it!", "I'd already said my goodbyes!", "Barely got my legs out of there!"]
     },
     "plain": {
       "itemLike": ["Good gear, it'll serve in a fight.", "Just what I needed. My thanks."],
@@ -350,10 +350,10 @@
       "food": ["We need to restock our supplies.", "Food is running low."],
       "transport": ["We'll go faster mounted. We'll take it.", "A good choice — it saves our strength."],
       "eagles": ["With the eagles we'll get there fast.", "A fair wind. Let's fly."],
-      "levelStr": ["I'm stronger now. My arm is steady."],
-      "levelDef": ["I'm hardier now, I'll hold out longer."],
-      "levelInt": ["I'm sharper now — I see more clearly."],
-      "levelLuck": ["Fortune favours me today."],
+      "levelStr": ["I'm stronger now. My arm is steady.", "I feel a surge of strength.", "More force in my blows.", "I've grown tougher.", "Strength is rising in me."],
+      "levelDef": ["I'm hardier now, I'll hold out longer.", "Harder to wound me now.", "I'm sturdier than before.", "I'll take more blows.", "I stand firm."],
+      "levelInt": ["I'm sharper now — I see more clearly.", "My wits are keener.", "I think faster now.", "I see more than before.", "Experience serves me well."],
+      "levelLuck": ["Fortune favours me today.", "Luck is on my side.", "Fortune is kind.", "Luck is with me.", "I sense a good omen."],
       "bearer60": ["The Ring weighs on me, heavier with every step."],
       "bearer80": ["I feel ill. The Ring scarcely lets me go."],
       "idle": ["We shouldn't dawdle. Shall we move?", "We're losing time.", "A long halt does us no good."],
@@ -366,9 +366,9 @@
       "sea": ["The pitching is rough. Hold fast.", "The sea is new to us."],
       "mourn": ["Farewell, {{name}}. We will remember."],
       "hurt": ["I'm badly hurt. I need rest.", "I must rest and tend my wounds."],
-      "battleEasy": ["Handled without trouble.", "A light skirmish."],
-      "battleHard": ["That was hard going. Let's catch our breath.", "A tough fight."],
-      "battleNarrow": ["We barely survived. A close call.", "We were a hair from death."]
+      "battleEasy": ["Handled without trouble.", "A light skirmish.", "No match for us.", "Made quick work of it."],
+      "battleHard": ["That was hard going. Let's catch our breath.", "A tough fight.", "Everyone took a beating — we'll tend the wounds.", "The enemy was stubborn."],
+      "battleNarrow": ["We barely survived. A close call.", "We were a hair from death.", "Came through by a thread.", "We barely pulled that one out."]
     },
     "lofty": {
       "itemLike": ["A worthy gift. I shall not shame it.", "This steel has known noble hands."],
@@ -379,10 +379,10 @@
       "food": ["Without provisions we'll go no further.", "Hunger is a worse foe than orcs."],
       "transport": ["A good steed is half the journey.", "The sea will bear us. Raise the sail."],
       "eagles": ["All Endórë below us — great wings carry us on.", "The Eagles of Manwë! A high honour."],
-      "levelStr": ["New might courses through my limbs."],
-      "levelDef": ["No blade nor arrow shall break me now."],
-      "levelInt": ["My mind is keener than ever."],
-      "levelLuck": ["Fate itself smiles upon me."],
+      "levelStr": ["New might courses through my limbs.", "I feel a surge of strength.", "The strength of old wakes in me.", "My arm grows mighty.", "Power flows through my veins."],
+      "levelDef": ["No blade nor arrow shall break me now.", "I am firm as the mountain stone.", "Wounds yield before my resolve.", "I cannot be broken.", "My shield is my very will."],
+      "levelInt": ["My mind is keener than ever.", "The wisdom of years descends on me.", "I see farther and clearer.", "My thought runs deep as the Sea.", "Insight grows within me."],
+      "levelLuck": ["Fate itself smiles upon me.", "The stars shine on me now.", "Fortune weaves me a fair thread.", "The Valar keep my road.", "A good omen is upon me."],
       "bearer60": ["The burden sears my breast. I hear the call of the Dark."],
       "bearer80": ["The light dims. I hold on by my last strength…"],
       "idle": ["The Enemy does not sleep — we must hasten.", "Delay is perilous. Onward.", "Time slips away like water through the fingers."],
@@ -395,9 +395,9 @@
       "sea": ["The great sea bears us on — wondrous and dread.", "The waters of Belegaer beneath the keel — who'd have thought."],
       "mourn": ["{{name}} has fallen. May the light receive them."],
       "hurt": ["My wounds are grievous. Grant me respite.", "I hold on, but I need rest."],
-      "battleEasy": ["The foe was weak. We barely broke a sweat.", "Won, and with ease."],
-      "battleHard": ["The fray was fierce. Yet we held.", "A hard-won victory."],
-      "battleNarrow": ["Only by a miracle did we live through that.", "Death breathed on us — yet we live."]
+      "battleEasy": ["The foe was weak. We barely broke a sweat.", "Won, and with ease.", "The foe fell without standing.", "We swept through the foe like a storm."],
+      "battleHard": ["The fray was fierce. Yet we held.", "A hard-won victory.", "Dearly bought, but we stood.", "A grievous battle."],
+      "battleNarrow": ["Only by a miracle did we live through that.", "Death breathed on us — yet we live.", "Fate itself spared us.", "We looked death in the eye."]
     },
     "gollum": {
       "ringTake": ["Preciousss… my preciousss…", "It comes back to us, yesss!"],
@@ -410,7 +410,11 @@
       "eagles": ["High up! Scary, scary! Wicked birds!"],
       "idle": ["What are we waiting for, eh? Gollum, gollum.", "Master dawdles… and we're tired of waiting, sss."],
       "bearer60": ["Preciousss… heavy, but ours, isn't it?"],
-      "bearer80": ["Mine! We won't give it up! The precious is ourss!"]
+      "bearer80": ["Mine! We won't give it up! The precious is ourss!"],
+      "levelStr": ["Gollum's stronger now, sss!", "Now we grips and grabs harder!"],
+      "levelDef": ["Harder to catch us now, yes-yes!", "Our skin's tougher, sss!"],
+      "levelInt": ["We're craftier now, preciousss!", "Gollum sees everything, sss!"],
+      "levelLuck": ["Luck loves Gollum, yes!", "The fish swims right to us, sss!"]
     },
     "treebeard": {
       "itemLike": ["Hoom-hom… a good thing. We'll not be hasty."],
@@ -423,7 +427,11 @@
       "eagles": ["Hoom-hoom… the wind is high. Strange to old boughs."],
       "idle": ["Do not be hasty… yet we should not take root here. Hrum."],
       "bearer60": ["Hoom… it whispers even through bark. Not good."],
-      "bearer80": ["Burárum… the dark reaches for the roots. Heavy going."]
+      "bearer80": ["Burárum… the dark reaches for the roots. Heavy going."],
+      "levelStr": ["Hoom-hom… my roots grow strong.", "The old tree still brims with might."],
+      "levelDef": ["My bark is thicker than stone, burárum.", "Neither axe nor storm shall fell me."],
+      "levelInt": ["Hoom… long thoughts ripen in me.", "The memory of the earth gathers in my rings."],
+      "levelLuck": ["Hoom-hoom… the wind favours the boughs.", "A good season settles on the wood."]
     },
     "king_dead": {
       "itemLike": ["Steel… I remember its cold. I will take it."],
@@ -434,7 +442,11 @@
       "eagles": ["Even death rises into the sky now."],
       "idle": ["Time holds no sway over the dead. But the oath waits to be kept."],
       "bearer60": ["The Ring… it calls to us, the fallen, too. Beware."],
-      "bearer80": ["The dark knows its own shadow. Hasten, living one."]
+      "bearer80": ["The dark knows its own shadow. Hasten, living one."],
+      "levelStr": ["A mortal might returns to me.", "The hand of the dead is strong again."],
+      "levelDef": ["I cannot be slain twice.", "Steel passes through shadow in vain."],
+      "levelInt": ["I remember all that was before death.", "Ages of silence have honed my mind."],
+      "levelLuck": ["The lot of the dead is already cast.", "Fate holds no sway over the fallen."]
     }
   },
   "split": {
@@ -455,11 +467,11 @@
     "grima": "Wormtongue sneers: \"I'll stay by the king — someone must guard his peace from the likes of you.\"",
     "theodenGrima": "Wormtongue whispers in the king's ear: \"What need have you, lord, of these wanderers and their mad errand?\" — and Théoden turns away.",
     "grimaFlees": "Wormtongue paled at the sight of Gandalf and slipped away into the gloom of the hall — and was never seen in Edoras again.",
-    "elrondArwen": "Elrond: \"I will not let Arwen into that darkness.\"",
-    "kinEowyn": "Eowyn: \"My kin will not let me go.\"",
+    "elrondArwen": "My father will not let me go.",
+    "kinEowyn": "My kin will not let me go.",
     "sarumanGandalf": "Saruman: \"I will not walk beside that grey vagabond.\"",
     "gandalfSaruman": "Gandalf: \"I will not stand beside the traitor Saruman.\"",
-    "elfDwarf": "The elf shakes his head: \"I will not take a step while a dwarf is in the party.\"",
+    "elfDwarf": "{{name}} shakes his head: \"I will not take a step while a dwarf is in the party.\"",
     "cirdanWisdom": "Cirdan: \"I will put to sea only with a company wiser, on the whole, than I.\"",
     "bilbo": "Bilbo grumbles: \"No, no — I'm not so young anymore. Adventures aren't for me.\"",
     "denethor": "Denethor: \"I have no time for mad schemes. The Ring belongs to Minas Tirith.\"",
@@ -474,6 +486,7 @@
     "traitorReturns": "{{name}} comes to his senses and leaves the party in shame.",
     "bombadilLeaves": "Tom Bombadil misses his home and leaves the party.",
     "eomerSendsEowyn": "Éomer: \"Sister, ride back to Edoras.\" Éowyn heads home.",
+    "arwenLeaves": "My father does not permit it — I must leave the company.",
     "treebeardStays": "Hoom, hom… go, my friends. I will not come. I will stay, and grow again what Saruman cut down.",
     "evicted": "{{name}} leaves the party. {{line}}"
   },
@@ -601,12 +614,20 @@
     "grimbeorn": "Bonus damage versus beasts",
     "sam": "Forages more food",
     "eomer": "Speeds travel on the map",
-    "elrond": "Elves' strength +1",
-    "galadriel": "Elves' defense +1",
+    "elrond": "Elves' strength +2",
+    "galadriel": "Elves' defense +2",
+    "celeborn": "Elves' intelligence +2",
     "king_dead": "Double damage against the undead",
     "eowyn": "Bonus damage versus Ringwraiths",
     "haldir": "Bonus damage versus orcs and goblins",
-    "thranduil": "Crits trolls far more often"
+    "thranduil": "Crits trolls far more often",
+    "gimli": "Whole party's defense +1",
+    "legolas": "Whole party's luck +1",
+    "boromir": "Whole party's strength +1",
+    "arwen": "Foes cannot land crits",
+    "theoden": "Allies crit 1.5× more often",
+    "saruman": "Orcs won't attack the party",
+    "galdor": "A ship is always in port"
   },
   "char": {
     "frodo": "Frodo",

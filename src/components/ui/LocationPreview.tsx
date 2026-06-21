@@ -9,18 +9,22 @@ export function LocationPreview({
   alt,
   initiallyLoaded = false,
   onOpen,
+  className = "mx-auto my-4 aspect-[4/3] w-full max-w-[400px]",
 }: {
   src: string;
   alt: string;
   initiallyLoaded?: boolean;
   onOpen?: () => void;
+  // Sizing classes for the frame; default is a fixed 4:3. Callers can pass a
+  // flexible box (e.g. flex-1 min-h-0) so the art shrinks and crops to fit.
+  className?: string;
 }) {
   const [loaded, setLoaded] = useState(initiallyLoaded);
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="relative mx-auto my-4 block aspect-[4/3] w-full max-w-[400px] overflow-hidden rounded border border-neutral-700 bg-neutral-800 text-left transition hover:border-amber-700"
+      className={`relative block overflow-hidden rounded border border-neutral-700 bg-neutral-800 text-left transition hover:border-amber-700 ${className}`}
       aria-label={alt}
     >
       {!loaded && <div className="absolute inset-0 animate-pulse bg-neutral-800" />}

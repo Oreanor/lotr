@@ -71,7 +71,7 @@ export function PartySummaryModal({
       overlayClassName={bearerMode ? "bg-black/85" : "bg-black/70"}
       className={`flex max-h-[88vh] w-full max-w-lg flex-col ${bearerMode ? "border-amber-700" : "border-neutral-700"}`}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
       {bearerMode && <img src={ringImage} alt="" className="mx-auto mb-2 size-10 object-contain" />}
       <h2
         className={`font-serif text-xl ${

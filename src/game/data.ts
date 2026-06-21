@@ -386,12 +386,20 @@ export const ABILITIES: Record<string, string> = {
   grimbeorn: "Усиленный урон по зверям",
   sam: "Добывает больше еды",
   eomer: "Ускоряет передвижение по карте",
-  elrond: "Сила эльфов в отряде +1",
-  galadriel: "Защита эльфов в отряде +1",
+  elrond: "Сила эльфов в отряде +2",
+  galadriel: "Защита эльфов в отряде +2",
+  celeborn: "Интеллект эльфов в отряде +2",
   king_dead: "Двойной урон по нежити",
   eowyn: "Усиленный урон по Назгулам",
   haldir: "Усиленный урон по оркам и гоблинам",
   thranduil: "Чаще критует по троллям",
+  gimli: "Защита всего отряда +1",
+  legolas: "Удача всего отряда +1",
+  boromir: "Сила всего отряда +1",
+  arwen: "Враги не могут критовать",
+  theoden: "Союзники критуют в 1.5 раза чаще",
+  saruman: "Орки не нападают на отряд",
+  galdor: "В гаванях всегда есть корабль",
 };
 
 // Artwork filename per location id. Same names live in each season folder; the

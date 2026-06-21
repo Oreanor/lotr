@@ -104,7 +104,9 @@ export function LocationModal({
           >
             <Hourglass className="size-4" />
           </button>
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {/* No scroll in towns — the recruit/leave buttons must always show. When
+              space is tight the artwork shrinks and crops harder (object-cover). */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5">
           <h2 className="px-9 font-serif text-2xl text-neutral-100">{locationName}</h2>
           <p className="mt-1 px-9 text-xs text-neutral-100">{journeyDate}</p>
 
@@ -114,6 +116,7 @@ export function LocationModal({
               src={imageSrc}
               alt={locationName}
               initiallyLoaded={imageInitiallyLoaded}
+              className="mx-auto my-2 min-h-[3rem] w-full max-w-[400px] flex-1"
             />
           )}
 
@@ -218,7 +221,7 @@ export function LocationModal({
           )}
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-neutral-800 p-5 pt-4">
+          <div className="flex flex-col gap-3 border-t border-neutral-800 p-4 sm:p-5 pt-4">
           {canRestock && (
             <button
               type="button"

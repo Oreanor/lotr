@@ -1,8 +1,9 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Gauge, FastForward } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { ReactionBubble } from "@/components/ui/ReactionBubble";
+import { PortalBubble } from "@/components/ui/PortalBubble";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { BALROG_DAMAGERS, enemyBeatenInBattle, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
 import type { BattleState } from "@/game";
@@ -35,6 +36,9 @@ export function BattleModal({
   onContinue: () => void;
 }) {
   const { t } = useTranslation();
+  // Portrait nodes for anchoring win-screen reaction bubbles (drawn in a portal
+  // so no modal overflow clips them).
+  const portraitRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const allyIcon = (ally: BattleState["allies"][number]): string => {
     if (!ally.icon) {
       return "";
@@ -43,6 +47,10 @@ export function BattleModal({
       return iconVariant(ally.icon, "pain");
     }
     if (battle?.outcome === "win") {
+      return iconVariant(ally.icon, "joy");
+    }
+    // A satisfying crit: the striker grins for that beat.
+    if (battle?.crit && battle?.attacker === ally.key) {
       return iconVariant(ally.icon, "joy");
     }
     return battle?.lastHit === ally.key ? iconVariant(ally.icon, "pain") : ally.icon;
@@ -71,7 +79,7 @@ export function BattleModal({
     >
       {battle && (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <div className="relative mb-4">
             <h2 className="text-center font-serif text-xl text-red-300">
               {battle.rogueId
@@ -109,17 +117,18 @@ export function BattleModal({
               {battle.allies.map((ally) => {
                 const invisible =
                   battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
-                const reactionText = battle.reactions?.find((r) => r.key === ally.key)?.text;
                 return (
                   <div key={ally.key} className="relative flex w-14 flex-col items-center gap-1 sm:w-20">
-                    {reactionText && (
-                      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2">
-                        <ReactionBubble text={reactionText} tail="down" />
-                      </span>
-                    )}
                     <div
+                      ref={(el) => {
+                        if (el) {
+                          portraitRefs.current.set(ally.key, el);
+                        } else {
+                          portraitRefs.current.delete(ally.key);
+                        }
+                      }}
                       className={`relative size-14 overflow-hidden border sm:size-20 ${
-                        ally.hp <= 0 ? "bg-[#525252]" : "bg-parchment"
+                        ally.hp <= 0 ? "bg-[#7a7a7a]" : "bg-parchment"
                       } ${
                         battle.attacker === ally.key
                           ? "border-amber-400 ring-2 ring-amber-400"
@@ -171,7 +180,7 @@ export function BattleModal({
                 <div key={enemy.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                   <div
                     className={`relative flex size-14 items-center justify-center overflow-hidden border text-2xl sm:size-20 sm:text-3xl ${
-                      enemyDown(enemy) ? "bg-[#525252]" : "bg-parchment"
+                      enemyDown(enemy) ? "bg-[#7a7a7a]" : "bg-parchment"
                     } ${
                       battle.attacker === enemy.key
                         ? "border-amber-400 ring-2 ring-amber-400"
@@ -223,9 +232,18 @@ export function BattleModal({
               ))}
             </div>
           </div>
+          {battle.reactions?.map((r, i) => (
+            <PortalBubble
+              key={r.key}
+              getEl={() => portraitRefs.current.get(r.key) ?? null}
+              text={r.text}
+              tail="down"
+              delayMs={i * 500}
+            />
+          ))}
           </div>
 
-          <div className="border-t border-red-900/40 p-5 pt-4">
+          <div className="border-t border-red-900/40 p-4 sm:p-5 pt-4">
           {battle.outcome ? (
             <div className="text-center">
               <p

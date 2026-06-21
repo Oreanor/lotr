@@ -197,6 +197,8 @@ export interface BattleState {
   sarumanParley?: boolean;
   pendingParley?: boolean;
   parleyDeclined?: boolean;
+  noEnemyCrit?: boolean; // Arwen in the party — foes cannot land crits
+  allyCritMult?: number; // Théoden in the party — allies crit this much more often
   // Spoken aftermath lines shown at 1-2 allies' portraits on the win screen
   // (keyed by ally key). Filled once the fight is resolved.
   reactions?: { key: string; text: string }[];

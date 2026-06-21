@@ -1,9 +1,11 @@
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { PortalBubble } from "@/components/ui/PortalBubble";
 import { StatAllocator } from "@/components/ui/StatAllocator";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { maxHpFromStats } from "@/game";
+import { iconVariant, maxHpFromStats } from "@/game";
 import type { Character, StatBonus } from "@/game";
 
 // Spend the points earned on level-up across the hero's four stats.
@@ -19,6 +21,7 @@ export function LevelUpModal({
   onAdjust,
   onRandomize,
   onConfirm,
+  reaction,
 }: {
   hero: Character | null;
   level: { level: number; intoLevel: number; nextLevelXp: number };
@@ -31,8 +34,24 @@ export function LevelUpModal({
   onAdjust: (stat: keyof StatBonus, delta: number) => void;
   onRandomize: () => void;
   onConfirm: () => void;
+  // A spoken line shown at the portrait just after committing (null = none).
+  reaction?: string | null;
 }) {
   const { t } = useTranslation();
+  const portraitRef = useRef<HTMLDivElement>(null);
+  // The hero beams for a beat when their level-up screen first appears.
+  const [joy, setJoy] = useState(false);
+  useEffect(() => {
+    if (!hero) {
+      return undefined;
+    }
+    setJoy(true);
+    const id = window.setTimeout(() => setJoy(false), 300);
+    return () => window.clearTimeout(id);
+  }, [hero?.id]);
+  // Beam on open, and again for as long as the spoken reaction bubble is up — so
+  // the joy face and the bubble appear together.
+  const heroIcon = hero ? (joy || reaction ? iconVariant(hero.icon, "joy") : hero.icon) : "";
   const maxHealth = hero
     ? maxHpFromStats(
         hero.strength + existingBonus.strength + draft.strength,
@@ -54,20 +73,28 @@ export function LevelUpModal({
       open={hero !== null}
       z="z-[65]"
       overlayClassName="bg-black/85"
-      className="w-full max-w-xs border-amber-800 p-6 text-center"
+      className="w-full max-w-xs border-amber-800 p-4 sm:p-6 text-center"
     >
       {hero && (
         <>
           <h2 className="font-serif text-2xl text-neutral-100">{t("levelUp.title")}</h2>
           <div className="mx-auto mt-4 flex w-24 flex-col items-center gap-1">
-            <div className="size-20 border border-neutral-700 bg-parchment">
+            <div ref={portraitRef} className="size-20 border border-neutral-700 bg-parchment">
               <img
-                src={hero.icon}
+                src={heroIcon}
                 alt=""
                 draggable="false"
                 className="size-full select-none object-cover"
               />
             </div>
+            {reaction && (
+              <PortalBubble
+                getEl={() => portraitRef.current}
+                text={reaction}
+                tail="down"
+                maxWClass="max-w-[15rem]"
+              />
+            )}
             <span className="w-full truncate text-center text-xs text-neutral-200">
               {charName(hero.id)}
             </span>

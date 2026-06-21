@@ -9,12 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { HelpModal } from "@/components/modals/HelpModal";
 import { StatsModal, type GameStats } from "@/components/modals/StatsModal";
 import { PartySummaryModal, type PartySummaryRow } from "@/components/modals/PartySummaryModal";
-import {
-  DeathNoticeModal,
-  FarmResultModal,
-  RecruitRefusalModal,
-  SamCatchUpModal,
-} from "@/components/modals/Notices";
+import { RecruitRefusalModal, SamCatchUpModal } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
 import { SpeechModal } from "@/components/modals/SpeechModal";
 import { MapSettingsMenu } from "@/components/map/MapSettingsMenu";
@@ -99,6 +94,7 @@ import {
   foodCapacityFor,
   GANDALF_HEAL_MULTIPLIER,
   getJourneyDate,
+  dateToDayOffset,
   getLocationLabel,
   getStartPosition,
   HEAL_PER_DAY,
@@ -198,6 +194,7 @@ import {
   SARUMAN_NAME,
   SARUMAN_ENCOUNTER_CHANCE,
   SARUMAN_SCOUR_DAYS,
+  ORC_FOES,
   XP_INT_FLOOR,
   XP_BONUS_PER_INT,
   ZERO_BONUS,
@@ -229,6 +226,7 @@ import type {
 } from "@/game";
 import { useReactions } from "@/hooks/useReactions";
 import { ReactionBubble } from "@/components/ui/ReactionBubble";
+import { PortalBubble } from "@/components/ui/PortalBubble";
 
 // Stable parse/serialize helpers for the persistent UI prefs (kept at module
 // scope so usePersistentState's effect doesn't re-run every render).
@@ -323,6 +321,7 @@ export default function MiddleEarthMap() {
   const bearerCorruptionRef = useRef(0);
   const gollumAliveRef = useRef(true);
   const bearerIdRef = useRef<string | null>(null);
+  const treebeardSettledRef = useRef(false);
   // Reassigned every render to the live `speak` closure, so action callbacks
   // defined before the reactions block can still fire spoken lines.
   const speakRef = useRef<(charId: string, event: ReactionEvent, opts?: { always?: boolean }) => void>(
@@ -330,6 +329,9 @@ export default function MiddleEarthMap() {
   );
   // Item reactions shown inside the character panel (not on the map).
   const panelReactionRef = useRef<(charId: string, event: ReactionEvent) => void>(() => {});
+  // A refusal/notice to surface only once the battle screen is dismissed (e.g. a
+  // beaten traitor slinking off "in shame").
+  const pendingRefusalRef = useRef<{ message: string; characterId?: string } | null>(null);
   // Equipped items mirrored for the rAF travel loop (item speed bonuses).
   const equippedItemsRef = useRef<Record<string, string>>({});
   // Party members present when the current location was entered; used to hide
@@ -542,13 +544,24 @@ export default function MiddleEarthMap() {
   // rations on, a damaged party heals at the cost of extra food.
   const [food, setFood] = useState(initialSave?.food ?? INITIAL_FOOD_DAYS);
   const [damageById, setDamageById] = useState<Record<string, number>>(initialSave?.damageById ?? {});
-  const [deathNotice, setDeathNotice] = useState<{ ids: string; cause: DeathCause } | null>(null);
   const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>(
     initialSave?.deathCauseById ?? {},
   );
-  const [foodFarmed, setFoodFarmed] = useState<number | null>(null);
   const [randomPresence, setRandomPresence] = useState<Record<string, boolean>>({});
+  // Forage result floated above the food counter: "+gathered" (green) and the
+  // day's "-eaten" (red), so the change adds up.
+  const [foodChange, setFoodChange] = useState<{ gain: number; eaten: number; key: number } | null>(
+    null,
+  );
+  const foodFarmSeqRef = useRef(0);
+  const foodFarmTimerRef = useRef<number | null>(null);
   const [recruitRefusal, setRecruitRefusal] = useState<RecruitRefusalNotice | null>(null);
+  // A recruit's spoken refusal, shown as a bubble above their portrait.
+  const [recruitBubble, setRecruitBubble] = useState<{ speakerId: string; text: string; key: number } | null>(
+    null,
+  );
+  const recruitBubbleSeqRef = useRef(0);
+  const recruitBubbleTimerRef = useRef<number | null>(null);
   // After defeating a recruitable foe: offer to invite them.
   const [recruitOffer, setRecruitOffer] = useState<string | null>(null);
   const [pendingExploreRecruit, setPendingExploreRecruit] = useState<string | null>(null);
@@ -570,7 +583,16 @@ export default function MiddleEarthMap() {
   const [creationBonus, setCreationBonus] = useState<StatBonus>(ZERO_BONUS);
   // Level-up point allocation queue (shown one modal at a time after battle).
   const [levelUpQueue, setLevelUpQueue] = useState<string[]>([]);
+  const levelUpQueueRef = useRef<string[]>([]);
+  levelUpQueueRef.current = levelUpQueue;
   const [levelUpCharacterId, setLevelUpCharacterId] = useState<string | null>(null);
+  // A ~40% spoken reaction shown at the hero's portrait on the level-up screen
+  // (kept here so it's reliable, unlike the map queue which a march/town pauses).
+  const [levelUpReaction, setLevelUpReaction] = useState<string | null>(null);
+  const levelUpReactionTimerRef = useRef<number | null>(null);
+  const pickReactionRef = useRef<((c: string, e: ReactionEvent) => { text: string } | null) | null>(
+    null,
+  );
   const [levelUpDraft, setLevelUpDraft] = useState<StatBonus>(ZERO_BONUS);
   const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(
     () => new Set(initialSave?.defeatedBosses ?? []),
@@ -729,6 +751,28 @@ export default function MiddleEarthMap() {
     [flashEmote],
   );
 
+  // A recruit's refusal as a speech bubble above their portrait (unified reaction
+  // style), with the refuse-face flicker. If the speaker has no portrait on screen
+  // to anchor to (e.g. Gollum, just caught in the wild and offered), fall back to
+  // the notice card so the line is never lost.
+  const speakRefusalBubble = useCallback(
+    (speakerId: string, text: string) => {
+      const onScreen = !!document.querySelector(`[data-character-portrait="${speakerId}"]`);
+      if (!onScreen) {
+        showRecruitRefusal(text, speakerId);
+        return;
+      }
+      flashEmote(speakerId, "refuse");
+      recruitBubbleSeqRef.current += 1;
+      setRecruitBubble({ speakerId, text, key: recruitBubbleSeqRef.current });
+      if (recruitBubbleTimerRef.current) {
+        window.clearTimeout(recruitBubbleTimerRef.current);
+      }
+      recruitBubbleTimerRef.current = window.setTimeout(() => setRecruitBubble(null), REACTION_SHOW_MS);
+    },
+    [flashEmote, showRecruitRefusal],
+  );
+
   // Close the refusal notice — and, if it was Gríma being driven from Edoras,
   // only now let him slip away (he stayed visible behind the notice).
   const dismissRecruitRefusal = useCallback(() => {
@@ -762,8 +806,15 @@ export default function MiddleEarthMap() {
       }
 
       flashEmote(id, "joy");
+
+      // Elrond joining sends Arwen home — she will not defy her father. She steps
+      // out of the company with a word (recruitable again once he's not along).
+      if (id === "elrond" && partyRef.current.includes("arwen")) {
+        setParty((prev) => prev.filter((memberId) => memberId !== "arwen"));
+        showRecruitRefusal(t("refuse.arwenLeaves"), "arwen");
+      }
     },
-    [flashEmote],
+    [flashEmote, showRecruitRefusal, t],
   );
 
   const banishTraitor = useCallback((id: string) => {
@@ -782,14 +833,22 @@ export default function MiddleEarthMap() {
   // line.
   const attemptRecruit = useCallback(
     (character: Character) => {
-      const refuse = (line: string) => {
-        showRecruitRefusal(line, character.id);
+      // The refusal is spoken as a bubble above the speaker's portrait. By default
+      // that's the recruit you tapped; Gandalf voices his own line about Saruman.
+      const refuse = (line: string, speaker: string = character.id) => {
+        speakRefusalBubble(speaker, line);
       };
 
+      // Treebeard, settled at Isengard, won't march on — only bids you go.
+      if (character.id === "treebeard" && treebeardSettledRef.current) {
+        refuse(t("refuse.treebeardStays"));
+        return;
+      }
       // Deterministic party-composition rules (incl. Gollum's hobbits-only).
       const blockedKey = recruitRefusalKey(character.id, party);
       if (blockedKey) {
-        refuse(t(blockedKey));
+        const speaker = blockedKey === "refuse.gandalfSaruman" ? "gandalf" : character.id;
+        refuse(t(blockedKey, { name: charName(character.id) }), speaker);
         return;
       }
       // Wormtongue will never leave the king's side — he only ever sneers you off.
@@ -835,7 +894,7 @@ export default function MiddleEarthMap() {
       }
       recruitCharacter(character.id);
     },
-    [bearerId, party, grimaFled, recruitCharacter, showRecruitRefusal, statBonusById, t],
+    [bearerId, party, grimaFled, recruitCharacter, speakRefusalBubble, statBonusById, t],
   );
 
   // Invite the foe defeated in battle (or decline).
@@ -870,7 +929,7 @@ export default function MiddleEarthMap() {
       // Edoras (we only drop her from the party, never mark her gone).
       if (id === "eomer" && partyRef.current.includes("eowyn")) {
         setParty((prev) => prev.filter((memberId) => memberId !== "eowyn"));
-        showRecruitRefusal(t("refuse.eomerSendsEowyn"), "eowyn");
+        showRecruitRefusal(t("refuse.eomerSendsEowyn"), "eomer");
       }
     }
   }, [recruitOffer, peacefulOffer, parkedMembers, recruitCharacter, attemptRecruit, showRecruitRefusal, t]);
@@ -1100,19 +1159,6 @@ export default function MiddleEarthMap() {
       const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
       return { ...prev, [levelUpCharacterId]: addBonus(current, draft) };
     });
-    // React to the stat that gained the most: stronger / hardier / wiser / luckier.
-    {
-      const keys: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
-      let top: keyof StatBonus = "strength";
-      for (const k of keys) {
-        if (draft[k] > draft[top]) top = k;
-      }
-      if (draft[top] > 0) {
-        const ev: ReactionEvent =
-          top === "strength" ? "levelStr" : top === "defense" ? "levelDef" : top === "intelligence" ? "levelInt" : "levelLuck";
-        speakRef.current(levelUpCharacterId, ev, { always: true });
-      }
-    }
     // Leveling raises the max HP pool but doesn't heal: the extra capacity comes
     // in "empty", so carry the gain into damage to leave current health untouched.
     const hpGain = maxHpFromStats(draft.strength, draft.defense);
@@ -1124,17 +1170,45 @@ export default function MiddleEarthMap() {
       damageRef.current = nextDamage;
       setDamageById(nextDamage);
     }
+    // React to the stat that gained the most (~40%): a line at the portrait. If it
+    // fires, hold the screen a beat so it can be read, then move on.
+    const keys: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
+    let top: keyof StatBonus = "strength";
+    for (const k of keys) {
+      if (draft[k] > draft[top]) top = k;
+    }
+    if (draft[top] > 0 && Math.random() < 0.4) {
+      const ev: ReactionEvent =
+        top === "strength" ? "levelStr" : top === "defense" ? "levelDef" : top === "intelligence" ? "levelInt" : "levelLuck";
+      const picked = pickReactionRef.current?.(levelUpCharacterId, ev);
+      if (picked) {
+        setLevelUpReaction(picked.text);
+        if (levelUpReactionTimerRef.current) {
+          window.clearTimeout(levelUpReactionTimerRef.current);
+        }
+        levelUpReactionTimerRef.current = window.setTimeout(() => {
+          setLevelUpReaction(null);
+          advanceLevelUpRef.current();
+        }, REACTION_SHOW_MS);
+        return;
+      }
+    }
+    advanceLevelUpRef.current();
+  }, [levelUpCharacterId, levelUpDraft, expById, statBonusById]);
+
+  // Commit done — clear the draft and either show the next queued hero or close.
+  const advanceLevelUpRef = useRef(() => {});
+  advanceLevelUpRef.current = () => {
     setLevelUpDraft(ZERO_BONUS);
-    // Swap in the next queued hero without closing the modal; only close when the
-    // queue is empty.
-    if (levelUpQueue.length > 0) {
-      const [next, ...rest] = levelUpQueue;
+    const queue = levelUpQueueRef.current;
+    if (queue.length > 0) {
+      const [next, ...rest] = queue;
       setLevelUpCharacterId(next);
       setLevelUpQueue(rest);
     } else {
       setLevelUpCharacterId(null);
     }
-  }, [levelUpCharacterId, levelUpDraft, expById, statBonusById, levelUpQueue]);
+  };
 
   // Rolling a random spread on level-up doubles as confirming it — scatter the
   // points and commit in one click, moving on to the next hero. (Hero creation
@@ -1226,13 +1300,11 @@ export default function MiddleEarthMap() {
         return next;
       });
       setParty((prev) => prev.filter((id) => !dead.includes(id)));
-      if (dead.length > 0) {
-        setDeathNotice({ ids: dead.join(","), cause: "battle" });
-      }
-      if (dead.includes(bearerId)) {
+      if (!ringDestroyed && dead.includes(bearerId)) {
         // The Ring can pass to an able companion still standing — here in the
         // active party, or, if this whole group fell, in a splinter squad still
         // abroad. Only when no one anywhere can take it up is the quest over.
+        // (In freeplay the Ring is gone — a fallen ex-bearer is just a death.)
         const squadHasBearer = squadsRef.current.some((s) =>
           s.members.some((id) => !NON_BEARERS.has(id)),
         );
@@ -1263,7 +1335,7 @@ export default function MiddleEarthMap() {
         setBattle(null);
       }
     },
-    [bearerId, party, rogueBearerId],
+    [bearerId, party, rogueBearerId, ringDestroyed],
   );
 
   // Flee: a single luck-weighted attempt per battle. Succeed and you leave
@@ -1554,7 +1626,21 @@ export default function MiddleEarthMap() {
       Math.floor(Math.random() * (Math.floor(luck / 3) + 1));
     const before = foodRef.current;
     foodRef.current = Math.min(foodCapacityFor(transport), before + gained);
-    setFoodFarmed(foodRef.current - before);
+    // The day that passes will eat 1 ration (or 2 if any are hurt and there's
+    // spare to heal) — mirror that rule for the red "-N" so the numbers reconcile.
+    // The actual subtraction happens in the day-upkeep effect below.
+    const gain = foodRef.current - before;
+    const anyHurt = party.some((id) => (damageRef.current[id] ?? 0) > 0);
+    const avail = foodRef.current;
+    const eaten = anyHurt && avail >= 2 ? 2 : avail >= 1 ? 1 : 0;
+    if (gain > 0 && !autoPlayRef.current) {
+      foodFarmSeqRef.current += 1;
+      setFoodChange({ gain, eaten, key: foodFarmSeqRef.current });
+      if (foodFarmTimerRef.current) {
+        window.clearTimeout(foodFarmTimerRef.current);
+      }
+      foodFarmTimerRef.current = window.setTimeout(() => setFoodChange(null), 1300);
+    }
 
     const nextDay = journeyDayRef.current + 1;
     journeyDayRef.current = nextDay;
@@ -1612,14 +1698,12 @@ export default function MiddleEarthMap() {
       samCatchUpOpen ||
       rogueFledNotice !== null ||
       reclaimedFrom !== null ||
-      (deathNotice !== null && ending === null) ||
       helpOpen ||
       statsOpen ||
       partySummaryOpen ||
       ((levelUpCharacterId !== null || levelUpQueue.length > 0) && !autoPlay) ||
       (encounter !== null && !autoPlay) ||
-      (battle !== null && !autoPlay) ||
-      (foodFarmed !== null && !autoPlay),
+      (battle !== null && !autoPlay),
     [
       created,
       ending,
@@ -1631,7 +1715,6 @@ export default function MiddleEarthMap() {
       samCatchUpOpen,
       rogueFledNotice,
       reclaimedFrom,
-      deathNotice,
       helpOpen,
       statsOpen,
       partySummaryOpen,
@@ -1640,7 +1723,6 @@ export default function MiddleEarthMap() {
       encounter,
       battle,
       autoPlay,
-      foodFarmed,
     ],
   );
 
@@ -2005,12 +2087,17 @@ export default function MiddleEarthMap() {
     const nextDay = journeyDayRef.current + 1;
     journeyDayRef.current = nextDay;
     setJourneyDay(nextDay);
-    // Weathertop: Gandalf's rune left on a stone (only reachable once the Nazgul
-    // is beaten). Pure lore note, nothing to pick up. If Gandalf already travels
-    // with the party his mark pointing east to Rivendell is meaningless — skip it.
+    // Weathertop: Gandalf's rune, left on the stone on 3 October. It can't be
+    // found before that day — and it's pointless if you've already crossed paths
+    // with Gandalf (met him anywhere), since his "I went east" mark tells you
+    // nothing new. (Reachable only once the Nazgûl here is beaten.)
     if (loc.id === WEATHERTOP_ID) {
+      const onSite = nextDay - 1; // the day we searched, before the day's cost
+      const runeReady = onSite >= dateToDayOffset(3, 10, 3018);
       setExploreResult(
-        party.includes("gandalf") ? { found: false } : { found: true, message: "location.weathertopRune" },
+        runeReady && !metCharacterIds.has("gandalf")
+          ? { found: true, message: "location.weathertopRune" }
+          : { found: false },
       );
       return;
     }
@@ -2070,7 +2157,7 @@ export default function MiddleEarthMap() {
     } else {
       setExploreResult({ found: false });
     }
-  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, parkedMembers, osgiliathCacheFound]);
+  }, [visitedLocation, foundItems, party, statBonusById, deadSummoned, parkedMembers, osgiliathCacheFound, metCharacterIds]);
 
   // Talk to a companion: hand over their gift items (once, and only if their
   // requirement is met — Bilbo needs Frodo along), else a random greeting.
@@ -2177,10 +2264,6 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    if (deathNotice) {
-      setDeathNotice(null);
-      return;
-    }
     if (reclaimedFrom) {
       const candidates = party
         .filter((id) => !NON_BEARERS.has(id))
@@ -2221,10 +2304,6 @@ export default function MiddleEarthMap() {
     }
     if (recruitOffer) {
       acceptRecruitOffer();
-      return;
-    }
-    if (foodFarmed !== null) {
-      setFoodFarmed(null);
       return;
     }
     if (talkResult) {
@@ -2421,7 +2500,6 @@ export default function MiddleEarthMap() {
     statBonusById,
     damageById,
     ringDaysById,
-    deathNotice,
     reclaimedFrom,
     recruitRefusal,
     dismissRecruitRefusal,
@@ -2429,7 +2507,6 @@ export default function MiddleEarthMap() {
     recruitOffer,
     acceptRecruitOffer,
     acceptSamCatchUp,
-    foodFarmed,
     talkResult,
     exploreResult,
     battle,
@@ -2802,10 +2879,11 @@ export default function MiddleEarthMap() {
 
       // Reached a harbour off a ship (canMoveTo walls every other coast): don't
       // step ashore yet — hold on the water and ask, since landing loses the ship.
-      // On landing, put ashore exactly at the harbour (if a marker was clicked) or
-      // at the point that was tapped, not wherever the hull happened to touch land.
+      // Keep the hull on the last water cell (`current`), NOT the land cell, so
+      // declining ("stay aboard") never strands the figure ashore. On landing we
+      // put ashore exactly at the harbour/tapped point below.
       if (onShip && getTerrainAtPoint(nextPlayer).name !== "water") {
-        playerRef.current = nextPlayer;
+        playerRef.current = current;
         syncTravelState();
         setPendingDisembark({
           point: arrivalLocation ? arrivalLocation.point : activeTarget,
@@ -2988,7 +3066,8 @@ export default function MiddleEarthMap() {
   // Once Saruman is gone (slain or spared) the Ents take Isengard — Treebeard
   // settles there and no longer roams Fangorn or agrees to join.
   const treebeardSettled = sarumanGone;
-  const recruitsHere = visitedLocation
+  treebeardSettledRef.current = treebeardSettled;
+  const recruitsBase = visitedLocation
     ? CHARACTERS.filter(
         (character) =>
           isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
@@ -3009,6 +3088,17 @@ export default function MiddleEarthMap() {
           !entryParty.has(character.id),
       )
     : [];
+  // Treebeard, having settled at fallen Isengard, is seen there as a character —
+  // but he won't march on (recruiting him only earns his "I stay" refusal).
+  const recruitsHere =
+    visitedLocation?.id === ISENGARD_ID &&
+    treebeardSettled &&
+    metCharacterIds.has("treebeard") &&
+    !party.includes("treebeard") &&
+    !slainRoamingRecruits.has("treebeard") &&
+    !recruitsBase.some((c) => c.id === "treebeard")
+      ? [...recruitsBase, CHARACTERS.find((c) => c.id === "treebeard")!]
+      : recruitsBase;
   // The boss to offer a fight with at the current location (null if none, slain,
   // or Saruman is currently a friend).
   // The Witch-king cast down at Minas Morgul breaks the wraiths: they stop
@@ -3124,7 +3214,8 @@ export default function MiddleEarthMap() {
     if (offered === "eagle" && !eagleOffered) {
       return null; // the eagles aren't here this visit
     }
-    if (offered === "ship" && !shipOffered) {
+    // Galdor of the Havens always finds a ship in port; otherwise it's chance.
+    if (offered === "ship" && !shipOffered && !party.includes("galdor")) {
       return null; // no ship in port this visit
     }
     return offered;
@@ -3301,7 +3392,6 @@ export default function MiddleEarthMap() {
     !!reclaimedFrom &&
     !ending &&
     !battle &&
-    !deathNotice &&
     !levelUpCharacterId &&
     levelUpQueue.length === 0;
   // Roster rows, built only while a panel is open (recomputed each render, but
@@ -3458,16 +3548,33 @@ export default function MiddleEarthMap() {
   // --- Companion reactions (speech bubbles over the party figure) ---
   // Hold playback while the map is covered or the party is in motion, so a remark
   // prompted inside a window only surfaces once it's closed and the map is clear.
+  // Hold bubbles while ANY darkening modal/overlay is up (or the party is moving),
+  // so a portrait never "talks" behind a dimmed screen — a remark only surfaces
+  // once everything is closed and the map is clear. `mapInputLocked` already folds
+  // in escape/explore/disembark/valinor/talk/tharbad; the rest are listed here.
   const reactionsPaused =
     !!battle ||
     !!encounter ||
     !!ending ||
+    !created ||
     isMoving ||
+    mapInputLocked ||
+    !!visitedLocation ||
     openCharacterId !== null ||
     statsOpen ||
     partySummaryOpen ||
     levelUpCharacterId !== null ||
-    recruitOffer !== null;
+    recruitOffer !== null ||
+    recruitRefusal !== null ||
+    pendingTransport !== null ||
+    pendingExploreRecruit !== null ||
+    reclaimedFrom !== null ||
+    rogueFledNotice !== null ||
+    samCatchUpOpen ||
+    eaglesLeft ||
+    splitOpen ||
+    helpOpen ||
+    restartConfirm;
   const { reaction, enqueue: enqueueReaction } = useReactions(reactionsPaused);
   const [panelReaction, setPanelReaction] = useState<{ charId: string; text: string; key: number } | null>(
     null,
@@ -3491,6 +3598,7 @@ export default function MiddleEarthMap() {
     }
     return { text: lines[Math.floor(Math.random() * lines.length)], mood: reactionMood(charId, event) };
   };
+  pickReactionRef.current = pickReaction;
   speakRef.current = (charId, event, opts) => {
     // Only the active company speaks — their portraits are on screen to anchor a
     // bubble; parked/splinter members stay silent.
@@ -3502,7 +3610,9 @@ export default function MiddleEarthMap() {
     }
     const picked = pickReaction(charId, event);
     if (picked) {
-      enqueueReaction(charId, picked.text, picked.mood);
+      // A "we need supplies" line is dropped if you restock before it surfaces.
+      const valid = event === "food" ? () => foodRef.current <= REACTION_FOOD_LOW_DAYS : undefined;
+      enqueueReaction(charId, picked.text, picked.mood, valid);
     }
   };
   // Item-panel reaction: about half the time, surfaced at the open hero's portrait
@@ -3628,6 +3738,16 @@ export default function MiddleEarthMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animationSpeed]);
 
+  // Surface a deferred post-battle notice (e.g. a beaten traitor leaving) only
+  // once the battle screen has been dismissed.
+  useEffect(() => {
+    if (battle === null && pendingRefusalRef.current) {
+      const r = pendingRefusalRef.current;
+      pendingRefusalRef.current = null;
+      showRecruitRefusal(r.message, r.characterId);
+    }
+  }, [battle, showRecruitRefusal]);
+
   // Terrain grumbles: a long mountain slog (3 cells running) wears someone out,
   // and the open sea draws a remark. Sampled each travelled day.
   const mountainStreakRef = useRef(0);
@@ -3649,8 +3769,19 @@ export default function MiddleEarthMap() {
     } else {
       mountainStreakRef.current = 0;
     }
+    // "Sea" remarks only on the open sea — all four neighbours water too, so a
+    // river crossing (land on the banks) never triggers them. Only under sail.
     if (terrain === "water" && transport === "ship") {
-      speakRandom("sea");
+      const step = 10;
+      const openSea = [
+        { x: here.x + step, y: here.y },
+        { x: here.x - step, y: here.y },
+        { x: here.x, y: here.y + step },
+        { x: here.x, y: here.y - step },
+      ].every((p) => getTerrainAtPoint(p).name === "water");
+      if (openSea) {
+        speakRandom("sea");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journeyDay]);
@@ -3928,12 +4059,15 @@ export default function MiddleEarthMap() {
           .filter((a) => a.hp > 0 && partyRef.current.includes(a.key))
           .sort(() => Math.random() - 0.5)
           .slice(0, Math.random() < 0.5 ? 2 : 1);
-        const reactions = survivors
-          .map((a) => {
-            const picked = pickReaction(a.key, outcomeEvent);
-            return picked ? { key: a.key, text: picked.text } : null;
-          })
-          .filter((r): r is { key: string; text: string } => r !== null);
+        const reactions: { key: string; text: string }[] = [];
+        const seenText = new Set<string>();
+        for (const a of survivors) {
+          const picked = pickReaction(a.key, outcomeEvent);
+          if (picked && !seenText.has(picked.text)) {
+            seenText.add(picked.text); // never the same line from two of them
+            reactions.push({ key: a.key, text: picked.text });
+          }
+        }
         if (reactions.length > 0) {
           setBattle((b) => (b ? { ...b, reactions } : b));
         }
@@ -3948,15 +4082,16 @@ export default function MiddleEarthMap() {
         if (traitorId === "gollum" && traitor.hp <= 0) {
           setSlainRoamingRecruits((prev) => new Set(prev).add("gollum"));
           setDeathCauseById((prev) => ({ ...prev, gollum: "battle" }));
-          setDeathNotice({ ids: "gollum", cause: "battle" });
         } else {
           sendSarumanScouring(traitorId);
-          showRecruitRefusal(
-            traitorId === "gollum"
-              ? t("refuse.gollumFled")
-              : t("refuse.traitorReturns", { name: charName(traitorId) }),
-            traitorId,
-          );
+          // Defer the "slinks off in shame" line until the battle screen closes.
+          pendingRefusalRef.current = {
+            message:
+              traitorId === "gollum"
+                ? t("refuse.gollumFled")
+                : t("refuse.traitorReturns", { name: charName(traitorId) }),
+            characterId: traitorId,
+          };
         }
       }
       if (battle.recruitId) {
@@ -4057,20 +4192,32 @@ export default function MiddleEarthMap() {
     }
   }, [visitedLocation]);
 
-  // At fallen Isengard, Treebeard (if met but not recruited) bids farewell once —
-  // he stays to heal the land the Ents have taken, and won't march.
+  // At fallen Isengard, Treebeard settles to heal the land the Ents have taken.
+  // If he's marching with the company he leaves it here; if merely met, he just
+  // bids farewell. Either way he won't go on — said once.
   useEffect(() => {
     if (
       visitedLocation?.id === ISENGARD_ID &&
       treebeardSettled &&
-      metCharacterIds.has("treebeard") &&
-      !party.includes("treebeard") &&
-      !treebeardFarewell
+      !treebeardFarewell &&
+      (party.includes("treebeard") || metCharacterIds.has("treebeard"))
     ) {
       setTreebeardFarewell(true);
+      if (party.includes("treebeard")) {
+        dismissMember("treebeard"); // he stays at Isengard rather than march on
+      }
       showRecruitRefusal(t("refuse.treebeardStays"), "treebeard");
     }
-  }, [visitedLocation, treebeardSettled, metCharacterIds, party, treebeardFarewell, showRecruitRefusal, t]);
+  }, [
+    visitedLocation,
+    treebeardSettled,
+    metCharacterIds,
+    party,
+    treebeardFarewell,
+    showRecruitRefusal,
+    dismissMember,
+    t,
+  ]);
 
   // Arriving at the ruins of Tharbad: Gandalf, then Boromir (whoever is along)
   // each say their piece. With neither present the place is just empty.
@@ -4316,7 +4463,6 @@ export default function MiddleEarthMap() {
           .map((s) => ({ ...s, members: s.members.filter((id) => !hungerDead.includes(id)) }))
           .filter((s) => s.members.length > 0),
       );
-      setDeathNotice({ ids: hungerDead.join(","), cause: "hunger" });
 
       const remaining = survivors.filter((id) => !hungerDead.includes(id));
       const ableBearer = remaining.some((id) => !NON_BEARERS.has(id));
@@ -4416,6 +4562,8 @@ export default function MiddleEarthMap() {
         setRecruitOffer("eomer");
       } else if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
         // The Dead are roused — barrow-wights no longer dare assail the party.
+      } else if (party.includes("saruman") && ORC_FOES.has(rolled.monster.name)) {
+        // Saruman walks with the company — the orc-kin dare not attack.
       } else {
         const enc = createEncounter(rolled, party.length, position);
         const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
@@ -4690,7 +4838,7 @@ export default function MiddleEarthMap() {
             it's fetched, so the swap is instant and input can't fight it. */}
         {mapLoading && (
           <div
-            className="absolute inset-0 z-[45] flex items-center justify-center bg-black/50"
+            className="modal-overlay absolute inset-0 z-[45] flex items-center justify-center bg-black/50"
             onPointerDown={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
           >
@@ -4743,9 +4891,18 @@ export default function MiddleEarthMap() {
                   onPointerUp={(event) => event.stopPropagation()}
                   className="pointer-events-auto flex h-9 w-fit items-center gap-2 rounded border border-neutral-700 bg-neutral-900/90 px-2 text-sm text-neutral-200"
                 >
-                  <HoverHint label={t("ui.foodTitle")} className="inline-flex items-center gap-1">
+                  <HoverHint label={t("ui.foodTitle")} className="relative inline-flex items-center gap-1">
                     <img src="/ui/food.png" alt="" className="size-5 object-contain" />
-                    {food}
+                    <span className="tabular-nums">{food}</span>
+                    {foodChange && (
+                      <span
+                        key={foodChange.key}
+                        className="food-float pointer-events-none absolute -top-4 left-0 flex gap-1 text-sm font-bold [text-shadow:0_0_2px_#fff,0_0_3px_#fff,0_1px_1px_#fff]"
+                      >
+                        <span className="text-emerald-600">+{foodChange.gain}</span>
+                        {foodChange.eaten > 0 && <span className="text-red-600">−{foodChange.eaten}</span>}
+                      </span>
+                    )}
                   </HoverHint>
                   <HoverHint
                     label={
@@ -4920,7 +5077,7 @@ export default function MiddleEarthMap() {
                     <span className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-max max-w-[60vw] whitespace-nowrap rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs font-normal text-neutral-200 shadow-lg group-hover:block">
                       {charName(character.id)}
                     </span>
-                    {character.id === bearerId && (
+                    {character.id === bearerId && !ringDestroyed && (
                       <span
                         className="pointer-events-none absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border border-amber-700 bg-neutral-900"
                         title={t("character.bearer")}
@@ -5125,6 +5282,7 @@ export default function MiddleEarthMap() {
               ? panelReaction.text
               : null
           }
+          ringDestroyed={ringDestroyed}
           paging={openCharacterPaging}
           level={openLevel}
           deadInBattle={openCharacter ? deathCauseById[openCharacter.id] === "battle" : false}
@@ -5132,6 +5290,7 @@ export default function MiddleEarthMap() {
           canMakeBearer={
             !!openCharacter &&
             !!openStats &&
+            !ringDestroyed &&
             !openStats.isBearer &&
             !openStats.dead &&
             rogueBearerId === null &&
@@ -5178,10 +5337,6 @@ export default function MiddleEarthMap() {
           onClaim={() => wearRingAtDoom(false)}
         />
 
-        <FarmResultModal
-          farmed={ending || autoPlay ? null : foodFarmed}
-          onClose={() => setFoodFarmed(null)}
-        />
 
         <BattleModal
           battle={battle}
@@ -5388,12 +5543,20 @@ export default function MiddleEarthMap() {
           centered={battle !== null}
           onClose={dismissRecruitRefusal}
         />
+        {recruitBubble && (
+          <PortalBubble
+            key={recruitBubble.key}
+            getEl={() =>
+              document.querySelector<HTMLElement>(
+                `[data-character-portrait="${recruitBubble.speakerId}"]`,
+              )
+            }
+            text={recruitBubble.text}
+            tail="down"
+            maxWClass="max-w-[16rem]"
+          />
+        )}
 
-        <DeathNoticeModal
-          notice={ending ? null : deathNotice}
-          charName={charName}
-          onContinue={() => setDeathNotice(null)}
-        />
 
         <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
         <StatsModal
@@ -5478,6 +5641,7 @@ export default function MiddleEarthMap() {
           onAdjust={adjustLevelUpDraft}
           onRandomize={randomizeAndConfirmLevelUp}
           onConfirm={() => confirmLevelUp()}
+          reaction={levelUpReaction}
         />
 
         {/* Solid cover so the map never flashes behind the creation modal's fade-in. */}

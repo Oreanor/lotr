@@ -15,7 +15,7 @@ export function RogueFledModal({
 }) {
   const { t } = useTranslation();
   return (
-    <Modal open={fled !== null} overlayClassName="bg-black/85" className="w-full max-w-sm border-amber-700 p-6 text-center">
+    <Modal open={fled !== null} overlayClassName="bg-black/85" className="w-full max-w-sm border-amber-700 p-4 sm:p-6 text-center">
       {fled && (
         <>
           <img

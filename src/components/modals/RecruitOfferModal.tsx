@@ -21,7 +21,7 @@ export function RecruitOfferModal({
   const { t } = useTranslation();
   const headingKey = peaceful ? "recruit.joins" : waiting ? "recruit.waiting" : "recruit.defeated";
   return (
-    <Modal open={offered !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-neutral-700 p-6 text-center">
+    <Modal open={offered !== null} overlayClassName="bg-black/60" className="w-full max-w-xs border-neutral-700 p-4 sm:p-6 text-center">
       {offered && (
         <>
           <img
