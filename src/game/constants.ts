@@ -251,6 +251,13 @@ export const EOMER_ENCOUNTER_CHANCE = 0.2;
 export const FANGORN_CENTER = { x: 894, y: 885 };
 export const FANGORN_HALF = 30;
 export const TREEBEARD_ENCOUNTER_CHANCE = 0.25;
+// A spared Saruman (with Gríma if still alive) roams the NW — the Shire and its
+// borders — until run down. Found at Hobbiton itself he holds it (the Scouring).
+export const SARUMAN_ENCOUNTER_CHANCE = 0.2;
+// Days after being spared before Saruman reaches the Shire: he roams the NW and
+// can be run down until then; after this he holds Hobbiton (the Scouring) and no
+// longer turns up in the wild.
+export const SARUMAN_SCOUR_DAYS = 60;
 // A masterless Gríma skulks the wilds if Isengard fell before he fled there —
 // uncommon, and no real threat to a couple of stout hobbits.
 export const GRIMA_ENCOUNTER_CHANCE = 0.04;
@@ -324,6 +331,7 @@ export const ELF_IDS = new Set([
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
 export const NAZGUL_NAME = "Назгул";
 export const WITCHKING_NAME = "Король-чародей";
+export const SARUMAN_NAME = "Саруман";
 export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, WITCHKING_NAME]);
 // The Ringwraiths are driven off at half strength instead of slain — at
 // Weathertop and on the open road. Only in Minas Morgul, the seat of their

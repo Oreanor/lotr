@@ -242,6 +242,18 @@ export const GRIMA_ENEMY: Monster = {
   luck: 2,
 };
 
+// Saruman as a roaming/Scouring foe once spared at Isengard — same build as his
+// character self (shares the portrait). Fought to the death here, no parley.
+export const SARUMAN_ENEMY: Monster = {
+  name: "Саруман",
+  icon: "/allies/saruman.png",
+  tier: 4,
+  strength: 6,
+  defense: 6,
+  intelligence: 10,
+  luck: 4,
+};
+
 // One passive ability per hero, active while they are in the party.
 // Special items found by exploring or gifted by companions.
 // The Osgiliath ruins hide an armoury cache: a batch of identical Gondorian

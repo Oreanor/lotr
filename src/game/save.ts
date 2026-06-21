@@ -60,6 +60,11 @@ export interface GameSave {
   ringDestroyed?: boolean;
   // Dol Guldur's three wraiths were slain — Minas Morgul musters six, not nine.
   dolGuldurNazgulSlain?: boolean;
+  // Saruman was spared at Isengard — alive, roaming the NW; two months on he
+  // holds the Shire (the Scouring). `sarumanSparedDay` is the journey day he was
+  // let go, for that countdown.
+  sarumanSpared?: boolean;
+  sarumanSparedDay?: number;
 }
 
 export function loadSave(): GameSave | null {

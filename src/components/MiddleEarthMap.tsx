@@ -133,6 +133,7 @@ import {
   GONDOR_CACHE_MAX,
   GONDOR_SWORD_IDS,
   GRIMA_ENEMY,
+  SARUMAN_ENEMY,
   HELMS_DEEP_ID,
   ROHAN_ARMORY_IDS,
   MORIA_GATE_ID,
@@ -158,6 +159,7 @@ import {
   ROGUE_MIN_CHASE_DAYS,
   type RecruitRefusalNotice,
   ringImage,
+  regionAt,
   rollEncounter,
   rollEscape,
   escapeChance,
@@ -195,6 +197,9 @@ import {
   unspentPointsFor,
   RING_PIERCING_FOES,
   RINGWRAITH_FOES,
+  SARUMAN_NAME,
+  SARUMAN_ENCOUNTER_CHANCE,
+  SARUMAN_SCOUR_DAYS,
   writeSave,
   ZERO_BONUS,
 } from "@/game";
@@ -451,6 +456,11 @@ export default function MiddleEarthMap() {
   const [dolGuldurNazgulSlain, setDolGuldurNazgulSlain] = useState<boolean>(
     initialSave?.dolGuldurNazgulSlain ?? false,
   );
+  // Saruman spared at Isengard — alive, roaming the NW and holding the Shire
+  // (the Scouring) until run down and slain. The day he was let go drives the
+  // two-month countdown to the Scouring.
+  const [sarumanSpared, setSarumanSpared] = useState<boolean>(initialSave?.sarumanSpared ?? false);
+  const [sarumanSparedDay, setSarumanSparedDay] = useState<number>(initialSave?.sarumanSparedDay ?? 0);
   // The One Ring has been cast into the Fire — the Ban over the West may lift.
   const [ringDestroyed, setRingDestroyed] = useState(initialSave?.ringDestroyed ?? false);
   // A ship has reached the world's western edge — offer the passage to Valinor.
@@ -567,6 +577,9 @@ export default function MiddleEarthMap() {
   const [hasCloaks, setHasCloaks] = useState(initialSave?.hasCloaks ?? false);
   const [encounter, setEncounter] = useState<EncounterState | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
+  // Which step of the Saruman mercy parley is showing (index into its speakers;
+  // once past them, the spare/fight choice). Reset whenever a parley begins.
+  const [parleyStep, setParleyStep] = useState(0);
   // A failed flee roll: "encounter" forces the fight on dismiss, "battle" just
   // closes (the one in-fight attempt is already spent).
   const [escapeFailed, setEscapeFailed] = useState<"encounter" | "battle" | null>(null);
@@ -991,6 +1004,7 @@ export default function MiddleEarthMap() {
       invisibleEnemy: false,
       phialBlinded,
       wraithsStand: enc.wraithsStand ?? false,
+      sarumanParley: enc.sarumanParley ?? false,
     };
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
@@ -1267,6 +1281,62 @@ export default function MiddleEarthMap() {
 
   const takeOffRing = useCallback(() => {
     setBattle((b) => (b ? { ...b, ringOn: false } : b));
+  }, []);
+
+  // Saruman's mercy parley: who speaks, in order. The advocate (Gandalf, else
+  // Treebeard) pleads first; Gimli and Éomer, if present, object in turn. Then
+  // the spare/fight choice. Absent speakers are skipped — no empty modals.
+  const parleySpeakers = useMemo(() => {
+    if (!battle?.pendingParley) {
+      return [];
+    }
+    // Both advocates plead if both are along; then the objectors, if present.
+    const list: string[] = [];
+    if (party.includes("gandalf")) {
+      list.push("gandalf");
+    }
+    if (party.includes("treebeard")) {
+      list.push("treebeard");
+    }
+    if (party.includes("gimli")) {
+      list.push("gimli");
+    }
+    if (party.includes("eomer")) {
+      list.push("eomer");
+    }
+    return list;
+  }, [battle?.pendingParley, party]);
+  useEffect(() => {
+    if (battle?.pendingParley) {
+      setParleyStep(0);
+    }
+  }, [battle?.pendingParley]);
+
+  // Spare Saruman: he renounces and the fight ends — wounds stay, no kill/loot,
+  // and Isengard is cleared (boss recorded as dealt with).
+  const spareSaruman = useCallback(() => {
+    if (!battle) {
+      return;
+    }
+    const nextDamage = { ...damageRef.current };
+    for (const ally of battle.allies) {
+      nextDamage[ally.key] = ally.maxHp - ally.hp;
+    }
+    damageRef.current = nextDamage;
+    setDamageById(nextDamage);
+    applyBattleCasualties(battle.allies);
+    // He's let go, not slain: alive and on the loose (drives the NW roam and the
+    // Scouring two months hence). Isengard is still cleared (he's left it).
+    setSarumanSpared(true);
+    setSarumanSparedDay(journeyDayRef.current);
+    setBattle(null);
+    setParleyStep(0);
+  }, [battle, applyBattleCasualties]);
+
+  // Fight on: drop the parley hold and half-floor so Saruman can be slain.
+  const fightSaruman = useCallback(() => {
+    setBattle((b) => (b ? { ...b, pendingParley: false, parleyDeclined: true } : b));
+    setParleyStep(0);
   }, []);
 
 
@@ -1661,6 +1731,8 @@ export default function MiddleEarthMap() {
       corsairPeace,
       ringDestroyed,
       dolGuldurNazgulSlain,
+      sarumanSpared,
+      sarumanSparedDay,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -1704,6 +1776,8 @@ export default function MiddleEarthMap() {
     corsairPeace,
     ringDestroyed,
     dolGuldurNazgulSlain,
+    sarumanSpared,
+    sarumanSparedDay,
     visitedLocationIds,
     enemiesKilled,
     defeatedEnemyIcons,
@@ -2846,12 +2920,18 @@ export default function MiddleEarthMap() {
   // Saruman at Isengard is an ally only if the bearer is duller than him and no
   // Gandalf is along; otherwise he's a boss. Once fought, he can't be recruited.
   const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
+  // Saruman has left Isengard one way or another (slain there, or spared).
+  const sarumanGone = defeatedBosses.has(sarumanBossName) || sarumanSpared;
+  // After he's spared, he roams the NW for two months, then holds the Shire.
+  const sarumanDaysOut = sarumanSpared ? journeyDay - sarumanSparedDay : 0;
+  const sarumanRoams = sarumanSpared && sarumanDaysOut < SARUMAN_SCOUR_DAYS;
+  const sarumanScouring = sarumanSpared && sarumanDaysOut >= SARUMAN_SCOUR_DAYS;
   const sarumanFriendly = (() => {
     // Once Wormtongue has slunk to Isengard, Saruman is beyond parley.
     if (
       party.includes("gandalf") ||
       party.includes("treebeard") ||
-      defeatedBosses.has(sarumanBossName) ||
+      sarumanGone ||
       grimaFled
     ) {
       return false;
@@ -2876,9 +2956,9 @@ export default function MiddleEarthMap() {
   // A fled Gríma with no Isengard left to run to (Saruman already beaten) skulks
   // the wild until someone puts him down.
   const grimaRoaming = grimaFled && !grimaSlain && defeatedBosses.has(sarumanBossName);
-  // Once Saruman falls the Ents take Isengard — Treebeard settles there and no
-  // longer roams Fangorn or agrees to join.
-  const treebeardSettled = defeatedBosses.has(sarumanBossName);
+  // Once Saruman is gone (slain or spared) the Ents take Isengard — Treebeard
+  // settles there and no longer roams Fangorn or agrees to join.
+  const treebeardSettled = sarumanGone;
   const recruitsHere = visitedLocation
     ? CHARACTERS.filter(
         (character) =>
@@ -2925,14 +3005,20 @@ export default function MiddleEarthMap() {
       }
       return dolGuldurBoss;
     }
-    // Isengard: Saruman holds it (unless beaten, parleyed friendly, or fled with
-    // the Ring). With him gone, a Gríma who slunk here still skulks the ruins
-    // until slain — so the player who chased him here actually finds him.
+    // The Scouring: a spared Saruman holds Hobbiton two months on — fought to the
+    // death (with Gríma if still alive). No parley this time.
+    if (visitedLocation.id === HOBBITON_ID && sarumanScouring) {
+      return SARUMAN_ENEMY;
+    }
+    // Isengard: Saruman holds it (unless beaten, parleyed friendly, spared, or
+    // fled with the Ring). With him gone, a Gríma who slunk here still skulks the
+    // ruins until slain — so the player who chased him here actually finds him.
     if (visitedLocation.id === ISENGARD_ID) {
       const saruman = BOSSES_BY_LOCATION[ISENGARD_ID];
       const sarumanFled =
         !!rogueBearerId && CHARACTERS.find((c) => c.id === rogueBearerId)?.icon === saruman.icon;
-      const sarumanHere = !defeatedBosses.has(saruman.name) && !sarumanFriendly && !sarumanFled;
+      const sarumanHere =
+        !defeatedBosses.has(saruman.name) && !sarumanFriendly && !sarumanFled && !sarumanSpared;
       if (sarumanHere) {
         return saruman;
       }
@@ -2963,6 +3049,12 @@ export default function MiddleEarthMap() {
     }
     return boss;
   })();
+  // Hobbiton's art swaps to the scoured ruin (34_hobbiton2) while Saruman holds it.
+  const locationArtSrc = visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null;
+  const scouredArtSrc =
+    visitedLocation?.id === HOBBITON_ID && sarumanScouring && locationArtSrc
+      ? locationArtSrc.replace("10_hobbiton.jpg", "34_hobbiton2.jpg")
+      : locationArtSrc;
   // The mount/ship offered here (null if none, or a ship while Círdan sails free).
   const locationTransport = (() => {
     if (!visitedLocation) {
@@ -3504,6 +3596,11 @@ export default function MiddleEarthMap() {
       if (battle.enemies.some((enemy) => enemy.icon === GRIMA_ENEMY.icon)) {
         setGrimaSlain(true);
       }
+      // A spared Saruman run down (in the NW, or at the Scouring) is dead at last.
+      if (battle.enemies.some((enemy) => enemy.icon === SARUMAN_ENEMY.icon)) {
+        setSarumanSpared(false);
+        setDefeatedBosses((prev) => new Set(prev).add(SARUMAN_NAME));
+      }
     }
   }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, visitedLocationIds, banishTraitor]);
 
@@ -3872,6 +3969,13 @@ export default function MiddleEarthMap() {
       setPendingBetrayal(pendingTraitor);
     } else if (wildEncounter && !onWater) {
       const position = playerRef.current ?? hobbiton.point;
+      // A spared Saruman (with Gríma, if still alive) waylays the party in the NW
+      // — for the two months before he reaches the Shire.
+      if (sarumanRoams && regionAt(position) === "NW" && Math.random() < SARUMAN_ENCOUNTER_CHANCE) {
+        const pack = [SARUMAN_ENEMY, ...(grimaSlain ? [] : [GRIMA_ENEMY])];
+        setEncounter({ monster: SARUMAN_ENEMY, dangerous: true, solo: pack.length === 1, pack });
+        return;
+      }
       const rolled = rollEncounter(
         position,
         party,
@@ -3918,7 +4022,7 @@ export default function MiddleEarthMap() {
       }
       setEncounter({ monster: CORSAIR_ENEMY, dangerous: true, solo: pack.length === 1, pack });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, nazgulGone, ringDestroyed, treebeardSettled, corsairPeace, mapSize]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardSettled, sarumanRoams, corsairPeace, mapSize]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -4408,22 +4512,20 @@ export default function MiddleEarthMap() {
           }
           locationName={visitedLocation ? locName(visitedLocation) : ""}
           journeyDate={journeyDate}
-          imageSrc={visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null}
+          imageSrc={scouredArtSrc}
           imageInitiallyLoaded={
-            visitedLocation
-              ? preloadedLocationImages.has(
-                  locationImage(visitedLocation.id, seasonAt(journeyDay)) ?? "",
-                )
-              : false
+            scouredArtSrc ? preloadedLocationImages.has(scouredArtSrc) : false
           }
           boss={locationBoss}
           sidekick={
-            // Gríma stands at Saruman's side in Isengard (until either falls); once
-            // Saruman is gone Gríma is the boss himself, so no sidekick then.
-            visitedLocation?.id === ISENGARD_ID &&
-            grimaFled &&
+            // Gríma stands at Saruman's side — at Isengard, and at the Scouring —
+            // while still alive. (When Gríma is the Isengard boss himself, no
+            // sidekick.)
             !grimaSlain &&
-            locationBoss?.name === BOSSES_BY_LOCATION[ISENGARD_ID].name
+            ((visitedLocation?.id === ISENGARD_ID &&
+              grimaFled &&
+              locationBoss?.name === BOSSES_BY_LOCATION[ISENGARD_ID].name) ||
+              (visitedLocation?.id === HOBBITON_ID && sarumanScouring))
               ? GRIMA_ENEMY
               : null
           }
@@ -4482,13 +4584,16 @@ export default function MiddleEarthMap() {
                       : [locationBoss, ...DOL_GULDUR_GARRISON]
                     : visitedLocation?.id === WEATHERTOP_ID
                       ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
-                      : visitedLocation?.id === ISENGARD_ID &&
-                        grimaFled &&
-                        locationBoss.name !== GRIMA_ENEMY.name
-                        ? // Saruman fights with Gríma at his side; once Saruman is
-                          // gone, Gríma (now the boss himself) skulks here alone.
-                          [locationBoss, GRIMA_ENEMY]
-                        : [locationBoss];
+                      : visitedLocation?.id === HOBBITON_ID && sarumanScouring
+                        ? // The Scouring: Saruman with Gríma at his side, if alive.
+                          [locationBoss, ...(grimaSlain ? [] : [GRIMA_ENEMY])]
+                        : visitedLocation?.id === ISENGARD_ID &&
+                            grimaFled &&
+                            locationBoss.name !== GRIMA_ENEMY.name
+                          ? // Saruman fights with Gríma at his side; once Saruman is
+                            // gone, Gríma (now the boss himself) skulks here alone.
+                            [locationBoss, GRIMA_ENEMY]
+                          : [locationBoss];
               // Already chose the fight at the location — go straight to battle,
               // skipping the "you met a foe" encounter prompt.
               startBattle({
@@ -4501,6 +4606,12 @@ export default function MiddleEarthMap() {
                 wraithsStand:
                   visitedLocation?.id === MINAS_MORGUL_ID ||
                   (visitedLocation?.id === DOL_GULDUR_ID && dolGuldurHasWraiths),
+                // Saruman at Isengard, with a mercy advocate (Gandalf/Treebeard)
+                // along: the fight pauses at half to offer sparing him.
+                sarumanParley:
+                  visitedLocation?.id === ISENGARD_ID &&
+                  locationBoss.name === SARUMAN_NAME &&
+                  (party.includes("gandalf") || party.includes("treebeard")),
               });
             }
           }}
@@ -4624,6 +4735,46 @@ export default function MiddleEarthMap() {
           onSkip={() => setBattle((b) => (b ? resolveBattleInstantly(b) : b))}
           onContinue={() => setBattle(null)}
         />
+
+        {/* Saruman beaten to half with a mercy advocate along: companions speak in
+            turn, then the spare/fight choice. */}
+        <SpeechModal
+          open={!!battle?.pendingParley && parleyStep < parleySpeakers.length}
+          icon={
+            parleySpeakers[parleyStep]
+              ? (CHARACTERS.find((c) => c.id === parleySpeakers[parleyStep])?.icon ?? "")
+              : ""
+          }
+          name={parleySpeakers[parleyStep] ? charName(parleySpeakers[parleyStep]) : ""}
+          text={parleySpeakers[parleyStep] ? t(`sarumanParley.${parleySpeakers[parleyStep]}`) : ""}
+          buttonLabel={t(parleyStep < parleySpeakers.length - 1 ? "tharbad.next" : "sarumanParley.decide")}
+          onClose={() => setParleyStep((s) => s + 1)}
+        />
+
+        <Modal
+          open={!!battle?.pendingParley && parleyStep >= parleySpeakers.length}
+          z="z-[60]"
+          overlayClassName="bg-black/70"
+          className="w-full max-w-xs border-amber-800 p-6 text-center"
+        >
+          <p className="text-sm text-neutral-200">{t("sarumanParley.prompt")}</p>
+          <div className="mt-5 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={spareSaruman}
+              className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/70"
+            >
+              {t("sarumanParley.spare")}
+            </button>
+            <button
+              type="button"
+              onClick={fightSaruman}
+              className="rounded border border-red-800 bg-red-900/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/70"
+            >
+              {t("sarumanParley.fight")}
+            </button>
+          </div>
+        </Modal>
 
         <EncounterModal
           encounter={autoPlay ? null : encounter}

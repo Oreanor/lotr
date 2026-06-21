@@ -130,6 +130,9 @@ export interface EncounterState {
   // Set in the Minas Morgul lair: the wraiths fight to the death instead of
   // recoiling at half strength as they do elsewhere.
   wraithsStand?: boolean;
+  // Saruman at Isengard with a mercy advocate (Gandalf/Treebeard) along: the
+  // fight pauses at half HP to offer sparing him.
+  sarumanParley?: boolean;
 }
 
 export interface StatBonus {
@@ -184,6 +187,12 @@ export interface BattleState {
   wraithsStand?: boolean; // Minas Morgul: wraiths fight to the death, not flee at half
   enemyNazgul?: boolean; // foes include a Ringwraith — Éowyn hits them harder
   enemyOrc?: boolean; // foes include orc-kin — Haldir hits them harder
+  // Saruman at Isengard with Gandalf/Treebeard along: at half HP the fight pauses
+  // to offer mercy. `pendingParley` holds the fight while the choice is made;
+  // `parleyDeclined` (chose to fight on) removes the half-floor so he can be slain.
+  sarumanParley?: boolean;
+  pendingParley?: boolean;
+  parleyDeclined?: boolean;
 }
 
 export type TransportId = "pony" | "horse" | "ship" | "eagle";

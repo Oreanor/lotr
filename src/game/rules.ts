@@ -52,6 +52,7 @@ import {
   NAZGUL_ENCOUNTER_CHANCE,
   NAZGUL_NAME,
   NAZGUL_PACK_MAX,
+  SARUMAN_NAME,
   PATH_COLLINEAR_DOT,
   PATH_MIN_STEP,
   ROGUE_HIT_CHANCE,
@@ -803,12 +804,31 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     // recruit captures and to wraiths that recoil at half — but NOT in a lair
     // where the wraiths stand and fight to the death (wraithsStand), or they'd
     // be unkillable (floored at half, yet only "beaten" at 0 HP).
+    // Saruman holds at half until the mercy choice is made (then parleyDeclined
+    // lifts the floor so he can be slain).
+    const sarumanHeld =
+      !!battle.sarumanParley && !battle.parleyDeclined && enemies[target].name === SARUMAN_NAME;
     const yieldsAtHalf =
       battle.recruitId ||
+      sarumanHeld ||
       (FLEE_AT_HALF_FOES.has(enemies[target].name) && !battle.wraithsStand);
     if (yieldsAtHalf) {
       const minHp = Math.max(1, Math.ceil(enemies[target].maxHp / 2));
       enemies[target].hp = Math.max(minHp, enemies[target].hp);
+    }
+    // Saruman just hit half with Gandalf/Treebeard along — pause for the parley.
+    if (sarumanHeld && enemies[target].hp <= Math.ceil(enemies[target].maxHp / 2)) {
+      return {
+        ...battle,
+        allies,
+        enemies,
+        pendingParley: true,
+        lastHit: lands ? enemies[target].key : null,
+        attacker: allies[i].key,
+        tick: battle.tick + 1,
+        hitDir: Math.floor(Math.random() * 4),
+        crit: didCrit,
+      };
     }
     return {
       ...battle,

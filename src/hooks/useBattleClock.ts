@@ -11,11 +11,12 @@ export function useBattleClock(
   setBattle: Dispatch<SetStateAction<BattleState | null>>,
 ) {
   useEffect(() => {
-    if (!battle || battle.outcome || autoPlay) {
+    // Hold the clock while a Saruman parley awaits the player's mercy choice.
+    if (!battle || battle.outcome || battle.pendingParley || autoPlay) {
       return undefined;
     }
     const timer = setTimeout(() => {
-      setBattle((b) => (!b || b.outcome ? b : advanceBattleTick(b)));
+      setBattle((b) => (!b || b.outcome || b.pendingParley ? b : advanceBattleTick(b)));
     }, BATTLE_TICK_MS / battleSpeed);
     return () => clearTimeout(timer);
   }, [battle, battleSpeed, autoPlay, setBattle]);

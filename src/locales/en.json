@@ -234,6 +234,16 @@
     "next": "Next",
     "close": "Leave"
   },
+  "sarumanParley": {
+    "gandalf": "Let us give him a chance to renounce his evil.",
+    "treebeard": "Enough! Hoom, hom… do not finish him. He is broken — look, no warrior now, but a shadow. Evil without power is not worth the killing.",
+    "gimli": "He must be killed, not let go. I do not believe in his mending!",
+    "eomer": "He drenched Rohan in blood. He must be put to death!",
+    "decide": "Decide",
+    "prompt": "What do you decide about Saruman?",
+    "spare": "Spare him",
+    "fight": "Fight to the death"
+  },
   "creation": {
     "title": "Create your hero",
     "pointsLeft": "Points left: {{n}}",
