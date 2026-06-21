@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Gauge, FastForward } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { ReactionBubble } from "@/components/ui/ReactionBubble";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { BALROG_DAMAGERS, enemyBeatenInBattle, iconVariant, ringImage, SWEEP_ANGLES } from "@/game";
 import type { BattleState } from "@/game";
@@ -108,8 +109,14 @@ export function BattleModal({
               {battle.allies.map((ally) => {
                 const invisible =
                   battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
+                const reactionText = battle.reactions?.find((r) => r.key === ally.key)?.text;
                 return (
-                  <div key={ally.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
+                  <div key={ally.key} className="relative flex w-14 flex-col items-center gap-1 sm:w-20">
+                    {reactionText && (
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2">
+                        <ReactionBubble text={reactionText} tail="down" />
+                      </span>
+                    )}
                     <div
                       className={`relative size-14 overflow-hidden border sm:size-20 ${
                         ally.hp <= 0 ? "bg-[#525252]" : "bg-parchment"

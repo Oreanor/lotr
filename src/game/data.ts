@@ -22,6 +22,7 @@ import type {
   Monster,
   RawRecruitmentEntry,
   RecruitmentWindow,
+  Temperament,
   Transport,
   TransportId,
 } from "@/game/types";
@@ -63,6 +64,51 @@ export const CHARACTERS: Character[] = [
 ];
 
 export const PLAYER_ICON = CHARACTERS[0].icon;
+
+// Personality used to choose the flavour of a companion's spoken reactions.
+// Anyone not listed falls back to "plain".
+export const TEMPERAMENT_BY_ID: Record<string, Temperament> = {
+  // Playful — comic, earthy, grumbling.
+  pippin: "playful",
+  merry: "playful",
+  bilbo: "playful",
+  gimli: "playful",
+  grimbeorn: "playful",
+  gollum: "playful",
+  grima: "playful",
+  // Plain — grounded, matter-of-fact.
+  frodo: "plain",
+  sam: "plain",
+  legolas: "plain",
+  eowyn: "plain",
+  eomer: "plain",
+  faramir: "plain",
+  haldir: "plain",
+  galdor: "plain",
+  // Lofty — high, solemn, grand.
+  aragorn: "lofty",
+  boromir: "lofty",
+  gandalf: "lofty",
+  thranduil: "lofty",
+  elrond: "lofty",
+  arwen: "lofty",
+  cirdan: "lofty",
+  bombadil: "lofty",
+  galadriel: "lofty",
+  celeborn: "lofty",
+  saruman: "lofty",
+  theoden: "lofty",
+  denethor: "lofty",
+  king_dead: "lofty",
+  treebeard: "lofty",
+};
+
+// Companions who take feminine grammatical forms in reaction lines (Russian).
+export const FEMALE_IDS = new Set(["galadriel", "arwen", "eowyn"]);
+
+export function temperamentOf(id: string): Temperament {
+  return TEMPERAMENT_BY_ID[id] ?? "plain";
+}
 
 // Iconic foes from the gazetteer, spread across tiers. `regions` pins each to
 // its homeland; undefined = roams widely.

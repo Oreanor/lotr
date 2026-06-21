@@ -198,7 +198,18 @@ import {
   SARUMAN_NAME,
   SARUMAN_ENCOUNTER_CHANCE,
   SARUMAN_SCOUR_DAYS,
+  XP_INT_FLOOR,
+  XP_BONUS_PER_INT,
   ZERO_BONUS,
+  reactionMood,
+  temperamentOf,
+  FEMALE_IDS,
+  REACTION_CHANCE,
+  REACTION_SHOW_MS,
+  REACTION_IDLE_MS,
+  REACTION_FOOD_LOW_DAYS,
+  REACTION_CORRUPTION_1,
+  REACTION_CORRUPTION_2,
 } from "@/game";
 import type {
   BattleState,
@@ -209,11 +220,15 @@ import type {
   MapLocation,
   Monster,
   Point,
+  ReactionEvent,
+  ReactionMood,
   Size,
   Squad,
   StatBonus,
   TransportId,
 } from "@/game";
+import { useReactions } from "@/hooks/useReactions";
+import { ReactionBubble } from "@/components/ui/ReactionBubble";
 
 // Stable parse/serialize helpers for the persistent UI prefs (kept at module
 // scope so usePersistentState's effect doesn't re-run every render).
@@ -307,6 +322,14 @@ export default function MiddleEarthMap() {
   // is computed (auto-play) can still read it.
   const bearerCorruptionRef = useRef(0);
   const gollumAliveRef = useRef(true);
+  const bearerIdRef = useRef<string | null>(null);
+  // Reassigned every render to the live `speak` closure, so action callbacks
+  // defined before the reactions block can still fire spoken lines.
+  const speakRef = useRef<(charId: string, event: ReactionEvent, opts?: { always?: boolean }) => void>(
+    () => {},
+  );
+  // Item reactions shown inside the character panel (not on the map).
+  const panelReactionRef = useRef<(charId: string, event: ReactionEvent) => void>(() => {});
   // Equipped items mirrored for the rAF travel loop (item speed bonuses).
   const equippedItemsRef = useRef<Record<string, string>>({});
   // Party members present when the current location was entered; used to hide
@@ -1077,6 +1100,19 @@ export default function MiddleEarthMap() {
       const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
       return { ...prev, [levelUpCharacterId]: addBonus(current, draft) };
     });
+    // React to the stat that gained the most: stronger / hardier / wiser / luckier.
+    {
+      const keys: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
+      let top: keyof StatBonus = "strength";
+      for (const k of keys) {
+        if (draft[k] > draft[top]) top = k;
+      }
+      if (draft[top] > 0) {
+        const ev: ReactionEvent =
+          top === "strength" ? "levelStr" : top === "defense" ? "levelDef" : top === "intelligence" ? "levelInt" : "levelLuck";
+        speakRef.current(levelUpCharacterId, ev, { always: true });
+      }
+    }
     // Leveling raises the max HP pool but doesn't heal: the extra capacity comes
     // in "empty", so carry the gain into damage to leave current health untouched.
     const hpGain = maxHpFromStats(draft.strength, draft.defense);
@@ -1339,6 +1375,19 @@ export default function MiddleEarthMap() {
   const makeBearer = useCallback((id: string) => {
     if (NON_BEARERS.has(id)) {
       return;
+    }
+    const previous = bearerIdRef.current;
+    if (previous && previous !== id) {
+      // A playful soul handing the Ring to a grounded or lofty companion holds
+      // their tongue — no "guard it well" lecture; the wiser one already knows.
+      const playfulLecturingSerious =
+        temperamentOf(previous) === "playful" && temperamentOf(id) !== "playful";
+      if (!playfulLecturingSerious) {
+        speakRef.current(previous, "ringGive", { always: true });
+      }
+    }
+    if (previous !== id) {
+      speakRef.current(id, "ringTake", { always: true });
     }
     setBearerId(id);
   }, []);
@@ -2095,6 +2144,9 @@ export default function MiddleEarthMap() {
       }
       return next;
     });
+    // Donning: he likes it or it doesn't sit right (random); taking off: a shrug.
+    // Spoken right in the character panel, about half the time.
+    panelReactionRef.current(charId, itemId ? (Math.random() < 0.5 ? "itemLike" : "itemDislike") : "itemOff");
   }, []);
 
   const autoPlayTick = useCallback(() => {
@@ -3125,6 +3177,10 @@ export default function MiddleEarthMap() {
     setTransport(next);
     setEagleSince(next === "eagle" ? journeyDayRef.current : null);
     setPendingTransport(null);
+    const ids = partyRef.current;
+    if (ids.length > 0) {
+      speakRef.current(ids[Math.floor(Math.random() * ids.length)], next === "eagle" ? "eagles" : "transport");
+    }
   }, []);
   const requestTransport = useCallback(
     (next: TransportId) => {
@@ -3396,7 +3452,256 @@ export default function MiddleEarthMap() {
   // Kept fresh for wearRingAtDoom (a []-deps callback): is Gollum still abroad to
   // spring for the Precious at the brink?
   gollumAliveRef.current = !slainRoamingRecruits.has("gollum");
+  bearerIdRef.current = bearerId;
   const hasFallen = bearerCorruption >= 100;
+
+  // --- Companion reactions (speech bubbles over the party figure) ---
+  // Hold playback while the map is covered or the party is in motion, so a remark
+  // prompted inside a window only surfaces once it's closed and the map is clear.
+  const reactionsPaused =
+    !!battle ||
+    !!encounter ||
+    !!ending ||
+    isMoving ||
+    openCharacterId !== null ||
+    statsOpen ||
+    partySummaryOpen ||
+    levelUpCharacterId !== null ||
+    recruitOffer !== null;
+  const { reaction, enqueue: enqueueReaction } = useReactions(reactionsPaused);
+  const [panelReaction, setPanelReaction] = useState<{ charId: string; text: string; key: number } | null>(
+    null,
+  );
+  const panelSeqRef = useRef(0);
+  const panelReactionTimerRef = useRef<number | null>(null);
+  // Pick a line for this speaker+event: a character-specific set wins (Gollum,
+  // Treebeard…), else the feminine variant, else the temperament's set.
+  const pickReaction = (charId: string, event: ReactionEvent): { text: string; mood: ReactionMood } | null => {
+    const temp = temperamentOf(charId);
+    const variants = (key: string): string[] | null => {
+      const value = t(key, { returnObjects: true, defaultValue: null }) as unknown;
+      return Array.isArray(value) && value.length > 0 ? (value as string[]) : null;
+    };
+    const lines =
+      variants(`reaction.${charId}.${event}`) ??
+      (FEMALE_IDS.has(charId) ? variants(`reaction.${temp}.${event}_f`) : null) ??
+      variants(`reaction.${temp}.${event}`);
+    if (!lines) {
+      return null;
+    }
+    return { text: lines[Math.floor(Math.random() * lines.length)], mood: reactionMood(charId, event) };
+  };
+  speakRef.current = (charId, event, opts) => {
+    // Only the active company speaks — their portraits are on screen to anchor a
+    // bubble; parked/splinter members stay silent.
+    if (!partyRef.current.includes(charId)) {
+      return;
+    }
+    if (!opts?.always && Math.random() > REACTION_CHANCE) {
+      return; // most events only sometimes draw a remark
+    }
+    const picked = pickReaction(charId, event);
+    if (picked) {
+      enqueueReaction(charId, picked.text, picked.mood);
+    }
+  };
+  // Item-panel reaction: about half the time, surfaced at the open hero's portrait
+  // inside the character panel; auto-clears after a beat.
+  panelReactionRef.current = (charId, event) => {
+    if (Math.random() < 0.5) {
+      return;
+    }
+    const picked = pickReaction(charId, event);
+    if (!picked) {
+      return;
+    }
+    if (panelReactionTimerRef.current) {
+      window.clearTimeout(panelReactionTimerRef.current);
+    }
+    panelSeqRef.current += 1;
+    setPanelReaction({ charId, text: picked.text, key: panelSeqRef.current });
+    panelReactionTimerRef.current = window.setTimeout(() => setPanelReaction(null), REACTION_SHOW_MS);
+  };
+  // A living companion mourns the fallen by name, with the right gender form
+  // ("бедный/бедная …"). Always spoken (a death is no small thing).
+  const speakMourn = (speakerId: string, deadId: string) => {
+    const temp = temperamentOf(speakerId);
+    const variants = (key: string): string[] | null => {
+      const value = t(key, { returnObjects: true, defaultValue: null }) as unknown;
+      return Array.isArray(value) && value.length > 0 ? (value as string[]) : null;
+    };
+    const lines =
+      (FEMALE_IDS.has(deadId) ? variants(`reaction.${temp}.mourn_f`) : null) ??
+      variants(`reaction.${temp}.mourn`);
+    if (!lines) {
+      return;
+    }
+    const text = lines[Math.floor(Math.random() * lines.length)].replace("{{name}}", charName(deadId));
+    enqueueReaction(speakerId, text, "refuse");
+  };
+
+  // Idle chatter: after a spell of standing still on a clear map, a random
+  // companion grumbles; re-arms itself, and resets on any movement/day change.
+  const [idleTick, setIdleTick] = useState(0);
+  useEffect(() => {
+    if (reactionsPaused) {
+      return undefined;
+    }
+    const id = window.setTimeout(() => {
+      const ids = partyRef.current;
+      if (ids.length > 0) {
+        speakRef.current(ids[Math.floor(Math.random() * ids.length)], "idle", { always: true });
+      }
+      setIdleTick((n) => n + 1);
+    }, REACTION_IDLE_MS);
+    return () => window.clearTimeout(id);
+  }, [reactionsPaused, journeyDay, player, idleTick]);
+
+  // Grumble once when food first runs low.
+  const prevFoodLowRef = useRef(false);
+  useEffect(() => {
+    const low = food <= REACTION_FOOD_LOW_DAYS;
+    if (low && !prevFoodLowRef.current) {
+      const ids = partyRef.current;
+      if (ids.length > 0) {
+        speakRef.current(ids[Math.floor(Math.random() * ids.length)], "food", { always: true });
+      }
+    }
+    prevFoodLowRef.current = low;
+  }, [food]);
+
+  // The bearer voices the Ring's growing weight crossing 60% and 80%.
+  const prevCorruptionRef = useRef(0);
+  useEffect(() => {
+    const prev = prevCorruptionRef.current;
+    if (bearerId) {
+      if (prev < REACTION_CORRUPTION_1 && bearerCorruption >= REACTION_CORRUPTION_1) {
+        speakRef.current(bearerId, "bearer60", { always: true });
+      } else if (prev < REACTION_CORRUPTION_2 && bearerCorruption >= REACTION_CORRUPTION_2) {
+        speakRef.current(bearerId, "bearer80", { always: true });
+      }
+    }
+    prevCorruptionRef.current = bearerCorruption;
+  }, [bearerCorruption, bearerId]);
+
+  // Reactions to settings changes (language, map, terrain layer, speed) — a
+  // random companion remarks. Watching the values catches every change without
+  // wrapping each handler.
+  const speakRandom = (event: ReactionEvent, opts?: { always?: boolean }) => {
+    const ids = partyRef.current;
+    if (ids.length > 0) {
+      speakRef.current(ids[Math.floor(Math.random() * ids.length)], event, opts);
+    }
+  };
+  const prevLangRef = useRef(lang);
+  useEffect(() => {
+    if (lang !== prevLangRef.current) {
+      prevLangRef.current = lang;
+      speakRandom("langChange", { always: true });
+    }
+    // speakRandom reads stable refs; intentionally not a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+  const prevMapRef = useRef(mapIndex);
+  useEffect(() => {
+    if (mapIndex !== prevMapRef.current) {
+      prevMapRef.current = mapIndex;
+      speakRandom("mapChange");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapIndex]);
+  const prevTerrainRef = useRef(showTerrain);
+  useEffect(() => {
+    if (showTerrain && !prevTerrainRef.current) {
+      speakRandom("terrainOn");
+    }
+    prevTerrainRef.current = showTerrain;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTerrain]);
+  const prevSpeedRef = useRef(animationSpeed);
+  useEffect(() => {
+    if (animationSpeed !== prevSpeedRef.current) {
+      const faster = animationSpeed > prevSpeedRef.current;
+      prevSpeedRef.current = animationSpeed;
+      speakRandom(faster ? "speedUp" : "speedDown");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animationSpeed]);
+
+  // Terrain grumbles: a long mountain slog (3 cells running) wears someone out,
+  // and the open sea draws a remark. Sampled each travelled day.
+  const mountainStreakRef = useRef(0);
+  useEffect(() => {
+    const here = playerRef.current;
+    // Only react to terrain underfoot while actually travelling the wilds — never
+    // while halted at a town (whose cell may sit on a river/coast pixel) or just
+    // waiting out days there. Sea remarks only under sail.
+    if (!here || visitedLocation) {
+      mountainStreakRef.current = 0;
+      return;
+    }
+    const terrain = getTerrainAtPoint(here).name;
+    if (terrain === "mountain") {
+      mountainStreakRef.current += 1;
+      if (mountainStreakRef.current === 3) {
+        speakRandom("mountains", { always: true });
+      }
+    } else {
+      mountainStreakRef.current = 0;
+    }
+    if (terrain === "water" && transport === "ship") {
+      speakRandom("sea");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journeyDay]);
+
+  // A badly wounded companion (under a third HP, still standing) asks for rest —
+  // once, until they recover above the line.
+  const hurtSpokenRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const character of partyCharacters) {
+      const stats = effectiveStats(character, totalBonusFor(character));
+      const maxHp = maxHpFromStats(stats.strength, stats.defense);
+      const hp = Math.max(0, maxHp - (damageById[character.id] ?? 0));
+      const low = maxHp > 0 && hp > 0 && hp / maxHp < 0.33;
+      if (low && !hurtSpokenRef.current.has(character.id)) {
+        hurtSpokenRef.current.add(character.id);
+        speakRef.current(character.id, "hurt", { always: true });
+      } else if (!low) {
+        hurtSpokenRef.current.delete(character.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [damageById, partyCharacters]);
+
+  // When companions fall, a survivor mourns them by name — at most two per wave,
+  // and never re-mourning the already-dead on load.
+  const mournedRef = useRef<Set<string>>(new Set());
+  const mournSeededRef = useRef(false);
+  useEffect(() => {
+    if (!mournSeededRef.current) {
+      mournSeededRef.current = true;
+      mournedRef.current = new Set(Object.keys(deathCauseById));
+      return;
+    }
+    let mournedThisWave = 0;
+    for (const id of Object.keys(deathCauseById)) {
+      if (mournedRef.current.has(id)) {
+        continue;
+      }
+      mournedRef.current.add(id);
+      if (mournedThisWave >= 2) {
+        continue; // cap the wailing at two per wave
+      }
+      const living = partyRef.current.filter((p) => p !== id && !deathCauseById[p]);
+      if (living.length === 0) {
+        continue;
+      }
+      speakMourn(living[Math.floor(Math.random() * living.length)], id);
+      mournedThisWave += 1;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deathCauseById]);
   // Resilience exhausted before reaching Mount Doom: the bearer succumbs, slips
   // away with the Ring and bolts for Mount Doom. The party has two months to
   // catch him before he crowns himself.
@@ -3572,13 +3877,20 @@ export default function MiddleEarthMap() {
           return next.size === prev.size ? prev : next;
         });
       }
+      // Intelligence is learning aptitude: each survivor earns the battle's XP
+      // scaled by their own wits above the floor (so a clever hero advances
+      // faster from the very same fight).
+      const xpGain = (ally: Combatant) =>
+        Math.round(
+          battle.exp * (1 + XP_BONUS_PER_INT * Math.max(0, ally.intelligence - XP_INT_FLOOR)),
+        );
       const toLevel: string[] = [];
       for (const ally of battle.allies) {
         if (ally.hp <= 0) {
           continue; // the fallen don't level up
         }
         const oldExp = expById[ally.key] ?? 0;
-        const newExp = oldExp + battle.exp;
+        const newExp = oldExp + xpGain(ally);
         const bonus = statBonusById[ally.key] ?? ZERO_BONUS;
         if (unspentPointsFor(ally.key, newExp, bonus) > unspentPointsFor(ally.key, oldExp, bonus)) {
           toLevel.push(ally.key);
@@ -3587,7 +3899,7 @@ export default function MiddleEarthMap() {
       setExpById((prev) => {
         const next = { ...prev };
         for (const ally of battle.allies) {
-          next[ally.key] = (prev[ally.key] ?? 0) + battle.exp;
+          next[ally.key] = (prev[ally.key] ?? 0) + xpGain(ally);
         }
         return next;
       });
@@ -3601,6 +3913,30 @@ export default function MiddleEarthMap() {
           }
           return merged;
         });
+      }
+
+      // One or two survivors remark on how the fight went, judged by how much HP
+      // the party lost: a breeze, a hard slog, or a brush with death. Shown right
+      // in the battle's win screen at their portraits (not later on the map).
+      {
+        const totalMax = battle.allies.reduce((sum, a) => sum + a.maxHp, 0);
+        const totalHp = battle.allies.reduce((sum, a) => sum + Math.max(0, a.hp), 0);
+        const loss = totalMax > 0 ? 1 - totalHp / totalMax : 0;
+        const outcomeEvent: ReactionEvent =
+          loss < 0.33 ? "battleEasy" : loss <= 0.66 ? "battleHard" : "battleNarrow";
+        const survivors = battle.allies
+          .filter((a) => a.hp > 0 && partyRef.current.includes(a.key))
+          .sort(() => Math.random() - 0.5)
+          .slice(0, Math.random() < 0.5 ? 2 : 1);
+        const reactions = survivors
+          .map((a) => {
+            const picked = pickReaction(a.key, outcomeEvent);
+            return picked ? { key: a.key, text: picked.text } : null;
+          })
+          .filter((r): r is { key: string; text: string } => r !== null);
+        if (reactions.length > 0) {
+          setBattle((b) => (b ? { ...b, reactions } : b));
+        }
       }
 
       // Betrayal repelled: subdued traitors flee; a slain Gollum never returns.
@@ -4558,7 +4894,9 @@ export default function MiddleEarthMap() {
                     onClick={() => openCharacterPanel(character.id, true)}
                     aria-label={t("recruit.statsAria", { name: charName(character.id) })}
                     data-character-portrait={character.id}
-                    className="group relative size-[52px] border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-16"
+                    className={`group relative size-[52px] border border-neutral-700 bg-parchment transition hover:brightness-95 sm:size-16 ${
+                      reaction?.charId === character.id ? "z-50" : "z-0 hover:z-50"
+                    }`}
                   >
                     <img
                       src={iconFor(character)}
@@ -4566,6 +4904,14 @@ export default function MiddleEarthMap() {
                       draggable="false"
                       className="size-full select-none object-cover"
                     />
+                    {reaction?.charId === character.id && (
+                      <span
+                        className="pointer-events-none absolute left-full top-1/2 z-50"
+                        style={{ transform: "translate(-16px, calc(-50% + 20px))" }}
+                      >
+                        <ReactionBubble text={reaction.text} />
+                      </span>
+                    )}
                     {/* Touch devices have no hover, so caption the name on the
                         portrait (mobile only); desktop keeps the hover tooltip. */}
                     <span className="pointer-events-none absolute inset-x-0 bottom-1 truncate px-0.5 text-center text-[9px] font-semibold leading-tight text-white [text-shadow:0_1px_2px_#000,0_0_2px_#000] sm:hidden">
@@ -4774,6 +5120,11 @@ export default function MiddleEarthMap() {
         <CharacterModal
           character={openCharacter}
           stats={openStats}
+          reaction={
+            panelReaction && openCharacter && panelReaction.charId === openCharacter.id
+              ? panelReaction.text
+              : null
+          }
           paging={openCharacterPaging}
           level={openLevel}
           deadInBattle={openCharacter ? deathCauseById[openCharacter.id] === "battle" : false}

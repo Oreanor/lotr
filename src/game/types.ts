@@ -52,6 +52,10 @@ export interface WaterRun {
   count: number;
 }
 
+// Voice/personality used to pick which flavour of reaction line a companion
+// speaks: playful (comic, earthy), plain (grounded), or lofty (high, solemn).
+export type Temperament = "playful" | "plain" | "lofty";
+
 export interface Character {
   id: string;
   name: string;
@@ -193,6 +197,9 @@ export interface BattleState {
   sarumanParley?: boolean;
   pendingParley?: boolean;
   parleyDeclined?: boolean;
+  // Spoken aftermath lines shown at 1-2 allies' portraits on the win screen
+  // (keyed by ally key). Filled once the fight is resolved.
+  reactions?: { key: string; text: string }[];
 }
 
 export type TransportId = "pony" | "horse" | "ship" | "eagle";

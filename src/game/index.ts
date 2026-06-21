@@ -5,5 +5,6 @@ export * from "@/game/calendar";
 export * from "@/game/constants";
 export * from "@/game/data";
 export * from "@/game/rules";
+export * from "@/game/reactions";
 export * from "@/game/util";
 export * from "@/game/save";

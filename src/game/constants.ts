@@ -289,6 +289,21 @@ export const ROGUE_ENCOUNTER_CHANCE = 0.08;
 // Leveling.
 export const LEVEL_BASE_XP = 300; // xp from level 1 to 2
 export const LEVEL_XP_STEP = 120; // each further level needs this much more
+// Intelligence is learning aptitude: each point above XP_INT_FLOOR grants a
+// per-battle XP bonus of XP_BONUS_PER_INT, applied to each survivor's share
+// individually (a wits-7 hero earns +5%, wits-10 earns +20%).
+export const XP_INT_FLOOR = 6;
+export const XP_BONUS_PER_INT = 0.05;
+
+// Spoken companion reactions (speech bubbles over the party figure).
+export const REACTION_SHOW_MS = 3000; // how long a bubble lingers
+export const REACTION_GAP_MS = 450; // quiet beat between consecutive bubbles
+export const REACTION_QUEUE_MAX = 3; // drop extras so chatter never piles up
+export const REACTION_CHANCE = 0.6; // most events only sometimes draw a remark
+export const REACTION_IDLE_MS = 30000; // idle this long on the map → a waiting line
+export const REACTION_FOOD_LOW_DAYS = 4; // grumble about food at/under this many days
+export const REACTION_CORRUPTION_1 = 60; // the bearer complains crossing these %
+export const REACTION_CORRUPTION_2 = 80;
 // Points the player distributes over Frodo's four stats at game start.
 export const CREATION_POINTS = 10;
 export const ZERO_BONUS: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };

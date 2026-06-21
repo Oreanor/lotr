@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Flame, Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { ReactionBubble } from "@/components/ui/ReactionBubble";
 import { StatBar } from "@/components/ui/StatBar";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { ABILITIES, itemFamilyId, ringImage } from "@/game";
@@ -28,6 +29,7 @@ export function CharacterModal({
   onMakeBearer,
   onCall,
   onClose,
+  reaction,
 }: {
   character: Character | null;
   stats: CharacterStats | null;
@@ -47,6 +49,8 @@ export function CharacterModal({
   onMakeBearer: () => void;
   onCall: () => void;
   onClose: () => void;
+  // A spoken item reaction shown at this hero's portrait (null = none).
+  reaction?: string | null;
 }) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -108,11 +112,18 @@ export function CharacterModal({
             ) : (
               <span className="size-7 shrink-0" aria-hidden="true" />
             )}
-            <img
-              src={iconFor(character)}
-              alt=""
-              className="size-14 shrink-0 border border-neutral-700 bg-parchment object-cover"
-            />
+            <span className="relative shrink-0">
+              <img
+                src={iconFor(character)}
+                alt=""
+                className="size-14 border border-neutral-700 bg-parchment object-cover"
+              />
+              {reaction && (
+                <span className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 -translate-y-1/2">
+                  <ReactionBubble text={reaction} />
+                </span>
+              )}
+            </span>
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-serif text-xl text-neutral-100">{charName(character.id)}</h2>
               <p className="flex h-4 items-center gap-1 text-xs text-amber-400">
