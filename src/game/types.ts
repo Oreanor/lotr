@@ -47,11 +47,6 @@ export interface DragState {
   startOffset: Point;
 }
 
-export interface WaterRun {
-  cellKey: string | null;
-  count: number;
-}
-
 // Voice/personality used to pick which flavour of reaction line a companion
 // speaks: playful (comic, earthy), plain (grounded), or lofty (high, solemn).
 export type Temperament = "playful" | "plain" | "lofty";

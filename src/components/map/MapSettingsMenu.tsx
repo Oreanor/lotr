@@ -6,6 +6,8 @@ import {
   Gauge,
   LogOut,
   Map as MapIcon,
+  MessageCircle,
+  MessageCircleOff,
   Moon,
   RotateCcw,
   Route,
@@ -23,6 +25,8 @@ export function MapSettingsMenu({
   onToggleTerrain,
   showHeroPath,
   onToggleHeroPath,
+  reactionMode,
+  onCycleReactions,
   mapIndex,
   mapCount,
   onCycleMap,
@@ -43,6 +47,8 @@ export function MapSettingsMenu({
   onToggleTerrain: () => void;
   showHeroPath: boolean;
   onToggleHeroPath: () => void;
+  reactionMode: "often" | "rare" | "never";
+  onCycleReactions: () => void;
   mapIndex: number;
   mapCount: number;
   onCycleMap: () => void;
@@ -87,6 +93,15 @@ export function MapSettingsMenu({
             <Route className="size-4 shrink-0" />
             <span className="flex-1">{t("ui.heroPath")}</span>
             <span className="text-xs text-neutral-400">{showHeroPath ? t("ui.on") : t("ui.off")}</span>
+          </button>
+          <button type="button" onClick={onCycleReactions} className={row}>
+            {reactionMode === "never" ? (
+              <MessageCircleOff className="size-4 shrink-0" />
+            ) : (
+              <MessageCircle className="size-4 shrink-0" />
+            )}
+            <span className="flex-1">{t("ui.reactions")}</span>
+            <span className="text-xs text-neutral-400">{t(`ui.reaction_${reactionMode}`)}</span>
           </button>
           {mapCount > 1 && (
             <button type="button" onClick={onCycleMap} className={row}>

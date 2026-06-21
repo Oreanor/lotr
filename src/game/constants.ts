@@ -33,7 +33,6 @@ export const DEFAULT_ZOOM = 1;
 // Max zoom is this many times the initial fit zoom; the min is derived per frame
 // so the map always at least covers the viewport (no empty gaps).
 export const MAX_ZOOM_FACTOR = 4;
-export const ZOOM_STEP = 0.5;
 // Wheel/trackpad zoom is multiplicative and proportional to the scroll delta
 // (zoom × e^(−deltaY × this)), so it glides smoothly instead of jumping by a
 // fixed step. ~1.16× per typical 100px wheel notch; trackpads nudge finely.
@@ -69,6 +68,8 @@ export const TERRAIN_PREF_KEY = "lotr-terrain";
 export const MAP_PREF_KEY = "lotr-map";
 // Remembers the light/dark interface theme between sessions.
 export const THEME_PREF_KEY = "lotr-theme";
+// Remembers the optional-chatter (companion reactions) toggle between sessions.
+export const REACTIONS_PREF_KEY = "lotr-reactions";
 // Narrow water (rivers) up to this many cells can be forded; wider water blocks.
 export const MAX_WATER_CROSSING_CELLS = 2;
 // The figure stays within this margin (share of viewport) from each edge.

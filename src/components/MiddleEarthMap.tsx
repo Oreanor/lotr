@@ -120,6 +120,7 @@ import {
   MAP_VARIANTS,
   MAP_PREF_KEY,
   THEME_PREF_KEY,
+  REACTIONS_PREF_KEY,
   MAX_PATH_POINTS,
   MAX_WATER_CROSSING_CELLS,
   MEMBER_PICKUP_RANGE,
@@ -453,6 +454,18 @@ export default function MiddleEarthMap() {
     parsePrefTheme,
     identityPref,
   );
+  // Optional companion chatter (flavour reaction bubbles): "often" (the default
+  // rate), "rare" (half as often), or "never". Mechanically-needed lines (recruit
+  // refusals, state-change notices) ignore this entirely.
+  const [reactionMode, setReactionMode] = usePersistentState<"often" | "rare" | "never">(
+    REACTIONS_PREF_KEY,
+    "often",
+    (raw) => (raw === "rare" ? "rare" : raw === "never" || raw === "0" ? "never" : "often"),
+    identityPref,
+  );
+  // 1 = often, 0.5 = rare, 0 = never. Multiplies every flavour-line probability.
+  const reactionMultRef = useRef(1);
+  reactionMultRef.current = reactionMode === "never" ? 0 : reactionMode === "rare" ? 0.5 : 1;
   // Apply the theme to the document root so index.css's CSS-variable palette swaps.
   useEffect(() => {
     const root = document.documentElement;
@@ -1177,7 +1190,7 @@ export default function MiddleEarthMap() {
     for (const k of keys) {
       if (draft[k] > draft[top]) top = k;
     }
-    if (draft[top] > 0 && Math.random() < 0.4) {
+    if (draft[top] > 0 && Math.random() < 0.3 * reactionMultRef.current) {
       const ev: ReactionEvent =
         top === "strength" ? "levelStr" : top === "defense" ? "levelDef" : top === "intelligence" ? "levelInt" : "levelLuck";
       const picked = pickReactionRef.current?.(levelUpCharacterId, ev);
@@ -3581,18 +3594,19 @@ export default function MiddleEarthMap() {
   );
   const panelSeqRef = useRef(0);
   const panelReactionTimerRef = useRef<number | null>(null);
+  // A translated array of reaction lines for a key, or null if absent/empty.
+  const reactionLines = (key: string): string[] | null => {
+    const value = t(key, { returnObjects: true, defaultValue: null }) as unknown;
+    return Array.isArray(value) && value.length > 0 ? (value as string[]) : null;
+  };
   // Pick a line for this speaker+event: a character-specific set wins (Gollum,
   // Treebeard…), else the feminine variant, else the temperament's set.
   const pickReaction = (charId: string, event: ReactionEvent): { text: string; mood: ReactionMood } | null => {
     const temp = temperamentOf(charId);
-    const variants = (key: string): string[] | null => {
-      const value = t(key, { returnObjects: true, defaultValue: null }) as unknown;
-      return Array.isArray(value) && value.length > 0 ? (value as string[]) : null;
-    };
     const lines =
-      variants(`reaction.${charId}.${event}`) ??
-      (FEMALE_IDS.has(charId) ? variants(`reaction.${temp}.${event}_f`) : null) ??
-      variants(`reaction.${temp}.${event}`);
+      reactionLines(`reaction.${charId}.${event}`) ??
+      (FEMALE_IDS.has(charId) ? reactionLines(`reaction.${temp}.${event}_f`) : null) ??
+      reactionLines(`reaction.${temp}.${event}`);
     if (!lines) {
       return null;
     }
@@ -3605,8 +3619,12 @@ export default function MiddleEarthMap() {
     if (!partyRef.current.includes(charId)) {
       return;
     }
-    if (!opts?.always && Math.random() > REACTION_CHANCE) {
-      return; // most events only sometimes draw a remark
+    // Flavour rate: "always" lines are certain at the "often" setting; everything
+    // else uses REACTION_CHANCE. The mode multiplier halves it ("rare") or zeroes
+    // it ("never").
+    const prob = (opts?.always ? 1 : REACTION_CHANCE) * reactionMultRef.current;
+    if (Math.random() >= prob) {
+      return;
     }
     const picked = pickReaction(charId, event);
     if (picked) {
@@ -3618,7 +3636,7 @@ export default function MiddleEarthMap() {
   // Item-panel reaction: about half the time, surfaced at the open hero's portrait
   // inside the character panel; auto-clears after a beat.
   panelReactionRef.current = (charId, event) => {
-    if (Math.random() < 0.5) {
+    if (Math.random() >= 0.5 * reactionMultRef.current) {
       return;
     }
     const picked = pickReaction(charId, event);
@@ -3635,14 +3653,13 @@ export default function MiddleEarthMap() {
   // A living companion mourns the fallen by name, with the right gender form
   // ("бедный/бедная …"). Always spoken (a death is no small thing).
   const speakMourn = (speakerId: string, deadId: string) => {
+    if (Math.random() >= reactionMultRef.current) {
+      return;
+    }
     const temp = temperamentOf(speakerId);
-    const variants = (key: string): string[] | null => {
-      const value = t(key, { returnObjects: true, defaultValue: null }) as unknown;
-      return Array.isArray(value) && value.length > 0 ? (value as string[]) : null;
-    };
     const lines =
-      (FEMALE_IDS.has(deadId) ? variants(`reaction.${temp}.mourn_f`) : null) ??
-      variants(`reaction.${temp}.mourn`);
+      (FEMALE_IDS.has(deadId) ? reactionLines(`reaction.${temp}.mourn_f`) : null) ??
+      reactionLines(`reaction.${temp}.mourn`);
     if (!lines) {
       return;
     }
@@ -4049,7 +4066,7 @@ export default function MiddleEarthMap() {
       // One or two survivors remark on how the fight went, judged by how much HP
       // the party lost: a breeze, a hard slog, or a brush with death. Shown right
       // in the battle's win screen at their portraits (not later on the map).
-      {
+      if (Math.random() < reactionMultRef.current) {
         const totalMax = battle.allies.reduce((sum, a) => sum + a.maxHp, 0);
         const totalHp = battle.allies.reduce((sum, a) => sum + Math.max(0, a.hp), 0);
         const loss = totalMax > 0 ? 1 - totalHp / totalMax : 0;
@@ -4853,6 +4870,10 @@ export default function MiddleEarthMap() {
           onToggleTerrain={() => setShowTerrain((prev) => !prev)}
           showHeroPath={showHeroPath}
           onToggleHeroPath={() => setShowHeroPath((prev) => !prev)}
+          reactionMode={reactionMode}
+          onCycleReactions={() =>
+            setReactionMode((prev) => (prev === "often" ? "rare" : prev === "rare" ? "never" : "often"))
+          }
           mapIndex={mapIndex}
           mapCount={MAP_VARIANTS.length}
           onCycleMap={cycleMap}
