@@ -18,6 +18,7 @@ import {
 import { EndingModal } from "@/components/modals/EndingModal";
 import { SpeechModal } from "@/components/modals/SpeechModal";
 import { MapSettingsMenu } from "@/components/map/MapSettingsMenu";
+import { isDesktop, exitApp } from "@/platform";
 import type { Ending } from "@/components/modals/EndingModal";
 import { RogueFledModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
@@ -310,6 +311,7 @@ export default function MiddleEarthMap() {
   // Bearer's current corruption (0-100), mirrored so callbacks defined before it
   // is computed (auto-play) can still read it.
   const bearerCorruptionRef = useRef(0);
+  const gollumAliveRef = useRef(true);
   // Equipped items mirrored for the rAF travel loop (item speed bonuses).
   const equippedItemsRef = useRef<Record<string, string>>({});
   // Party members present when the current location was entered; used to hide
@@ -2006,19 +2008,45 @@ export default function MiddleEarthMap() {
     followDisabledRef.current = false;
   }, []);
 
+  // The bearer puts on the Ring at the Crack of Doom — whether by the player's
+  // choice (claim) or because the Ring's hold overrode the will to destroy it
+  // (viaBetrayal). If Gollum yet lives, half such moments end as the tale truly
+  // did: he springs out of the dark for the Precious and, in the struggle,
+  // topples with it into the Fire — the Ring unmade in spite of the bearer. He is
+  // marked slain, so he never resurfaces in freeplay.
+  const wearRingAtDoom = useCallback((viaBetrayal: boolean) => {
+    if (gollumAliveRef.current && Math.random() < 0.5) {
+      setSlainRoamingRecruits((prev) => new Set(prev).add("gollum"));
+      // He may have been travelling in the company — he went into the Fire, so
+      // drop him from party and squads alike.
+      setParty((prev) => prev.filter((id) => id !== "gollum"));
+      setSquads((prev) =>
+        prev
+          .map((s) => ({ ...s, members: s.members.filter((m) => m !== "gollum") }))
+          .filter((s) => s.members.length > 0),
+      );
+      setRingDestroyed(true);
+      setEnding("gollumFall");
+      return;
+    }
+    setLordClaimed(true);
+    if (viaBetrayal) {
+      setDoomBetrayal(true);
+    }
+    setEnding("lord");
+  }, []);
+
   // Cast the Ring into the fire — but its hold may win out and the bearer puts it
   // on instead. Chance is half the corruption %, so even a badly-corrupted bearer
   // usually obeys: it's a nasty surprise, not the default.
   const destroyRing = useCallback(() => {
     if (Math.random() * 100 < bearerCorruptionRef.current / 2) {
-      setLordClaimed(true);
-      setDoomBetrayal(true);
-      setEnding("lord");
+      wearRingAtDoom(true);
     } else {
       setRingDestroyed(true);
       setEnding("victory");
     }
-  }, []);
+  }, [wearRingAtDoom]);
 
   // Search the current location: chance = average party luck × 10% to turn up its
   // hidden item. Once the item is found, further searches always come up empty.
@@ -3060,20 +3088,15 @@ export default function MiddleEarthMap() {
   // Dol Guldur is led by a wraith while the Nine are abroad, else by the orc
   // captain — and is cleared once either has fallen.
   const dolGuldurBoss = dolGuldurHasWraiths ? DOL_GULDUR_WRAITH : DOL_GULDUR_CAPTAIN;
-  // Gollum lurks at the Crack of Doom — if still alive and not in the company, he
-  // springs out for the Precious. You must get past him before the fire.
-  const gollumAtDoom =
-    visitedLocation?.id === ORODRUIN_ID &&
-    !slainRoamingRecruits.has("gollum") &&
-    !party.includes("gollum") &&
-    !parkedMembers.includes("gollum");
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
     }
     if (visitedLocation.id === ORODRUIN_ID) {
       // A fled bearer makes for Mount Doom — wait for him here and reclaim the
-      // Ring (this also covers Gollum if he's the one who bolted).
+      // Ring (this also covers Gollum if he's the one who bolted). Gollum no
+      // longer bars the brink otherwise; he springs out only as the bearer dons
+      // the Ring (see wearRingAtDoom).
       if (rogueBearerId) {
         const rogue = CHARACTERS.find((c) => c.id === rogueBearerId);
         if (rogue) {
@@ -3088,7 +3111,7 @@ export default function MiddleEarthMap() {
           };
         }
       }
-      return gollumAtDoom ? GOLLUM_ENEMY : null;
+      return null;
     }
     if (visitedLocation.id === DOL_GULDUR_ID) {
       if (defeatedBosses.has(DOL_GULDUR_WRAITH.name) || defeatedBosses.has(DOL_GULDUR_CAPTAIN.name)) {
@@ -3486,6 +3509,9 @@ export default function MiddleEarthMap() {
       ).corruption
     : 0;
   bearerCorruptionRef.current = bearerCorruption;
+  // Kept fresh for wearRingAtDoom (a []-deps callback): is Gollum still abroad to
+  // spring for the Precious at the brink?
+  gollumAliveRef.current = !slainRoamingRecruits.has("gollum");
   const hasFallen = bearerCorruption >= 100;
   // Resilience exhausted before reaching Mount Doom: the bearer succumbs, slips
   // away with the Ring and bolts for Mount Doom. The party has two months to
@@ -4286,12 +4312,12 @@ export default function MiddleEarthMap() {
     (dragRef.current.active || isMoving) && offsetRef.current ? offsetRef.current : offset;
 
   return (
-    <section className="fixed inset-0 bg-white p-1 sm:p-[18px]">
+    <section className="fixed inset-0 bg-[#fcf4e2] p-1 sm:p-[18px]">
       <div
         ref={viewportRef}
         role="application"
         aria-label="Interactive Middle-earth map"
-        className="relative h-full w-full cursor-grab touch-none overflow-hidden bg-neutral-900 shadow-[0_0_0_5px_#111111,0_0_0_10px_#ffffff,0_0_0_12px_#111111] active:cursor-grabbing"
+        className="relative h-full w-full cursor-grab touch-none overflow-hidden bg-neutral-900 shadow-[0_0_0_5px_#111111,0_0_0_10px_#fcf4e2,0_0_0_12px_#111111] active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -4474,6 +4500,7 @@ export default function MiddleEarthMap() {
             setRestartConfirm(true);
             setSettingsOpen(false);
           }}
+          onExit={isDesktop ? exitApp : undefined}
         />
 
         {/* HUD overlay: date + controls + party float above the map, top-left */}
@@ -4686,11 +4713,10 @@ export default function MiddleEarthMap() {
         <LocationModal
           location={
             // At Orodruin the destroy/claim modal takes over once you hold the
-            // Ring — unless Gollum is still barring the way, when the location card
-            // (with his Fight) shows first.
+            // Ring, so the location card is suppressed there.
             visitedLocation &&
             !ending &&
-            !(visitedLocation.id === ORODRUIN_ID && hasRing && !gollumAtDoom)
+            !(visitedLocation.id === ORODRUIN_ID && hasRing)
               ? visitedLocation
               : null
           }
@@ -4906,12 +4932,9 @@ export default function MiddleEarthMap() {
         />
 
         <OrodruinModal
-          open={visitedLocation?.id === ORODRUIN_ID && hasRing && !ending && !gollumAtDoom}
+          open={visitedLocation?.id === ORODRUIN_ID && hasRing && !ending}
           onDestroy={destroyRing}
-          onClaim={() => {
-            setLordClaimed(true);
-            setEnding("lord");
-          }}
+          onClaim={() => wearRingAtDoom(false)}
         />
 
         <FarmResultModal

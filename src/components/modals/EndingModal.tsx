@@ -6,6 +6,9 @@ import type { Character } from "@/game";
 
 export type Ending =
   | "victory"
+  // Gollum springs for the Precious at the brink and falls with it into the Fire
+  // — the Ring unmade in spite of the bearer (as the tale truly ended).
+  | "gollumFall"
   | "lord"
   | "starved"
   | "battle"
@@ -28,6 +31,7 @@ export type Ending =
 // refuse" sea endings share the one painting.
 const ENDING_IMAGE: Partial<Record<Ending, string>> = {
   victory: "/endings/ring_destroyed.jpg",
+  gollumFall: "/endings/ring_destroyed.jpg",
   sauron: "/endings/sauron.jpg",
   valinorWest: "/endings/to_valinor.jpg",
   valinorRing: "/endings/valar_refuse.jpg",
@@ -39,6 +43,7 @@ const ENDING_IMAGE: Partial<Record<Ending, string>> = {
 type Tone = "win" | "lord" | "loss";
 const ENDING_TONE: Record<Ending, Tone> = {
   victory: "win",
+  gollumFall: "win",
   valinorWest: "win",
   lord: "lord",
   rogueLord: "lord",
@@ -121,6 +126,11 @@ export function EndingModal({
             <h2 className={titleClass}>{t("ending.victoryTitle")}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.victoryText")}</p>
           </>
+        ) : ending === "gollumFall" ? (
+          <>
+            <h2 className={titleClass}>{t("ending.gollumFallTitle")}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t("ending.gollumFallText", { name: bearerName })}</p>
+          </>
         ) : ending === "nothing" ? (
           <>
             <h2 className={titleClass}>{t("ending.nothingTitle")}</h2>
@@ -182,7 +192,7 @@ export function EndingModal({
           </>
         )}
         <div className="mt-5 flex flex-col gap-2">
-          {ending === "victory" && onContinue && (
+          {(ending === "victory" || ending === "gollumFall") && onContinue && (
             <button
               type="button"
               className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-900/70"

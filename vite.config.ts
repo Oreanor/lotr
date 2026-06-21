@@ -11,4 +11,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // Fixed port so `tauri dev` (devUrl http://localhost:5173) always connects.
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
 });

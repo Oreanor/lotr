@@ -4,6 +4,7 @@ import {
   Eye,
   EyeOff,
   Gauge,
+  LogOut,
   Map as MapIcon,
   Moon,
   RotateCcw,
@@ -34,6 +35,7 @@ export function MapSettingsMenu({
   onStats,
   onHelp,
   onRestart,
+  onExit,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -53,6 +55,8 @@ export function MapSettingsMenu({
   onStats: () => void;
   onHelp: () => void;
   onRestart: () => void;
+  // Desktop-only (Tauri). Omitted in the web build, where the row is hidden.
+  onExit?: () => void;
 }) {
   const { t } = useTranslation();
   const row = "flex items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-neutral-200 transition hover:bg-neutral-800";
@@ -124,6 +128,12 @@ export function MapSettingsMenu({
             <RotateCcw className="size-4 shrink-0" />
             <span className="flex-1">{t("ui.restart")}</span>
           </button>
+          {onExit && (
+            <button type="button" onClick={onExit} className={row}>
+              <LogOut className="size-4 shrink-0" />
+              <span className="flex-1">{t("ui.exit")}</span>
+            </button>
+          )}
         </div>
       )}
     </div>
