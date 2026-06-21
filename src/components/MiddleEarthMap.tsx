@@ -229,6 +229,24 @@ const parseMapIndex = (raw: string) => {
 const parsePrefTheme = (raw: string): "dark" | "light" => (raw === "light" ? "light" : "dark");
 const identityPref = (value: string) => value;
 
+// When the bearer falls and only companions who can't truly carry the Ring are
+// left, one of them (chosen at random) takes it to their own doom.
+const NON_BEARER_ENDING: Record<string, Ending> = {
+  saruman: "sarumanLord",
+  boromir: "boromirGondor",
+  bombadil: "bombadilLost",
+  gollum: "gollumHides",
+  treebeard: "treebeardBuries",
+  king_dead: "deadKeep",
+};
+function nonBearerEnding(living: string[]): Ending {
+  const claimants = living.filter((id) => id in NON_BEARER_ENDING);
+  if (claimants.length === 0) {
+    return "nothing";
+  }
+  return NON_BEARER_ENDING[claimants[Math.floor(Math.random() * claimants.length)]];
+}
+
 export default function MiddleEarthMap() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
@@ -1229,7 +1247,10 @@ export default function MiddleEarthMap() {
           setReclaimedFrom(bearerId);
           setBattle(null);
         } else {
-          setEnding((prev) => prev ?? "battle");
+          // No one anywhere can truly carry the Ring. If non-bearers still live,
+          // one of them takes it to their own doom; otherwise all simply fell.
+          const living = [...survivors, ...squadsRef.current.flatMap((s) => s.members)];
+          setEnding((prev) => prev ?? (living.length > 0 ? nonBearerEnding(living) : "battle"));
           setBattle(null);
         }
       } else if (survivors.length === 0) {
@@ -3909,18 +3930,31 @@ export default function MiddleEarthMap() {
         }
         return next;
       });
-      const nonBearer = hungerDead.filter((id) => id !== bearerId);
-      if (nonBearer.length > 0) {
-        setParty((prev) => prev.filter((id) => !nonBearer.includes(id)));
-        setSquads((prev) =>
-          prev
-            .map((s) => ({ ...s, members: s.members.filter((id) => !nonBearer.includes(id)) }))
-            .filter((s) => s.members.length > 0),
-        );
-        setDeathNotice({ ids: nonBearer.join(","), cause: "hunger" });
-      }
+      // Everyone who starved leaves the company (active party or a parked squad).
+      setParty((prev) => prev.filter((id) => !hungerDead.includes(id)));
+      setSquads((prev) =>
+        prev
+          .map((s) => ({ ...s, members: s.members.filter((id) => !hungerDead.includes(id)) }))
+          .filter((s) => s.members.length > 0),
+      );
+      setDeathNotice({ ids: hungerDead.join(","), cause: "hunger" });
+
       const remaining = survivors.filter((id) => !hungerDead.includes(id));
-      if (hungerDead.includes(bearerId) || remaining.length === 0) {
+      const ableBearer = remaining.some((id) => !NON_BEARERS.has(id));
+      if (hungerDead.includes(bearerId)) {
+        if (ableBearer) {
+          // The bearer starved, but an able companion can take up the Ring — pass
+          // it on (the chooser, or a squad via the loose-Ring effect) instead of
+          // ending the quest.
+          setBearerId("");
+          setReclaimedFrom(bearerId);
+        } else if (remaining.length > 0) {
+          // Only non-bearers left — one takes the Ring to their own doom.
+          setEnding((prev) => prev ?? nonBearerEnding(remaining));
+        } else {
+          setEnding((prev) => prev ?? "starved");
+        }
+      } else if (remaining.length === 0) {
         setEnding((prev) => prev ?? "starved");
       }
     }

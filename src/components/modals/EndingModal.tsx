@@ -14,7 +14,15 @@ export type Ending =
   | "sauron"
   | "valinorWest"
   | "valinorRing"
-  | "valinorSink";
+  | "valinorSink"
+  // The bearer fell and only a companion who cannot truly carry the Ring is left;
+  // each takes it to a different doom.
+  | "sarumanLord"
+  | "boromirGondor"
+  | "bombadilLost"
+  | "gollumHides"
+  | "treebeardBuries"
+  | "deadKeep";
 
 // Artwork for the endings that have it (in /public/endings). The two "Valar
 // refuse" sea endings share the one painting.
@@ -40,6 +48,12 @@ const ENDING_TONE: Record<Ending, Tone> = {
   sauron: "loss",
   valinorRing: "loss",
   valinorSink: "loss",
+  sarumanLord: "lord",
+  boromirGondor: "loss",
+  bombadilLost: "loss",
+  gollumHides: "loss",
+  treebeardBuries: "loss",
+  deadKeep: "loss",
 };
 const TONE_BORDER: Record<Tone, string> = {
   win: "border-emerald-700",
@@ -131,6 +145,16 @@ export function EndingModal({
           <>
             <h2 className={titleClass}>{t("ending.valinorSinkTitle")}</h2>
             <p className="mt-3 text-sm text-neutral-300">{t("ending.valinorSinkText")}</p>
+          </>
+        ) : ending === "sarumanLord" ||
+          ending === "boromirGondor" ||
+          ending === "bombadilLost" ||
+          ending === "gollumHides" ||
+          ending === "treebeardBuries" ||
+          ending === "deadKeep" ? (
+          <>
+            <h2 className={titleClass}>{t(`ending.${ending}Title`)}</h2>
+            <p className="mt-3 text-sm text-neutral-300">{t(`ending.${ending}Text`)}</p>
           </>
         ) : ending === "rogueLord" ? (
           <>
