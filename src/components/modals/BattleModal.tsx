@@ -22,6 +22,7 @@ export function BattleModal({
   fleeChance,
   onSkip,
   onContinue,
+  parleyBubble,
 }: {
   battle: BattleState | null;
   battleSpeed: number;
@@ -34,6 +35,8 @@ export function BattleModal({
   fleeChance: number;
   onSkip: () => void;
   onContinue: () => void;
+  // Saruman parley: the line to show now, anchored at that speaker's portrait.
+  parleyBubble?: { key: string; text: string } | null;
 }) {
   const { t } = useTranslation();
   // Portrait nodes for anchoring win-screen reaction bubbles (drawn in a portal
@@ -241,6 +244,16 @@ export function BattleModal({
               delayMs={i * 500}
             />
           ))}
+          {/* Saruman parley: one speaker's plea/objection at a time, at their portrait. */}
+          {parleyBubble && (
+            <PortalBubble
+              key={parleyBubble.key}
+              getEl={() => portraitRefs.current.get(parleyBubble.key) ?? null}
+              text={parleyBubble.text}
+              tail="down"
+              maxWClass="max-w-[16rem]"
+            />
+          )}
           </div>
 
           <div className="border-t border-red-900/40 p-4 sm:p-5 pt-4">

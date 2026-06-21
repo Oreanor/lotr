@@ -231,6 +231,8 @@ import { PortalBubble } from "@/components/ui/PortalBubble";
 
 // Stable parse/serialize helpers for the persistent UI prefs (kept at module
 // scope so usePersistentState's effect doesn't re-run every render).
+// How long each Saruman-parley line lingers before the next speaker (or the choice).
+const PARLEY_LINE_MS = 2300;
 const parsePrefBool = (raw: string) => raw === "1";
 const serializePrefBool = (value: boolean) => (value ? "1" : "0");
 const parseMapIndex = (raw: string) => {
@@ -322,7 +324,6 @@ export default function MiddleEarthMap() {
   const bearerCorruptionRef = useRef(0);
   const gollumAliveRef = useRef(true);
   const bearerIdRef = useRef<string | null>(null);
-  const treebeardSettledRef = useRef(false);
   // Reassigned every render to the live `speak` closure, so action callbacks
   // defined before the reactions block can still fire spoken lines.
   const speakRef = useRef<(charId: string, event: ReactionEvent, opts?: { always?: boolean }) => void>(
@@ -509,8 +510,13 @@ export default function MiddleEarthMap() {
   // Gandalf has cowed Gríma at Edoras, but he stays on the card until the player
   // dismisses the "he flees" notice — only then does he actually slip away.
   const [grimaFleePending, setGrimaFleePending] = useState(false);
-  // Shown once: Treebeard's farewell at fallen Isengard (he stays to tend it).
-  const [treebeardFarewell, setTreebeardFarewell] = useState(false);
+  // Set when Treebeard, brought along to fallen Isengard, settles to rule it: he
+  // leaves the party, won't re-join, and is found there on every later visit.
+  const [treebeardAtIsengard, setTreebeardAtIsengard] = useState<boolean>(
+    initialSave?.treebeardAtIsengard ?? false,
+  );
+  const treebeardAtIsengardRef = useRef(treebeardAtIsengard);
+  treebeardAtIsengardRef.current = treebeardAtIsengard;
   // Entry speeches at Tharbad (Gandalf, then Boromir, whoever is along), shown
   // one modal after another. Reset on leaving so each visit greets afresh.
   const [tharbadSpeech, setTharbadSpeech] = useState<"gandalf" | "boromir" | null>(null);
@@ -853,7 +859,7 @@ export default function MiddleEarthMap() {
       };
 
       // Treebeard, settled at Isengard, won't march on — only bids you go.
-      if (character.id === "treebeard" && treebeardSettledRef.current) {
+      if (character.id === "treebeard" && treebeardAtIsengardRef.current) {
         refuse(t("refuse.treebeardStays"));
         return;
       }
@@ -1172,6 +1178,9 @@ export default function MiddleEarthMap() {
       const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
       return { ...prev, [levelUpCharacterId]: addBonus(current, draft) };
     });
+    // Clear the draft now (not at advance): the points are spent, so during the
+    // reaction-hold "points left" reads 0, never a negative.
+    setLevelUpDraft(ZERO_BONUS);
     // Leveling raises the max HP pool but doesn't heal: the extra capacity comes
     // in "empty", so carry the gain into damage to leave current health untouched.
     const hpGain = maxHpFromStats(draft.strength, draft.defense);
@@ -1212,6 +1221,12 @@ export default function MiddleEarthMap() {
   // Commit done — clear the draft and either show the next queued hero or close.
   const advanceLevelUpRef = useRef(() => {});
   advanceLevelUpRef.current = () => {
+    // Cancel any pending reaction-hold so a manual click can't double-advance.
+    if (levelUpReactionTimerRef.current) {
+      window.clearTimeout(levelUpReactionTimerRef.current);
+      levelUpReactionTimerRef.current = null;
+    }
+    setLevelUpReaction(null);
     setLevelUpDraft(ZERO_BONUS);
     const queue = levelUpQueueRef.current;
     if (queue.length > 0) {
@@ -1419,6 +1434,23 @@ export default function MiddleEarthMap() {
       setParleyStep(0);
     }
   }, [battle?.pendingParley]);
+  // Only speakers still standing have their say — anyone downed in the fight is
+  // silent. Their pleas/objections play one at a time as battle bubbles.
+  const livingParleySpeakers = useMemo(() => {
+    if (!battle?.pendingParley) {
+      return [];
+    }
+    const downed = new Set(battle.allies.filter((a) => a.hp <= 0).map((a) => a.key));
+    return parleySpeakers.filter((id) => !downed.has(id));
+  }, [battle?.pendingParley, battle?.allies, parleySpeakers]);
+  // Auto-advance through the parley lines; when past the last, the choice shows.
+  useEffect(() => {
+    if (!battle?.pendingParley || parleyStep >= livingParleySpeakers.length) {
+      return undefined;
+    }
+    const id = window.setTimeout(() => setParleyStep((s) => s + 1), PARLEY_LINE_MS);
+    return () => window.clearTimeout(id);
+  }, [battle?.pendingParley, parleyStep, livingParleySpeakers.length]);
 
   // Spare Saruman: he renounces and the fight ends — wounds stay, no kill/loot,
   // and Isengard is cleared (boss recorded as dealt with).
@@ -1859,6 +1891,7 @@ export default function MiddleEarthMap() {
       sarumanSpared,
       sarumanSparedDay,
       hobbitonScoured,
+      treebeardAtIsengard,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -3076,10 +3109,9 @@ export default function MiddleEarthMap() {
   // A fled Gríma with no Isengard left to run to (Saruman already beaten) skulks
   // the wild until someone puts him down.
   const grimaRoaming = grimaFled && !grimaSlain && defeatedBosses.has(sarumanBossName);
-  // Once Saruman is gone (slain or spared) the Ents take Isengard — Treebeard
-  // settles there and no longer roams Fangorn or agrees to join.
-  const treebeardSettled = sarumanGone;
-  treebeardSettledRef.current = treebeardSettled;
+  // Isengard has fallen (Saruman slain or spared) — the precondition for Treebeard
+  // to settle there, but only if you actually brought him along.
+  const isengardFallen = sarumanGone;
   const recruitsBase = visitedLocation
     ? CHARACTERS.filter(
         (character) =>
@@ -3101,14 +3133,12 @@ export default function MiddleEarthMap() {
           !entryParty.has(character.id),
       )
     : [];
-  // Treebeard, having settled at fallen Isengard, is seen there as a character —
-  // but he won't march on (recruiting him only earns his "I stay" refusal).
+  // Treebeard, brought here and left to rule fallen Isengard, is found there on
+  // every visit — but he won't march on (recruiting only earns his "I stay").
   const recruitsHere =
     visitedLocation?.id === ISENGARD_ID &&
-    treebeardSettled &&
-    metCharacterIds.has("treebeard") &&
+    treebeardAtIsengard &&
     !party.includes("treebeard") &&
-    !slainRoamingRecruits.has("treebeard") &&
     !recruitsBase.some((c) => c.id === "treebeard")
       ? [...recruitsBase, CHARACTERS.find((c) => c.id === "treebeard")!]
       : recruitsBase;
@@ -3207,12 +3237,12 @@ export default function MiddleEarthMap() {
     }
     return boss;
   })();
-  // Hobbiton's art turns to the scoured ruin (34_hobbiton2) only once the party
-  // has been here during the Scouring and left — on the first arrival Saruman has
-  // only just come, so the village still stands (you can stop him in time).
+  // Hobbiton's art shows the scoured ruin (34_hobbiton2) whenever Saruman holds it
+  // — while the Scouring is on (he sits there spoiling it) and after (the wreck
+  // he leaves behind, tracked by hobbitonScoured).
   const locationArtSrc = visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null;
   const scouredArtSrc =
-    visitedLocation?.id === HOBBITON_ID && hobbitonScoured && locationArtSrc
+    visitedLocation?.id === HOBBITON_ID && (sarumanScouring || hobbitonScoured) && locationArtSrc
       ? locationArtSrc.replace("10_hobbiton.jpg", "34_hobbiton2.jpg")
       : locationArtSrc;
   // The mount/ship offered here (null if none, or a ship while Círdan sails free).
@@ -4209,32 +4239,21 @@ export default function MiddleEarthMap() {
     }
   }, [visitedLocation]);
 
-  // At fallen Isengard, Treebeard settles to heal the land the Ents have taken.
-  // If he's marching with the company he leaves it here; if merely met, he just
-  // bids farewell. Either way he won't go on — said once.
+  // Bring Treebeard to fallen Isengard and he settles to rule it: he leaves the
+  // party and stays for good (found there forever after). Only the brought-along
+  // case settles him — an unmet/declined Treebeard keeps roaming Fangorn.
   useEffect(() => {
     if (
       visitedLocation?.id === ISENGARD_ID &&
-      treebeardSettled &&
-      !treebeardFarewell &&
-      (party.includes("treebeard") || metCharacterIds.has("treebeard"))
+      isengardFallen &&
+      !treebeardAtIsengard &&
+      party.includes("treebeard")
     ) {
-      setTreebeardFarewell(true);
-      if (party.includes("treebeard")) {
-        dismissMember("treebeard"); // he stays at Isengard rather than march on
-      }
+      setTreebeardAtIsengard(true);
+      dismissMember("treebeard");
       showRecruitRefusal(t("refuse.treebeardStays"), "treebeard");
     }
-  }, [
-    visitedLocation,
-    treebeardSettled,
-    metCharacterIds,
-    party,
-    treebeardFarewell,
-    showRecruitRefusal,
-    dismissMember,
-    t,
-  ]);
+  }, [visitedLocation, isengardFallen, party, treebeardAtIsengard, showRecruitRefusal, dismissMember, t]);
 
   // Arriving at the ruins of Tharbad: Gandalf, then Boromir (whoever is along)
   // each say their piece. With neither present the place is just empty.
@@ -4559,7 +4578,10 @@ export default function MiddleEarthMap() {
         slainRoamingRecruits,
         grimaRoaming,
         nazgulGone,
-        treebeardSettled,
+        // Gone from Fangorn only once he's settled at Isengard (you brought him).
+        // Dealing with Saruman alone — or meeting and declining him — leaves him
+        // roaming, so he can still be found and recruited.
+        treebeardAtIsengard,
       );
       const kinPresent = party.includes("theoden") || party.includes("eowyn");
       if (rolled.monster.recruitId === "treebeard") {
@@ -4606,7 +4628,7 @@ export default function MiddleEarthMap() {
         pack,
       });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardSettled, sarumanRoams, corsairPeace, mapSize, assessDanger]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardAtIsengard, sarumanRoams, corsairPeace, mapSize, assessDanger]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -5371,25 +5393,20 @@ export default function MiddleEarthMap() {
           fleeChance={battleEscapePct}
           onSkip={() => setBattle((b) => (b ? resolveBattleInstantly(b) : b))}
           onContinue={() => setBattle(null)}
-        />
-
-        {/* Saruman beaten to half with a mercy advocate along: companions speak in
-            turn, then the spare/fight choice. */}
-        <SpeechModal
-          open={!!battle?.pendingParley && parleyStep < parleySpeakers.length}
-          icon={
-            parleySpeakers[parleyStep]
-              ? (CHARACTERS.find((c) => c.id === parleySpeakers[parleyStep])?.icon ?? "")
-              : ""
+          parleyBubble={
+            battle?.pendingParley && parleyStep < livingParleySpeakers.length
+              ? {
+                  key: livingParleySpeakers[parleyStep],
+                  text: t(`sarumanParley.${livingParleySpeakers[parleyStep]}`),
+                }
+              : null
           }
-          name={parleySpeakers[parleyStep] ? charName(parleySpeakers[parleyStep]) : ""}
-          text={parleySpeakers[parleyStep] ? t(`sarumanParley.${parleySpeakers[parleyStep]}`) : ""}
-          buttonLabel={t(parleyStep < parleySpeakers.length - 1 ? "tharbad.next" : "sarumanParley.decide")}
-          onClose={() => setParleyStep((s) => s + 1)}
         />
 
+        {/* Saruman beaten to half with a mercy advocate along: living companions
+            plead/object one at a time as battle bubbles, then the spare/fight choice. */}
         <Modal
-          open={!!battle?.pendingParley && parleyStep >= parleySpeakers.length}
+          open={!!battle?.pendingParley && parleyStep >= livingParleySpeakers.length}
           z="z-[60]"
           overlayClassName="bg-black/70"
           className="w-full max-w-xs border-amber-800 p-6 text-center"
@@ -5724,7 +5741,16 @@ export default function MiddleEarthMap() {
             }}
             onViewStats={() => setStatsOpen(true)}
             // The Ring is gone — let the player keep roaming a freed Middle-earth.
-            onContinue={() => setEnding(null)}
+            // Clear every open overlay so the map is free to wander.
+            onContinue={() => {
+              setEnding(null);
+              setVisitedLocation(null);
+              setStatsOpen(false);
+              setHelpOpen(false);
+              setOpenCharacterId(null);
+              setPartySummaryOpen(false);
+              setSettingsOpen(false);
+            }}
           />
         )}
       </div>

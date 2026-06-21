@@ -68,6 +68,8 @@ export interface GameSave {
   // Set once the party has left Hobbiton during the Scouring — only then does the
   // art turn to the ruined village (the first time, Saruman has just arrived).
   hobbitonScoured?: boolean;
+  // Set once Treebeard has been brought to fallen Isengard and settled to rule it.
+  treebeardAtIsengard?: boolean;
 }
 
 export function loadSave(): GameSave | null {

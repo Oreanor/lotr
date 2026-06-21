@@ -185,10 +185,11 @@ export function recruitRefusalKey(characterId: string, party: string[]): string 
   if (characterId === "gandalf" && party.includes("saruman")) {
     return "refuse.gandalfSaruman";
   }
-  // Arwen, Galadriel (like Legolas) don't mind a dwarf along for the road.
+  // Arwen, Galadriel and Círdan (like Legolas) don't mind a dwarf along the road.
   if (
     characterId !== "arwen" &&
     characterId !== "galadriel" &&
+    characterId !== "cirdan" &&
     ELF_IDS.has(characterId) &&
     party.some((id) => DWARF_IDS.has(id))
   ) {
