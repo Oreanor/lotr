@@ -51,7 +51,7 @@ function Portrait({ src, label, found }: { src: string; label: string; found: bo
     <div title={label} className="flex flex-col items-center gap-0.5">
       <div
         className={`aspect-square w-full overflow-hidden rounded border border-neutral-700 ${
-          found ? "bg-parchment" : "bg-neutral-600"
+          found ? "bg-parchment" : "bg-[#525252]"
         }`}
       >
         <img
@@ -96,6 +96,7 @@ export function StatsModal({
   return (
     <Modal
       open={open}
+      onClose={onClose}
       align="top"
       z="z-[60]"
       className="flex max-h-[88vh] w-full max-w-2xl flex-col border-neutral-700"

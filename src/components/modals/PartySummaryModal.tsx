@@ -67,9 +67,11 @@ export function PartySummaryModal({
   return (
     <Modal
       open={open}
+      onClose={bearerMode ? undefined : onClose}
       overlayClassName={bearerMode ? "bg-black/85" : "bg-black/70"}
-      className={`w-full max-w-lg p-5 ${bearerMode ? "border-amber-700" : "border-neutral-700"}`}
+      className={`flex max-h-[88vh] w-full max-w-lg flex-col ${bearerMode ? "border-amber-700" : "border-neutral-700"}`}
     >
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
       {bearerMode && <img src={ringImage} alt="" className="mx-auto mb-2 size-10 object-contain" />}
       <h2
         className={`font-serif text-xl ${
@@ -149,25 +151,28 @@ export function PartySummaryModal({
           </tbody>
         </table>
       </div>
+      </div>
 
+      <div className={`border-t p-4 ${bearerMode ? "border-amber-900/40" : "border-neutral-800"}`}>
       {bearerMode ? (
         <button
           type="button"
           disabled={!selected}
           onClick={() => selected && onSelect(selected.id)}
-          className="mt-4 w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
+          className="w-full rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-amber-900/40"
         >
           {selected ? t("rogue.giveRing", { name: charName(selected.id) }) : t("rogue.chooseNewBearer")}
         </button>
       ) : (
         <button
           type="button"
-          className="mt-4 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+          className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
           onClick={onClose}
         >
           {t("partyTable.close")}
         </button>
       )}
+      </div>
     </Modal>
   );
 }

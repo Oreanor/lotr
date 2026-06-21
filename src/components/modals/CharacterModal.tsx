@@ -88,11 +88,13 @@ export function CharacterModal({
   return (
     <Modal
       open={character !== null && stats !== null}
+      onClose={onClose}
       overlayClassName="overflow-hidden bg-black/60"
-      className="flex h-fit w-full max-w-xs shrink-0 flex-col gap-3 border-neutral-700 p-4"
+      className="flex max-h-[90vh] w-full max-w-xs shrink-0 flex-col border-neutral-700"
     >
       {character && stats && (
         <>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           <div className="flex h-14 items-center gap-2">
             {paging ? (
               <button
@@ -237,6 +239,7 @@ export function CharacterModal({
               </div>
             </div>
           )}
+          </div>
 
           <Modal
             open={pickerOpen}
@@ -325,6 +328,7 @@ export function CharacterModal({
             </button>
           </Modal>
 
+          <div className="border-t border-neutral-800 p-4">
           <div className="flex flex-col gap-2">
             {isInParty && (
               <button
@@ -353,6 +357,7 @@ export function CharacterModal({
             >
               {t("character.close")}
             </button>
+          </div>
           </div>
         </>
       )}

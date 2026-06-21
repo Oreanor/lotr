@@ -55,6 +55,11 @@ import {
   SARUMAN_NAME,
   PATH_COLLINEAR_DOT,
   PATH_MIN_STEP,
+  BEAST_MONSTERS,
+  ORC_FOES,
+  RINGWRAITH_FOES,
+  RING_PIERCING_FOES,
+  SHELOB_NAME,
   ROGUE_HIT_CHANCE,
   RECRUITS_BY_LOCATION,
   REGION_X,
@@ -76,6 +81,7 @@ import {
   TREEBEARD_ENEMY,
   GOLLUM_ENEMY,
   GRIMA_ENEMY,
+  ITEM_BY_ID,
   LOCATION_IMAGE_FILE,
   locationData,
   MONSTERS,
@@ -896,6 +902,123 @@ export function resolveBattleInstantly(battle: BattleState): BattleState {
     guard += 1;
   }
   return state;
+}
+
+export interface CreateBattleOpts {
+  party: string[];
+  monster: Monster;
+  pack: Monster[];
+  bearerId: string | null;
+  statBonusById: Record<string, StatBonus>;
+  damageById: Record<string, number>;
+  expById: Record<string, number>;
+  equippedItems: Record<string, string>;
+  wraithsStand?: boolean;
+  sarumanParley?: boolean;
+}
+
+// Snapshot the live party and a foe pack into a fresh, ready-to-run battle. The
+// single source of truth for how stats, carried items, auras and wounds become
+// combatants — used both to start a real fight and to forecast its danger.
+export function createBattleState(opts: CreateBattleOpts): BattleState {
+  const { party, monster, pack, bearerId, statBonusById, damageById, expById, equippedItems } = opts;
+  const packHasUndead = pack.some((mm) => WRAITH_FOES.has(mm.name));
+  const packHasOrcs = pack.some((mm) => ORC_FOES.has(mm.name));
+  // The Phial of Galadriel blinds Shelob — her strength is halved.
+  const partyHasPhial = party.some((id) => equippedItems[id] === "phial");
+  const phialBlinded = partyHasPhial && pack.some((mm) => mm.name === SHELOB_NAME);
+  const allies: Combatant[] = party
+    .map((id): Combatant | null => {
+      const character = CHARACTERS.find((c) => c.id === id);
+      if (!character) {
+        return null;
+      }
+      const item = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
+      const s = effectiveStats(
+        character,
+        addBonus(addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)), itemStatBonus(item)),
+      );
+      const maxHp = maxHpFromStats(s.strength, s.defense);
+      const attackBonus = itemAttackBonus(item, packHasUndead, packHasOrcs);
+      const undeadMultiplier = packHasUndead && id === "king_dead" ? 2 : 1;
+      return {
+        key: id,
+        name: character.name,
+        icon: character.icon,
+        hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
+        maxHp,
+        strength: s.strength,
+        attack: s.strength * undeadMultiplier + attackBonus,
+        defense: s.defense,
+        luck: s.luck,
+        intelligence: s.intelligence,
+        level: levelForExp(expById[id] ?? 0).level,
+      };
+    })
+    .filter((c): c is Combatant => c !== null && c.hp > 0);
+  const enemies: Combatant[] = pack.map((mm, i) => {
+    const str = phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
+    const hp = maxHpFromStats(str, mm.defense);
+    return {
+      key: `enemy-${i}`,
+      name: mm.name,
+      icon: mm.icon,
+      hp,
+      maxHp: hp,
+      strength: str,
+      attack: str,
+      defense: mm.defense,
+      luck: mm.luck,
+      intelligence: mm.intelligence,
+    };
+  });
+  return {
+    allies,
+    enemies,
+    exp: pack.reduce((sum, mm) => sum + monsterExp(mm), 0),
+    turn: "allies",
+    index: 0,
+    outcome: allies.length === 0 ? "lose" : null,
+    lastHit: null,
+    attacker: null,
+    tick: 0,
+    hitDir: 0,
+    bearerKey: allies.some((a) => a.key === bearerId) ? bearerId : null,
+    ringOn: false,
+    fleeUsed: false,
+    recruitId: monster.recruitId ?? null,
+    enemyBeast: pack.some((mm) => BEAST_MONSTERS.has(mm.name)),
+    enemyNazgul: pack.some((mm) => RINGWRAITH_FOES.has(mm.name)),
+    enemyOrc: packHasOrcs,
+    ringIneffective: pack.some((mm) => RING_PIERCING_FOES.has(mm.name)),
+    betrayalBy: null,
+    gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
+    rogueId: null,
+    invisibleEnemy: false,
+    phialBlinded,
+    wraithsStand: opts.wraithsStand ?? false,
+    sarumanParley: opts.sarumanParley ?? false,
+  };
+}
+
+// Forecast whether a foe is genuinely "strong": run the real battle engine a few
+// times (no Ring trickery, no fleeing) and call it dangerous if, on average,
+// more than half the party ends up dead or out of the fight — i.e. the foe can
+// take down the better part of the company even if the party ultimately wins.
+export function estimateEncounterDanger(opts: CreateBattleOpts): boolean {
+  const RUNS = 9;
+  let totalWipeShare = 0;
+  for (let run = 0; run < RUNS; run += 1) {
+    const final = resolveBattleInstantly(createBattleState(opts));
+    const fighting = final.allies.length;
+    if (fighting === 0) {
+      totalWipeShare += 1;
+      continue;
+    }
+    const downed = final.allies.filter((a) => a.hp <= 0).length;
+    totalWipeShare += downed / fighting;
+  }
+  return totalWipeShare / RUNS > 0.5;
 }
 
 // Provisions a party can carry depends on the transport (mounts carry more).

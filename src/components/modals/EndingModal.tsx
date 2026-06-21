@@ -108,7 +108,8 @@ export function EndingModal({
   );
 
   return (
-    <Modal open={open} overlayClassName="bg-black/85" className={`w-full max-w-sm p-6 text-center ${borderClass}`}>
+    <Modal open={open} overlayClassName="bg-black/85" className={`flex max-h-[90vh] w-full max-w-sm flex-col text-center ${borderClass}`}>
+      <div className="min-h-0 flex-1 overflow-y-auto p-6">
       {endingImage && <ZoomableImage key={endingImage} src={endingImage} alt="" />}
 
       {ending === "starved" ? (
@@ -191,7 +192,9 @@ export function EndingModal({
             <p className="mt-3 text-sm text-neutral-300">{t("ending.lordText", { name: bearerName })}</p>
           </>
         )}
-        <div className="mt-5 flex flex-col gap-2">
+        </div>
+        <div className="border-t border-white/10 p-4">
+        <div className="flex flex-col gap-2">
           {(ending === "victory" || ending === "gollumFall") && onContinue && (
             <button
               type="button"
@@ -215,6 +218,7 @@ export function EndingModal({
           >
             {t("ending.replay")}
           </button>
+        </div>
         </div>
     </Modal>
   );

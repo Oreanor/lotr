@@ -66,10 +66,11 @@ export function BattleModal({
     <Modal
       open={battle !== null}
       overlayClassName="bg-black/80"
-      className="max-h-[90vh] w-fit min-w-72 max-w-[calc(100vw-3rem)] overflow-y-auto border-red-800 p-5"
+      className="flex max-h-[90vh] w-fit min-w-72 max-w-[calc(100vw-3rem)] flex-col border-red-800"
     >
       {battle && (
         <>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="relative mb-4">
             <h2 className="text-center font-serif text-xl text-red-300">
               {battle.rogueId
@@ -111,7 +112,7 @@ export function BattleModal({
                   <div key={ally.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                     <div
                       className={`relative size-14 overflow-hidden border sm:size-20 ${
-                        ally.hp <= 0 ? "bg-neutral-600" : "bg-parchment"
+                        ally.hp <= 0 ? "bg-[#525252]" : "bg-parchment"
                       } ${
                         battle.attacker === ally.key
                           ? "border-amber-400 ring-2 ring-amber-400"
@@ -163,7 +164,7 @@ export function BattleModal({
                 <div key={enemy.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                   <div
                     className={`relative flex size-14 items-center justify-center overflow-hidden border text-2xl sm:size-20 sm:text-3xl ${
-                      enemyDown(enemy) ? "bg-neutral-600" : "bg-parchment"
+                      enemyDown(enemy) ? "bg-[#525252]" : "bg-parchment"
                     } ${
                       battle.attacker === enemy.key
                         ? "border-amber-400 ring-2 ring-amber-400"
@@ -215,9 +216,11 @@ export function BattleModal({
               ))}
             </div>
           </div>
+          </div>
 
+          <div className="border-t border-red-900/40 p-5 pt-4">
           {battle.outcome ? (
-            <div className="mt-5 text-center">
+            <div className="text-center">
               <p
                 className={`font-serif text-xl ${
                   battle.outcome === "win" ? "text-emerald-400" : "text-red-400"
@@ -234,7 +237,7 @@ export function BattleModal({
               </button>
             </div>
           ) : (
-            <div className="mt-5 flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               {battle.phialBlinded && (
                 <p className="text-center text-xs text-sky-300">{t("battle.phialNote")}</p>
               )}
@@ -276,6 +279,7 @@ export function BattleModal({
               )}
             </div>
           )}
+          </div>
         </>
       )}
     </Modal>

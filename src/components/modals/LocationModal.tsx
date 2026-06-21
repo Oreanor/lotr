@@ -90,22 +90,23 @@ export function LocationModal({
     <Modal
       open={location !== null}
       overlayClassName={`bg-black/60${blocked}`}
-      className={`max-h-[88vh] w-full max-w-sm overflow-y-auto border-neutral-700 p-5 text-center${blocked}`}
+      className={`flex max-h-[88vh] w-full max-w-sm flex-col border-neutral-700 text-center${blocked}`}
     >
       {location && (
-        <div data-location-modal className="relative">
-          <h2 className="px-9 font-serif text-2xl text-neutral-100">{locationName}</h2>
-          <p className="mt-1 px-9 text-xs text-neutral-100">{journeyDate}</p>
+        <div data-location-modal className="relative flex min-h-0 flex-1 flex-col">
           <button
             type="button"
             onClick={onWait}
             disabled={isMoving}
             aria-label={t("location.waitAria")}
             title={t("location.waitDay")}
-            className="absolute right-0 top-0 flex size-8 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
+            className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded border border-neutral-700 bg-neutral-800 text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
           >
             <Hourglass className="size-4" />
           </button>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <h2 className="px-9 font-serif text-2xl text-neutral-100">{locationName}</h2>
+          <p className="mt-1 px-9 text-xs text-neutral-100">{journeyDate}</p>
 
           {imageSrc && (
             <ZoomableImage
@@ -215,13 +216,15 @@ export function LocationModal({
               </ScrollRow>
             </div>
           )}
+          </div>
 
+          <div className="flex flex-col gap-3 border-t border-neutral-800 p-5 pt-4">
           {canRestock && (
             <button
               type="button"
               disabled={food >= foodCapacity}
               onClick={onTakeSupplies}
-              className="mt-4 w-full rounded border border-amber-800 bg-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-amber-900/30"
+              className="w-full rounded border border-amber-800 bg-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-amber-900/30"
             >
               {food >= foodCapacity
                 ? t("location.suppliesFull", { n: foodCapacity })
@@ -234,7 +237,7 @@ export function LocationModal({
               type="button"
               disabled={transportActive}
               onClick={onTakeTransport}
-              className="mt-4 flex w-full items-center justify-center gap-2.5 rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
+              className="flex w-full items-center justify-center gap-2.5 rounded border border-emerald-800 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-emerald-900/30"
             >
               <TransportIcon transport={transportOffer} className="size-6 shrink-0 object-contain" />
               {transportActive
@@ -249,7 +252,7 @@ export function LocationModal({
               onClick={onExplore}
               disabled={isMoving || exploreLocked}
               title={exploreLocked ? t("location.exploreLocked") : undefined}
-              className="mt-4 w-full rounded border border-sky-800 bg-sky-900/30 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-sky-900/30"
+              className="w-full rounded border border-sky-800 bg-sky-900/30 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/60 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-sky-900/30"
             >
               {t("location.explore")}
             </button>
@@ -258,11 +261,12 @@ export function LocationModal({
           <button
             type="button"
             disabled={!canLeave}
-            className="mt-3 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
+            className="w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-neutral-800"
             onClick={onLeave}
           >
             {t("location.leave")}
           </button>
+          </div>
         </div>
       )}
     </Modal>

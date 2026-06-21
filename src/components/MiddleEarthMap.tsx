@@ -42,6 +42,8 @@ import { EaglesLeftModal, TransportConfirmModal } from "@/components/modals/Tran
 import { useSpeedSettings } from "@/hooks/useSpeedSettings";
 import { useTerrainGrid } from "@/hooks/useTerrainGrid";
 import { useBattleClock } from "@/hooks/useBattleClock";
+import { useGameAutosave } from "@/hooks/useGameAutosave";
+import { useRingDecay } from "@/hooks/useRingDecay";
 import {
   addBonus,
   appendPathPoint,
@@ -64,7 +66,6 @@ import {
   autoPlayShouldFarm,
   autoPlayShouldFleeEncounter,
   autoPlayShouldWaitAtLocation,
-  BEAST_MONSTERS,
   BETRAYAL_CHANCE,
   BETRAYAL_GRACE_DAYS,
   RELUCTANT_RECRUIT_ATTEMPTS,
@@ -89,7 +90,6 @@ import {
   EAGLE_STAY_DAYS,
   effectiveStats,
   itemStatBonus,
-  itemAttackBonus,
   ENCOUNTER_CHANCE_PER_DAY,
   BOMBADIL_SLOW_FACTOR,
   EOMER_SPEED_MULTIPLIER,
@@ -129,7 +129,6 @@ import {
   MEMBER_PICKUP_RANGE,
   MILES_PER_DAY,
   MINAS_MORGUL_ID,
-  monsterExp,
   GONDOR_ARMOR_IDS,
   GONDOR_CACHE_MAX,
   GONDOR_SWORD_IDS,
@@ -162,6 +161,8 @@ import {
   type RecruitRefusalNotice,
   ringImage,
   regionAt,
+  createBattleState,
+  estimateEncounterDanger,
   rollEncounter,
   rollEscape,
   escapeChance,
@@ -171,9 +172,6 @@ import {
   GIFTS_BY_CHARACTER,
   CLOAK_GIVERS,
   EXPLORE_ITEM_BY_LOCATION,
-  WRAITH_FOES,
-  ORC_FOES,
-  SHELOB_NAME,
   WIGHT_NAME,
   HOBBIT_IDS,
   LOFTY_TALKERS,
@@ -197,12 +195,9 @@ import {
   CORSAIR_SEA_MAX,
   CORSAIR_SEA_POWER,
   unspentPointsFor,
-  RING_PIERCING_FOES,
-  RINGWRAITH_FOES,
   SARUMAN_NAME,
   SARUMAN_ENCOUNTER_CHANCE,
   SARUMAN_SCOUR_DAYS,
-  writeSave,
   ZERO_BONUS,
 } from "@/game";
 import type {
@@ -644,9 +639,9 @@ export default function MiddleEarthMap() {
         : { [RING_BEARER_ID]: 0 }),
   );
   const bearerRingDays = bearerId ? (ringDaysById[bearerId] ?? 0) : 0;
-  // Seed the ring-day trackers so a loaded game doesn't re-accrue past days.
-  const prevJourneyDayForRingRef = useRef(initialSave?.journeyDay ?? 0);
-  const prevRingWearForRingRef = useRef(initialSave?.ringWear ?? 0);
+  const addRingDays = useCallback((id: string, delta: number) => {
+    setRingDaysById((days) => ({ ...days, [id]: (days[id] ?? 0) + delta }));
+  }, []);
   const battleAppliedRef = useRef(false);
   const foodRef = useRef(initialSave?.food ?? INITIAL_FOOD_DAYS);
   const damageRef = useRef<Record<string, number>>(initialSave?.damageById ?? {});
@@ -963,94 +958,43 @@ export default function MiddleEarthMap() {
     if (!enc) {
       return;
     }
-    // Carried items lend bonus attack against the right foes here.
-    const packHasUndead = enc.pack.some((mm) => WRAITH_FOES.has(mm.name));
-    const packHasOrcs = enc.pack.some((mm) => ORC_FOES.has(mm.name));
-    // The Phial of Galadriel blinds Shelob — her strength is halved.
-    const partyHasPhial = party.some((id) => equippedItems[id] === "phial");
-    const phialBlinded = partyHasPhial && enc.pack.some((mm) => mm.name === SHELOB_NAME);
-    const allies: Combatant[] = party
-      .map((id): Combatant | null => {
-        const character = CHARACTERS.find((c) => c.id === id);
-        if (!character) {
-          return null;
-        }
-        const item = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
-        const s = effectiveStats(
-          character,
-          addBonus(addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)), itemStatBonus(item)),
-        );
-        const maxHp = maxHpFromStats(s.strength, s.defense);
-        const attackBonus = itemAttackBonus(item, packHasUndead, packHasOrcs);
-        const undeadMultiplier = packHasUndead && id === "king_dead" ? 2 : 1;
-        return {
-          key: id,
-          name: character.name,
-          icon: character.icon,
-          hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
-          maxHp,
-          strength: s.strength,
-          attack: s.strength * undeadMultiplier + attackBonus,
-          defense: s.defense,
-          luck: s.luck,
-          intelligence: s.intelligence,
-          level: levelForExp(expById[id] ?? 0).level,
-        };
-      })
-      .filter((c): c is Combatant => c !== null && c.hp > 0);
-    const m = enc.monster;
-    const pack = enc.pack;
-    const enemies: Combatant[] = pack.map((mm, i) => {
-      const str =
-        phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
-      const hp = maxHpFromStats(str, mm.defense);
-      return {
-        key: `enemy-${i}`,
-        name: mm.name,
-        icon: mm.icon,
-        hp,
-        maxHp: hp,
-        strength: str,
-        attack: str,
-        defense: mm.defense,
-        luck: mm.luck,
-        intelligence: mm.intelligence,
-      };
-    });
     battleAppliedRef.current = false;
     setEncounter(null);
-    let battleState: BattleState = {
-      allies,
-      enemies,
-      exp: pack.reduce((sum, mm) => sum + monsterExp(mm), 0),
-      turn: "allies",
-      index: 0,
-      outcome: allies.length === 0 ? "lose" : null,
-      lastHit: null,
-      attacker: null,
-      tick: 0,
-      hitDir: 0,
-      bearerKey: allies.some((a) => a.key === bearerId) ? bearerId : null,
-      ringOn: false,
-      fleeUsed: false,
-      recruitId: m.recruitId ?? null,
-      enemyBeast: pack.some((mm) => BEAST_MONSTERS.has(mm.name)),
-      enemyNazgul: pack.some((mm) => RINGWRAITH_FOES.has(mm.name)),
-      enemyOrc: packHasOrcs,
-      ringIneffective: pack.some((mm) => RING_PIERCING_FOES.has(mm.name)),
-      betrayalBy: null,
-      gandalfOnly: pack.some((mm) => mm.name.startsWith("Балрог")),
-      rogueId: null,
-      invisibleEnemy: false,
-      phialBlinded,
-      wraithsStand: enc.wraithsStand ?? false,
-      sarumanParley: enc.sarumanParley ?? false,
-    };
+    let battleState = createBattleState({
+      party,
+      monster: enc.monster,
+      pack: enc.pack,
+      bearerId,
+      statBonusById,
+      damageById,
+      expById,
+      equippedItems,
+      wraithsStand: enc.wraithsStand,
+      sarumanParley: enc.sarumanParley,
+    });
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
     }
     setBattle(battleState);
   }, [encounter, party, statBonusById, damageById, bearerId, equippedItems, expById]);
+
+  // Rate a wild encounter "strong" only if it would, on average, take down more
+  // than half the company — a forecast from the real battle engine, not a coin
+  // flip (see estimateEncounterDanger).
+  const assessDanger = useCallback(
+    (monster: Monster, pack: Monster[]) =>
+      estimateEncounterDanger({
+        party,
+        monster,
+        pack,
+        bearerId,
+        statBonusById,
+        damageById,
+        expById,
+        equippedItems,
+      }),
+    [party, bearerId, statBonusById, damageById, expById, equippedItems],
+  );
 
   // Flee before the fight: succeed and the foe is left behind; fail and there's
   // no slipping away — the battle begins anyway.
@@ -1719,38 +1663,23 @@ export default function MiddleEarthMap() {
     return () => document.removeEventListener("pointerdown", close);
   }, [settingsOpen]);
 
-  // Ring corruption days accrue only for whoever currently carries it — and not
-  // once the Ring is unmade (freeplay): the bearer is Ring-free, so it freezes.
-  useEffect(() => {
-    const delta = journeyDay - prevJourneyDayForRingRef.current;
-    if (delta > 0 && bearerId && rogueBearerId === null && !ringDestroyed) {
-      setRingDaysById((days) => ({
-        ...days,
-        [bearerId]: (days[bearerId] ?? 0) + delta,
-      }));
-    }
-    prevJourneyDayForRingRef.current = journeyDay;
-  }, [journeyDay, bearerId, rogueBearerId, ringDestroyed]);
-  useEffect(() => {
-    const delta = ringWear - prevRingWearForRingRef.current;
-    if (delta > 0 && bearerId && rogueBearerId === null && !ringDestroyed) {
-      setRingDaysById((days) => ({
-        ...days,
-        [bearerId]: (days[bearerId] ?? 0) + delta,
-      }));
-    }
-    prevRingWearForRingRef.current = ringWear;
-  }, [ringWear, bearerId, rogueBearerId, ringDestroyed]);
+  // Ring corruption days accrue only for whoever currently carries it, freezing
+  // while the Ring is fled (a chase) or once it's unmade (freeplay).
+  useRingDecay({
+    journeyDay,
+    ringWear,
+    bearerId,
+    carrying: rogueBearerId === null && !ringDestroyed,
+    addRingDays,
+  });
 
-  // Auto-save the full game state, but only at rest — never mid-move, mid-battle,
-  // or with an encounter pending — so a reload resumes from a clean stop/town.
-  useEffect(() => {
-    // Never persist a ringless chase — a reload would leave the party with no
-    // Ring and no rogue. Saves resume only from a clean stop with the Ring held.
-    if (!created || ending || battle || encounter || isMoving || target || rogueBearerId) {
-      return;
-    }
-    writeSave({
+  // Auto-save the full game state, but only at a clean rest point — never
+  // mid-move, mid-battle, with an encounter pending, or during a ringless chase
+  // (a reload would leave the party with no Ring and no rogue). The hook diffs a
+  // snapshot, so it writes only on real change.
+  useGameAutosave(
+    !!created && !ending && !battle && !encounter && !isMoving && !target && !rogueBearerId,
+    {
       player,
       journeyDay,
       journeyMiles: journeyMilesRef.current,
@@ -1791,53 +1720,8 @@ export default function MiddleEarthMap() {
       defeatedEnemyIcons: [...defeatedEnemyIcons],
       maxPartySize,
       metCharacterIds: [...metCharacterIds],
-    });
-  }, [
-    created,
-    ending,
-    battle,
-    encounter,
-    isMoving,
-    target,
-    player,
-    journeyDay,
-    party,
-    bearerId,
-    transport,
-    eagleSince,
-    food,
-    damageById,
-    deathCauseById,
-    expById,
-    statBonusById,
-    ringWear,
-    bearerRingDays,
-    ringDaysById,
-    hasCloaks,
-    defeatedBosses,
-    slainRoamingRecruits,
-    banishedTraitors,
-    squads,
-    rogueBearerId,
-    foundItems,
-    equippedItems,
-    deadSummoned,
-    samCaughtUp,
-    grimaFled,
-    grimaSlain,
-    osgiliathCacheFound,
-    corsairPeace,
-    ringDestroyed,
-    dolGuldurNazgulSlain,
-    sarumanSpared,
-    sarumanSparedDay,
-    hobbitonScoured,
-    visitedLocationIds,
-    enemiesKilled,
-    defeatedEnemyIcons,
-    maxPartySize,
-    metCharacterIds,
-  ]);
+    },
+  );
 
   // Game over: drop the save so a reload starts a fresh quest.
   useEffect(() => {
@@ -4183,7 +4067,8 @@ export default function MiddleEarthMap() {
         if (party.includes("saruman")) {
           // The company harbours Saruman — Treebeard falls on it (no joining).
           const hostile = { ...rolled, monster: { ...rolled.monster, recruitId: undefined } };
-          setEncounter(createEncounter(hostile, party.length, position));
+          const enc = createEncounter(hostile, party.length, position);
+          setEncounter({ ...enc, dangerous: assessDanger(enc.monster, enc.pack) });
         } else {
           // Met in peace among the trees, he offers to come along.
           setPeacefulOffer(true);
@@ -4198,7 +4083,7 @@ export default function MiddleEarthMap() {
       } else {
         const enc = createEncounter(rolled, party.length, position);
         const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
-        setEncounter(pack.length === enc.pack.length ? enc : { ...enc, pack });
+        setEncounter({ ...enc, pack, dangerous: assessDanger(enc.monster, pack) });
       }
     } else if (corsairEncounter && onWater) {
       // A corsair crew falls on the ship — they only ever sail with rats and
@@ -4213,9 +4098,14 @@ export default function MiddleEarthMap() {
       if (haradrim && Math.random() < 0.4) {
         pack.push(haradrim);
       }
-      setEncounter({ monster: CORSAIR_ENEMY, dangerous: true, solo: pack.length === 1, pack });
+      setEncounter({
+        monster: CORSAIR_ENEMY,
+        dangerous: assessDanger(CORSAIR_ENEMY, pack),
+        solo: pack.length === 1,
+        pack,
+      });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardSettled, sarumanRoams, corsairPeace, mapSize]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardSettled, sarumanRoams, corsairPeace, mapSize, assessDanger]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
@@ -4312,12 +4202,12 @@ export default function MiddleEarthMap() {
     (dragRef.current.active || isMoving) && offsetRef.current ? offsetRef.current : offset;
 
   return (
-    <section className="fixed inset-0 bg-[#fcf4e2] p-1 sm:p-[18px]">
+    <section className="fixed inset-0 bg-parchment p-1 sm:p-[18px]">
       <div
         ref={viewportRef}
         role="application"
         aria-label="Interactive Middle-earth map"
-        className="relative h-full w-full cursor-grab touch-none overflow-hidden bg-neutral-900 shadow-[0_0_0_5px_#111111,0_0_0_10px_#fcf4e2,0_0_0_12px_#111111] active:cursor-grabbing"
+        className="relative h-full w-full cursor-grab touch-none overflow-hidden bg-neutral-900 shadow-[0_0_0_5px_#111111,0_0_0_10px_rgb(var(--parchment)),0_0_0_12px_#111111] active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
