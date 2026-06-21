@@ -3956,9 +3956,15 @@ export default function MiddleEarthMap() {
           }
         }
       }
+      // Sam runs after Frodo once the party has actually set out — not while it
+      // waits at home (near Hobbiton). Distance, not day count, so waiting around
+      // never triggers (or blocks) him.
+      const here = playerRef.current;
+      const leftHome =
+        !!here && Math.hypot(here.x - hobbiton.point.x, here.y - hobbiton.point.y) > 40;
       if (
         !samCaughtUp &&
-        day < 3 &&
+        leftHome &&
         members.includes("frodo") &&
         !members.includes("sam") &&
         !parkedMembers.includes("sam") &&
