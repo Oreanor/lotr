@@ -156,7 +156,6 @@ export const DOL_GULDUR_CAPTAIN: Monster = {
 export const DOL_GULDUR_GARRISON: Monster[] = [
   { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
   { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
-  { name: "Орк", icon: "/enemies/orc.png", tier: 3, strength: 9, defense: 9, intelligence: 3, luck: 3 },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },
   { name: "Урук-хай", icon: "/enemies/urukhai.png", tier: 3, strength: 10, defense: 10, intelligence: 4, luck: 3 },

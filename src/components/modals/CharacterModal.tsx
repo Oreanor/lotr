@@ -218,7 +218,7 @@ export function CharacterModal({
                       src={equippedItem.icon}
                       alt=""
                       draggable={false}
-                      className="size-8 shrink-0 border border-neutral-700 bg-parchment object-contain"
+                      className="size-8 shrink-0 object-contain"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-sky-100">{t(`item.${itemFamilyId(equippedItem.id)}.name`)}</p>
@@ -263,7 +263,16 @@ export function CharacterModal({
                   <p className="text-sm text-neutral-400">{t("character.noItems")}</p>
                 )}
                 {itemOptions.map((item) => {
-                  const disabled = !!item.holders && !item.holders.includes(character.id);
+                  // Treebeard is an Ent — he bears no weapons, helmets or armour
+                  // (anything that lends strength or defense).
+                  const isGear =
+                    !!item.strength ||
+                    !!item.defense ||
+                    !!item.strengthVsUndead ||
+                    !!item.strengthVsOrcs;
+                  const disabled =
+                    (!!item.holders && !item.holders.includes(character.id)) ||
+                    (character.id === "treebeard" && isGear);
                   return (
                     <button
                       key={item.id}
@@ -286,7 +295,7 @@ export function CharacterModal({
                         src={item.icon}
                         alt=""
                         draggable={false}
-                        className="size-12 border border-neutral-700 bg-parchment object-contain"
+                        className="size-12 object-contain"
                       />
                       <span className="text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(item.id)}.name`)}</span>
                       <span className="text-xs text-sky-300/80">{t(`item.${itemFamilyId(item.id)}.desc`)}</span>

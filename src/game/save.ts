@@ -65,6 +65,9 @@ export interface GameSave {
   // let go, for that countdown.
   sarumanSpared?: boolean;
   sarumanSparedDay?: number;
+  // Set once the party has left Hobbiton during the Scouring — only then does the
+  // art turn to the ruined village (the first time, Saruman has just arrived).
+  hobbitonScoured?: boolean;
 }
 
 export function loadSave(): GameSave | null {

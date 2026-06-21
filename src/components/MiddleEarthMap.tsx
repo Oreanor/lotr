@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { LocateFixed, Split, Square, Users, Wheat, ZoomIn } from "lucide-react";
+import { Loader2, LocateFixed, Split, Square, Users, Wheat, ZoomIn } from "lucide-react";
 import { HoverHint } from "@/components/ui/HoverHint";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
 import { TransportIcon } from "@/components/ui/TransportIcon";
@@ -133,6 +133,7 @@ import {
   GONDOR_CACHE_MAX,
   GONDOR_SWORD_IDS,
   GRIMA_ENEMY,
+  GOLLUM_ENEMY,
   SARUMAN_ENEMY,
   HELMS_DEEP_ID,
   ROHAN_ARMORY_IDS,
@@ -407,6 +408,22 @@ export default function MiddleEarthMap() {
     parseMapIndex,
     String,
   );
+  // Switching the background map: keep the current one shown (with a dimming
+  // veil + spinner over a locked map) until the next is fetched, then swap so it
+  // appears instantly with no half-loaded flash.
+  const [mapLoading, setMapLoading] = useState(false);
+  const cycleMap = useCallback(() => {
+    const next = (mapIndex + 1) % MAP_VARIANTS.length;
+    setMapLoading(true);
+    const img = new Image();
+    const swap = () => {
+      setMapIndex(next);
+      setMapLoading(false);
+    };
+    img.onload = swap;
+    img.onerror = swap;
+    img.src = MAP_VARIANTS[next];
+  }, [mapIndex, setMapIndex]);
   // Interface theme: "dark" (default) or "light" (parchment).
   const [theme, setTheme] = usePersistentState<"dark" | "light">(
     THEME_PREF_KEY,
@@ -479,6 +496,9 @@ export default function MiddleEarthMap() {
   // two-month countdown to the Scouring.
   const [sarumanSpared, setSarumanSpared] = useState<boolean>(initialSave?.sarumanSpared ?? false);
   const [sarumanSparedDay, setSarumanSparedDay] = useState<number>(initialSave?.sarumanSparedDay ?? 0);
+  // True once the party has left Hobbiton during the Scouring: only then is the
+  // village shown ruined (on arrival Saruman has only just got there).
+  const [hobbitonScoured, setHobbitonScoured] = useState<boolean>(initialSave?.hobbitonScoured ?? false);
   // The One Ring has been cast into the Fire — the Ban over the West may lift.
   const [ringDestroyed, setRingDestroyed] = useState(initialSave?.ringDestroyed ?? false);
   // A ship has reached the world's western edge — offer the passage to Valinor.
@@ -1360,6 +1380,15 @@ export default function MiddleEarthMap() {
     setParleyStep(0);
   }, []);
 
+  // A Saruman who leaves alive — spared at Isengard, or fled after a betrayal —
+  // makes for the Shire: he roams the NW and scours Hobbiton two months on.
+  const sendSarumanScouring = useCallback((id: string) => {
+    if (id === "saruman") {
+      setSarumanSpared(true);
+      setSarumanSparedDay(journeyDayRef.current);
+    }
+  }, []);
+
 
   const makeBearer = useCallback((id: string) => {
     if (NON_BEARERS.has(id)) {
@@ -1754,6 +1783,7 @@ export default function MiddleEarthMap() {
       dolGuldurNazgulSlain,
       sarumanSpared,
       sarumanSparedDay,
+      hobbitonScoured,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -1799,6 +1829,7 @@ export default function MiddleEarthMap() {
     dolGuldurNazgulSlain,
     sarumanSpared,
     sarumanSparedDay,
+    hobbitonScoured,
     visitedLocationIds,
     enemiesKilled,
     defeatedEnemyIcons,
@@ -1889,18 +1920,25 @@ export default function MiddleEarthMap() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canSwitchSquads, switchSquad]);
 
-  // Space halts the march — same as the Stop button. Ignored while a modal is up
-  // or when a control/field has focus (so it still activates buttons / types).
+  // Space always halts the march — same as the Stop button. We swallow it (and
+  // drop focus) so it never re-fires whatever control was last clicked (which
+  // made the camera/figure jump). Ignored only while a modal is up or while
+  // typing in a field.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space" && event.key !== " ") {
         return;
       }
       const el = event.target as HTMLElement | null;
-      if (mapInputLocked || (el && el.closest("button, input, textarea, select"))) {
-        return;
+      if (el && el.closest("input, textarea, select")) {
+        return; // let Space type a space
       }
       event.preventDefault();
+      if (mapInputLocked) {
+        return; // a modal owns input
+      }
+      // Blur any focused button so the browser doesn't activate it on Space.
+      (document.activeElement as HTMLElement | null)?.blur?.();
       setTarget(null);
       setTargetLocation(null);
       setStopped(false);
@@ -2895,6 +2933,12 @@ export default function MiddleEarthMap() {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
       }
+      // Commit the live (imperatively-moved) position so the figure stays where it
+      // stopped instead of snapping back to the last stored point when isMoving
+      // turns off (e.g. on a manual Stop).
+      if (playerRef.current) {
+        setPlayer(playerRef.current);
+      }
       setIsMoving(false);
     };
     // playerRef/mapSize are stable refs/memo; player is only the initial seed,
@@ -3016,9 +3060,35 @@ export default function MiddleEarthMap() {
   // Dol Guldur is led by a wraith while the Nine are abroad, else by the orc
   // captain — and is cleared once either has fallen.
   const dolGuldurBoss = dolGuldurHasWraiths ? DOL_GULDUR_WRAITH : DOL_GULDUR_CAPTAIN;
+  // Gollum lurks at the Crack of Doom — if still alive and not in the company, he
+  // springs out for the Precious. You must get past him before the fire.
+  const gollumAtDoom =
+    visitedLocation?.id === ORODRUIN_ID &&
+    !slainRoamingRecruits.has("gollum") &&
+    !party.includes("gollum") &&
+    !parkedMembers.includes("gollum");
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
+    }
+    if (visitedLocation.id === ORODRUIN_ID) {
+      // A fled bearer makes for Mount Doom — wait for him here and reclaim the
+      // Ring (this also covers Gollum if he's the one who bolted).
+      if (rogueBearerId) {
+        const rogue = CHARACTERS.find((c) => c.id === rogueBearerId);
+        if (rogue) {
+          return {
+            name: rogue.name,
+            icon: rogue.icon,
+            tier: 4,
+            strength: rogue.strength,
+            defense: rogue.defense,
+            intelligence: rogue.intelligence,
+            luck: rogue.luck,
+          };
+        }
+      }
+      return gollumAtDoom ? GOLLUM_ENEMY : null;
     }
     if (visitedLocation.id === DOL_GULDUR_ID) {
       if (defeatedBosses.has(DOL_GULDUR_WRAITH.name) || defeatedBosses.has(DOL_GULDUR_CAPTAIN.name)) {
@@ -3042,6 +3112,11 @@ export default function MiddleEarthMap() {
         !defeatedBosses.has(saruman.name) && !sarumanFriendly && !sarumanFled && !sarumanSpared;
       if (sarumanHere) {
         return saruman;
+      }
+      // Spared, he left with Gríma (they roam the NW together) — the ruins are
+      // empty and can be searched.
+      if (sarumanSpared) {
+        return null;
       }
       if (grimaFled && !grimaSlain) {
         return GRIMA_ENEMY;
@@ -3070,10 +3145,12 @@ export default function MiddleEarthMap() {
     }
     return boss;
   })();
-  // Hobbiton's art swaps to the scoured ruin (34_hobbiton2) while Saruman holds it.
+  // Hobbiton's art turns to the scoured ruin (34_hobbiton2) only once the party
+  // has been here during the Scouring and left — on the first arrival Saruman has
+  // only just come, so the village still stands (you can stop him in time).
   const locationArtSrc = visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null;
   const scouredArtSrc =
-    visitedLocation?.id === HOBBITON_ID && sarumanScouring && locationArtSrc
+    visitedLocation?.id === HOBBITON_ID && hobbitonScoured && locationArtSrc
       ? locationArtSrc.replace("10_hobbiton.jpg", "34_hobbiton2.jpg")
       : locationArtSrc;
   // The mount/ship offered here (null if none, or a ship while Círdan sails free).
@@ -3356,6 +3433,49 @@ export default function MiddleEarthMap() {
     ringBearer,
     rogueFledNotice,
   ]);
+
+  // Once the game is up, idle-preload every small sprite so faces/foes/items
+  // never pop in: all ally neutral portraits, all foe icons, and all item icons.
+  // Cheap PNGs, fetched off the main thread when the browser is idle.
+  useEffect(() => {
+    if (!created) {
+      return undefined;
+    }
+    const run = () => {
+      for (const character of CHARACTERS) {
+        preloadImage(character.icon);
+      }
+      for (const monster of MONSTERS) {
+        preloadImage(monster.icon);
+      }
+      for (const item of ITEMS) {
+        preloadImage(item.icon);
+      }
+    };
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    if (ric) {
+      const id = ric(run);
+      const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void })
+        .cancelIdleCallback;
+      return () => cic?.(id);
+    }
+    const id = window.setTimeout(run, 500);
+    return () => window.clearTimeout(id);
+  }, [created]);
+
+  // Lazily fetch the destination's artwork while the party is still marching to
+  // it, so the location card opens instantly on arrival instead of waiting.
+  useEffect(() => {
+    if (!targetLocation) {
+      return;
+    }
+    const src = locationImage(targetLocation.id, seasonAt(journeyDayRef.current));
+    if (src) {
+      void preloadLocationImage(src);
+    }
+  }, [targetLocation]);
+
   const bearerCorruption = ringBearer
     ? computeCharacterStats(
         ringBearer,
@@ -3493,6 +3613,7 @@ export default function MiddleEarthMap() {
         banishTraitor(traitorId);
         setParty((prev) => prev.filter((id) => id !== traitorId));
         applyBattleCasualties(battle.allies);
+        sendSarumanScouring(traitorId);
         showRecruitRefusal(
           traitorId === "gollum"
             ? t("refuse.gollumFled")
@@ -3583,6 +3704,7 @@ export default function MiddleEarthMap() {
           setDeathCauseById((prev) => ({ ...prev, gollum: "battle" }));
           setDeathNotice({ ids: "gollum", cause: "battle" });
         } else {
+          sendSarumanScouring(traitorId);
           showRecruitRefusal(
             traitorId === "gollum"
               ? t("refuse.gollumFled")
@@ -3622,8 +3744,13 @@ export default function MiddleEarthMap() {
         setSarumanSpared(false);
         setDefeatedBosses((prev) => new Set(prev).add(SARUMAN_NAME));
       }
+      // Gollum slain at the Crack of Doom (a fight to the death, not a recruit
+      // capture) — he won't lurk there again.
+      if (!battle.recruitId && battle.enemies.some((enemy) => enemy.icon === GOLLUM_ENEMY.icon)) {
+        setSlainRoamingRecruits((prev) => new Set(prev).add("gollum"));
+      }
     }
-  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, visitedLocationIds, banishTraitor]);
+  }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, visitedLocationIds, banishTraitor, sendSarumanScouring]);
 
   // Show the next level-up allocation modal when the queue advances — but only
   // after the battle modal is dismissed, so it doesn't pop up over the fight.
@@ -4301,6 +4428,18 @@ export default function MiddleEarthMap() {
           </button>
         </div>
 
+        {/* Loading the next background map: dim + spinner over a locked map until
+            it's fetched, so the swap is instant and input can't fight it. */}
+        {mapLoading && (
+          <div
+            className="absolute inset-0 z-[45] flex items-center justify-center bg-black/50"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+          >
+            <Loader2 className="size-10 animate-spin text-neutral-200" />
+          </div>
+        )}
+
         <MapSettingsMenu
           open={settingsOpen}
           onToggle={() => setSettingsOpen((prev) => !prev)}
@@ -4310,7 +4449,7 @@ export default function MiddleEarthMap() {
           onToggleHeroPath={() => setShowHeroPath((prev) => !prev)}
           mapIndex={mapIndex}
           mapCount={MAP_VARIANTS.length}
-          onCycleMap={() => setMapIndex((prev) => (prev + 1) % MAP_VARIANTS.length)}
+          onCycleMap={cycleMap}
           theme={theme}
           onToggleTheme={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
           speed={animationSpeed}
@@ -4366,8 +4505,8 @@ export default function MiddleEarthMap() {
                     />
                   </HoverHint>
                   {hasCloaks && (
-                    <HoverHint label={t("ui.cloaksTitle")} className="text-base leading-none">
-                      🧥
+                    <HoverHint label={t("ui.cloaksTitle")} className="inline-flex items-center">
+                      <img src="/ui/cloak_sm.png" alt="" className="size-5 object-contain" />
                     </HoverHint>
                   )}
                 </div>
@@ -4540,7 +4679,12 @@ export default function MiddleEarthMap() {
 
         <LocationModal
           location={
-            visitedLocation && !ending && !(visitedLocation.id === ORODRUIN_ID && hasRing)
+            // At Orodruin the destroy/claim modal takes over once you hold the
+            // Ring — unless Gollum is still barring the way, when the location card
+            // (with his Fight) shows first.
+            visitedLocation &&
+            !ending &&
+            !(visitedLocation.id === ORODRUIN_ID && hasRing && !gollumAtDoom)
               ? visitedLocation
               : null
           }
@@ -4570,7 +4714,7 @@ export default function MiddleEarthMap() {
           }
           onParley={() => {
             setCorsairPeace(true);
-            setExploreResult({ found: true, message: "location.corsairPeace", emoji: "🏴‍☠️" });
+            setExploreResult({ found: true, message: "location.corsairPeace" });
           }}
           monsterName={monsterName}
           recruits={recruitsHere}
@@ -4595,7 +4739,7 @@ export default function MiddleEarthMap() {
           exploreLocked={
             !!locationBoss ||
             (visitedLocation?.id === ISENGARD_ID &&
-              !defeatedBosses.has(BOSSES_BY_LOCATION[ISENGARD_ID].name) &&
+              !sarumanGone &&
               !party.includes("saruman")) ||
             (visitedLocation?.id === WEATHERTOP_ID &&
               !defeatedBosses.has(BOSSES_BY_LOCATION[WEATHERTOP_ID].name) &&
@@ -4603,6 +4747,12 @@ export default function MiddleEarthMap() {
           }
           onExplore={exploreLocation}
           onFightBoss={() => {
+            // At Orodruin a fled bearer is run down with the dedicated rogue
+            // battle (reclaims the Ring on victory), not a normal boss fight.
+            if (visitedLocation?.id === ORODRUIN_ID && rogueBearerId) {
+              startRogueBattle(rogueBearerId);
+              return;
+            }
             if (locationBoss) {
               const bossPack =
                 visitedLocation?.id === MINAS_MORGUL_ID
@@ -4671,12 +4821,19 @@ export default function MiddleEarthMap() {
           }}
           onWait={waitOneDay}
           note={
-            visitedLocation?.id === ORODRUIN_ID && !hasRing ? t("orodruin.noRing") : null
+            visitedLocation?.id === ORODRUIN_ID && !hasRing && !locationBoss
+              ? t("orodruin.noRing")
+              : null
           }
           onLeave={() => {
             if (recruitRefusal) {
               dismissRecruitRefusal();
               return;
+            }
+            // Leaving Hobbiton while Saruman holds it (still alive) — now he ruins
+            // the Shire: it shows scoured on any return.
+            if (visitedLocation?.id === HOBBITON_ID && sarumanScouring && sarumanSpared) {
+              setHobbitonScoured(true);
             }
             setVisitedLocation(null);
             setTargetLocation(null);
@@ -4743,7 +4900,7 @@ export default function MiddleEarthMap() {
         />
 
         <OrodruinModal
-          open={visitedLocation?.id === ORODRUIN_ID && hasRing && !ending}
+          open={visitedLocation?.id === ORODRUIN_ID && hasRing && !ending && !gollumAtDoom}
           onDestroy={destroyRing}
           onClaim={() => {
             setLordClaimed(true);
@@ -4916,7 +5073,7 @@ export default function MiddleEarthMap() {
                   const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
                   playerRef.current = back;
                   setPlayer(back);
-                  setExploreResult({ found: true, message: "ending.valinorReturn", emoji: "🌫️" });
+                  setExploreResult({ found: true, message: "ending.valinorReturn" });
                 }
               }}
               className="flex flex-1 items-center justify-center gap-1.5 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"

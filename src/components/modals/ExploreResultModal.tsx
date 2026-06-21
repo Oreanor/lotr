@@ -9,7 +9,6 @@ export type ExploreResult = {
   itemIds?: string[];
   message?: string;
   messageParams?: Record<string, number>;
-  emoji?: string;
 };
 
 // Shown after searching a location: the found item (icon + name + effect), or a
@@ -58,10 +57,7 @@ export function ExploreResultModal({
           </div>
         </>
       ) : result?.message ? (
-        <>
-          <div className="text-5xl leading-none">{result.emoji ?? "💀"}</div>
-          <p className="mt-3 text-sm text-sky-100">{t(result.message, result.messageParams)}</p>
-        </>
+        <p className="text-sm text-sky-100">{t(result.message, result.messageParams)}</p>
       ) : result?.found && item ? (
         <>
           <h2 className="font-serif text-lg text-sky-200">{t("location.exploreFound")}</h2>

@@ -250,7 +250,7 @@ export const EOMER_ENCOUNTER_CHANCE = 0.2;
 // roams (centre + half-extent in map px; cell ≈ 9.6px).
 export const FANGORN_CENTER = { x: 894, y: 885 };
 export const FANGORN_HALF = 30;
-export const TREEBEARD_ENCOUNTER_CHANCE = 0.25;
+export const TREEBEARD_ENCOUNTER_CHANCE = 0.55;
 // A spared Saruman (with Gríma if still alive) roams the NW — the Shire and its
 // borders — until run down. Found at Hobbiton itself he holds it (the Scouring).
 export const SARUMAN_ENCOUNTER_CHANCE = 0.2;

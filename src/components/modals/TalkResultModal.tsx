@@ -42,7 +42,7 @@ export function TalkResultModal({
             ))}
             {cloaks && (
               <div className="flex w-24 flex-col items-center gap-1 rounded border border-sky-800/70 bg-sky-900/30 px-2 py-2 text-center">
-                <span className="text-3xl leading-none">🧥</span>
+                <img src="/ui/cloak.png" alt="" className="size-12 object-contain" />
                 <span className="text-xs font-semibold text-sky-100">{t("talk.cloaksName")}</span>
                 <span className="text-[11px] leading-tight text-sky-300/80">{t("talk.cloaksDesc")}</span>
               </div>

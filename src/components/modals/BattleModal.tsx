@@ -156,7 +156,7 @@ export function BattleModal({
               })}
             </div>
 
-            <div className="self-center text-2xl text-neutral-500">⚔️</div>
+            <img src="/ui/swords.png" alt="" className="size-7 self-center object-contain" />
 
             <div className="grid grid-cols-2 content-start justify-items-center gap-2.5 sm:flex sm:max-w-[17rem] sm:flex-wrap sm:justify-center sm:gap-3">
               {battle.enemies.map((enemy) => (
