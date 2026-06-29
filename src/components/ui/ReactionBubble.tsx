@@ -17,12 +17,12 @@ export function ReactionBubble({
   maxWClass?: string;
   tailLeftPx?: number;
 }) {
-  const width = maxWClass ?? (tail === "left" ? "max-w-[12rem]" : "max-w-[11rem]");
+  const width = maxWClass ?? (tail === "left" ? "max-w-[13rem]" : "max-w-[12rem]");
   const origin = tail === "left" ? "left center" : tail === "up" ? "top center" : "bottom center";
   const popClass = tail === "left" ? "reaction-pop-left" : "reaction-pop-down";
   return (
     <div
-      className={`${popClass} ${width} relative w-max rounded border border-black bg-white px-1.5 py-0.5 text-sm font-medium uppercase leading-snug text-black shadow-lg`}
+      className={`${popClass} ${width} relative w-max rounded border border-black bg-white px-2 py-0.5 text-base font-medium uppercase leading-snug text-black shadow-lg`}
       style={{
         fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
         transformOrigin: origin,

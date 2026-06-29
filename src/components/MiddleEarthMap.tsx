@@ -14,7 +14,6 @@ import { EndingModal } from "@/components/modals/EndingModal";
 import { SpeechModal } from "@/components/modals/SpeechModal";
 import { MapSettingsMenu } from "@/components/map/MapSettingsMenu";
 import { isDesktop, exitApp } from "@/platform";
-import type { Ending } from "@/components/modals/EndingModal";
 import { RogueFledModal } from "@/components/modals/RogueModals";
 import { EncounterModal } from "@/components/modals/EncounterModal";
 import { BattleModal } from "@/components/modals/BattleModal";
@@ -159,6 +158,12 @@ import {
   ringImage,
   regionAt,
   createBattleState,
+  createBetrayalBattle,
+  createRogueBattle,
+  nonBearerEnding,
+  followOffset,
+  computeLandfallCells,
+  isOpenSea,
   estimateEncounterDanger,
   rollEncounter,
   rollEscape,
@@ -215,6 +220,7 @@ import type {
   Combatant,
   DeathCause,
   EncounterState,
+  Ending,
   MapLocation,
   Monster,
   Point,
@@ -241,24 +247,6 @@ const parseMapIndex = (raw: string) => {
 };
 const parsePrefTheme = (raw: string): "dark" | "light" => (raw === "light" ? "light" : "dark");
 const identityPref = (value: string) => value;
-
-// When the bearer falls and only companions who can't truly carry the Ring are
-// left, one of them (chosen at random) takes it to their own doom.
-const NON_BEARER_ENDING: Record<string, Ending> = {
-  saruman: "sarumanLord",
-  boromir: "boromirGondor",
-  bombadil: "bombadilLost",
-  gollum: "gollumHides",
-  treebeard: "treebeardBuries",
-  king_dead: "deadKeep",
-};
-function nonBearerEnding(living: string[]): Ending {
-  const claimants = living.filter((id) => id in NON_BEARER_ENDING);
-  if (claimants.length === 0) {
-    return "nothing";
-  }
-  return NON_BEARER_ENDING[claimants[Math.floor(Math.random() * claimants.length)]];
-}
 
 export default function MiddleEarthMap() {
   const { t, i18n } = useTranslation();
@@ -707,6 +695,9 @@ export default function MiddleEarthMap() {
     setRingDaysById((days) => ({ ...days, [id]: (days[id] ?? 0) + delta }));
   }, []);
   const battleAppliedRef = useRef(false);
+  // A game-over ending queued behind the lost battle screen — shown once the
+  // player dismisses the fight (so the defeat, and who fell, is actually seen).
+  const pendingEndingRef = useRef<Ending | null>(null);
   const foodRef = useRef(initialSave?.food ?? INITIAL_FOOD_DAYS);
   const damageRef = useRef<Record<string, number>>(initialSave?.damageById ?? {});
   // Days already simulated — start at the loaded day so they aren't replayed.
@@ -775,13 +766,13 @@ export default function MiddleEarthMap() {
   // to anchor to (e.g. Gollum, just caught in the wild and offered), fall back to
   // the notice card so the line is never lost.
   const speakRefusalBubble = useCallback(
-    (speakerId: string, text: string) => {
+    (speakerId: string, text: string, emote: "refuse" | "joy" = "refuse") => {
       const onScreen = !!document.querySelector(`[data-character-portrait="${speakerId}"]`);
       if (!onScreen) {
         showRecruitRefusal(text, speakerId);
         return;
       }
-      flashEmote(speakerId, "refuse");
+      flashEmote(speakerId, emote);
       recruitBubbleSeqRef.current += 1;
       setRecruitBubble({ speakerId, text, key: recruitBubbleSeqRef.current });
       if (recruitBubbleTimerRef.current) {
@@ -911,7 +902,16 @@ export default function MiddleEarthMap() {
           return;
         }
       }
+      // Celeborn / Haldir would balk at a dwarf, but join for the Lady Galadriel
+      // — each in his own way of naming her.
+      const forGaladriel =
+        (character.id === "celeborn" || character.id === "haldir") &&
+        party.includes("galadriel") &&
+        party.includes("gimli");
       recruitCharacter(character.id);
+      if (forGaladriel) {
+        speakRefusalBubble(character.id, t(`recruit.${character.id}Follows`), "joy");
+      }
     },
     [bearerId, party, grimaFled, recruitCharacter, speakRefusalBubble, statBonusById, t],
   );
@@ -961,55 +961,20 @@ export default function MiddleEarthMap() {
       if (!bearer || !traitor) {
         return;
       }
-      const toCombatant = (c: Character): Combatant => {
-        const s = effectiveStats(c, addBonus(statBonusById[c.id] ?? ZERO_BONUS, auraBonus(c, party)));
-        const maxHp = maxHpFromStats(s.strength, s.defense);
-        return {
-          key: c.id,
-          name: c.name,
-          icon: c.icon,
-          hp: Math.max(1, maxHp - (damageById[c.id] ?? 0)),
-          maxHp,
-          strength: s.strength,
-          attack: s.strength,
-          defense: s.defense,
-          luck: s.luck,
-          intelligence: s.intelligence,
-          level: levelForExp(expById[c.id] ?? 0).level,
-        };
-      };
       battleAppliedRef.current = false;
       setEncounter(null);
-      let battleState: BattleState = {
-        allies: [toCombatant(bearer)],
-        enemies: [toCombatant(traitor)],
-        exp: 0,
-        turn: "allies",
-        index: 0,
-        outcome: null,
-        lastHit: null,
-        attacker: null,
-        tick: 0,
-        hitDir: 0,
-        bearerKey: bearer.id,
-        ringOn: false,
-        fleeUsed: false,
-        recruitId: null,
-        enemyBeast: false,
-        // These betrayers are no wraiths — the Ring still hides the bearer.
-        ringIneffective: !["saruman", "boromir", "bilbo"].includes(traitorId),
-        betrayalBy: traitorId,
-        gandalfOnly: false,
-        rogueId: null,
-        invisibleEnemy: false,
-        phialBlinded: false,
-      };
+      let battleState = createBetrayalBattle(bearer, traitor, traitorId, {
+        party,
+        statBonusById,
+        damageById,
+        expById,
+      });
       if (autoPlayRef.current) {
         battleState = resolveBattleInstantly(battleState);
       }
       setBattle(battleState);
     },
-    [bearerId, party, statBonusById, damageById],
+    [bearerId, party, statBonusById, damageById, expById],
   );
 
   // Leave a companion at the current spot. Everyone left at the same place forms
@@ -1308,6 +1273,12 @@ export default function MiddleEarthMap() {
       if (dead.length === 0) {
         return;
       }
+      // A game-over from battle: leave the lost battle on screen (its "Поражение"
+      // + "Продолжить" footer) so the player sees the whole party fall, then show
+      // the ending only once they dismiss it (see the pending-ending effect).
+      const endBattleAfterPause = (next: Ending) => {
+        pendingEndingRef.current = next;
+      };
       const survivors = party.filter((id) => !dead.includes(id));
       const livingBearerCandidates = survivors.filter((id) => !NON_BEARERS.has(id));
       const slainRoaming = slainRoamingRecruitIds(dead);
@@ -1352,15 +1323,14 @@ export default function MiddleEarthMap() {
           // No one anywhere can truly carry the Ring. If non-bearers still live,
           // one of them takes it to their own doom; otherwise all simply fell.
           const living = [...survivors, ...squadsRef.current.flatMap((s) => s.members)];
-          setEnding((prev) => prev ?? (living.length > 0 ? nonBearerEnding(living) : "battle"));
-          setBattle(null);
+          const next: Ending = living.length > 0 ? nonBearerEnding(living) : "battle";
+          endBattleAfterPause(next);
         }
       } else if (survivors.length === 0) {
         // The whole group fell, but the bearer wasn't among them — he'd already
         // fled with the Ring (or there's no bearer). That's "all for nothing",
         // not "the bearer fell in battle".
-        setEnding((prev) => prev ?? (rogueBearerId || !bearerId ? "nothing" : "battle"));
-        setBattle(null);
+        endBattleAfterPause(rogueBearerId || !bearerId ? "nothing" : "battle");
       }
     },
     [bearerId, party, rogueBearerId, ringDestroyed],
@@ -1538,76 +1508,19 @@ export default function MiddleEarthMap() {
       if (!rogue) {
         return;
       }
-      const allies: Combatant[] = party
-        .map((id): Combatant | null => {
-          const character = CHARACTERS.find((c) => c.id === id);
-          if (!character) {
-            return null;
-          }
-          const s = effectiveStats(
-            character,
-            addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
-          );
-          const maxHp = maxHpFromStats(s.strength, s.defense);
-          return {
-            key: id,
-            name: character.name,
-            icon: character.icon,
-            hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
-            maxHp,
-            strength: s.strength,
-            attack: s.strength,
-            defense: s.defense,
-            luck: s.luck,
-            intelligence: s.intelligence,
-            level: levelForExp(expById[id] ?? 0).level,
-          };
-        })
-        .filter((c): c is Combatant => c !== null && c.hp > 0);
-      const rs = effectiveStats(rogue, statBonusById[rogueId] ?? ZERO_BONUS);
-      const rogueMaxHp = maxHpFromStats(rs.strength, rs.defense);
-      const enemy: Combatant = {
-        key: rogueId,
-        name: rogue.name,
-        icon: rogue.icon,
-        hp: rogueMaxHp,
-        maxHp: rogueMaxHp,
-        strength: rs.strength,
-        attack: rs.strength,
-        defense: rs.defense,
-        luck: rs.luck,
-        intelligence: rs.intelligence,
-      };
       battleAppliedRef.current = false;
-      let battleState: BattleState = {
-        allies,
-        enemies: [enemy],
-        exp: 0,
-        turn: "allies",
-        index: 0,
-        outcome: allies.length === 0 ? "lose" : null,
-        lastHit: null,
-        attacker: null,
-        tick: 0,
-        hitDir: 0,
-        bearerKey: null,
-        ringOn: false,
-        fleeUsed: false,
-        recruitId: null,
-        enemyBeast: false,
-        ringIneffective: false,
-        betrayalBy: null,
-        gandalfOnly: false,
-        rogueId,
-        invisibleEnemy: true,
-        phialBlinded: false,
-      };
+      let battleState = createRogueBattle(rogueId, rogue, {
+        party,
+        statBonusById,
+        damageById,
+        expById,
+      });
       if (autoPlayRef.current) {
         battleState = resolveBattleInstantly(battleState);
       }
       setBattle(battleState);
     },
-    [party, statBonusById, damageById],
+    [party, statBonusById, damageById, expById],
   );
 
   // Re-roll who/what is around: sometimes-present companions and the eagles at
@@ -2496,7 +2409,6 @@ export default function MiddleEarthMap() {
       if (
         offered &&
         transport !== offered &&
-        !(offered === "ship" && party.includes("cirdan")) &&
         (offered === "horse" || !transport)
       ) {
         setTransport(offered);
@@ -2644,35 +2556,8 @@ export default function MiddleEarthMap() {
     }
 
     // Cells a boarded ship may step onto (losing the ship): every harbour, plus
-    // any coastal city — one whose cell has open water on a neighbouring cell.
-    // Only real harbours sell passage back out, so a coastal landing strands the
-    // party ashore on purpose.
-    const NEIGHBOR_CELL = 10;
-    const landfallCells = new Set<string>();
-    for (const location of locations) {
-      const key = getTerrainAtPoint(location.point).cellKey;
-      if (!key) {
-        continue;
-      }
-      if (HARBOR_IDS.has(location.id)) {
-        landfallCells.add(key);
-        continue;
-      }
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) {
-            continue;
-          }
-          const neighbor = getTerrainAtPoint({
-            x: location.point.x + dx * NEIGHBOR_CELL,
-            y: location.point.y + dy * NEIGHBOR_CELL,
-          });
-          if (neighbor.name === "water") {
-            landfallCells.add(key);
-          }
-        }
-      }
-    }
+    // any coastal city (see computeLandfallCells).
+    const landfallCells = computeLandfallCells(locations, getTerrainAtPoint, 10);
 
     // Commit the imperatively-driven figure/camera back into React state. Called
     // at every stop so the rest of the app (figure render, save, camera) picks up
@@ -2757,16 +2642,16 @@ export default function MiddleEarthMap() {
           (members.includes("eomer") ? EOMER_SPEED_MULTIPLIER : 1) *
           itemSpeedMult) /
         (members.includes("bombadil") ? BOMBADIL_SLOW_FACTOR : 1);
-      const canSail = (activeTransport ? activeTransport.sea : false) || members.includes("cirdan");
+      const canSail = activeTransport ? activeTransport.sea : false;
       const currentTerrain = getTerrainAtPoint(current);
-      // Gollum ignores rough ground; Cirdan (or a ship) wipes the water penalty;
-      // eagles fly over everything.
+      // Gollum ignores rough ground; a ship wipes the water penalty; eagles fly
+      // over everything.
       const onWater = currentTerrain.name === "water";
       const terrainCost =
         transportRef.current === "eagle" || members.includes("gollum") || (onWater && canSail)
           ? 1
           : currentTerrain.cost;
-      // Círdan the Shipwright doubles the party's pace while at sea.
+      // Círdan the Shipwright doubles the party's pace while at sea (aboard a ship).
       const cirdanSea = onWater && canSail && members.includes("cirdan") ? CIRDAN_SEA_SPEED : 1;
       const visibleSpeed =
         (SPEED_PX_PER_SECOND * animationSpeed * transportSpeed * cirdanSea) / terrainCost;
@@ -2964,35 +2849,18 @@ export default function MiddleEarthMap() {
       // but never while the user is dragging — otherwise both fight over offset.
       const camOffset = offsetRef.current;
       if (camOffset && !dragRef.current.active && !followDisabledRef.current) {
-        const camZoom = zoomRef.current;
-        const camView = viewRef.current;
-        const marginX = camView.width * FOLLOW_MARGIN_RATIO;
-        const marginY = camView.height * FOLLOW_MARGIN_RATIO;
-        const screenX = nextPlayer.x * camZoom + camOffset.x;
-        const screenY = nextPlayer.y * camZoom + camOffset.y;
-        let nextOffsetX = camOffset.x;
-        let nextOffsetY = camOffset.y;
-
-        if (screenX < marginX) {
-          nextOffsetX = marginX - nextPlayer.x * camZoom;
-        } else if (screenX > camView.width - marginX) {
-          nextOffsetX = camView.width - marginX - nextPlayer.x * camZoom;
-        }
-
-        if (screenY < marginY) {
-          nextOffsetY = marginY - nextPlayer.y * camZoom;
-        } else if (screenY > camView.height - marginY) {
-          nextOffsetY = camView.height - marginY - nextPlayer.y * camZoom;
-        }
-
-        if (nextOffsetX !== camOffset.x || nextOffsetY !== camOffset.y) {
-          const clampedOffset = {
-            x: clamp(nextOffsetX, camView.width - mapSize.width * camZoom, 0),
-            y: clamp(nextOffsetY, camView.height - mapSize.height * camZoom, 0),
-          };
-          offsetRef.current = clampedOffset;
+        const nextOffset = followOffset(
+          nextPlayer,
+          camOffset,
+          zoomRef.current,
+          viewRef.current,
+          mapSize,
+          FOLLOW_MARGIN_RATIO,
+        );
+        if (nextOffset) {
+          offsetRef.current = nextOffset;
           // Follow imperatively too (committed at the next stop).
-          writePanTransform(clampedOffset);
+          writePanTransform(nextOffset);
         }
       }
 
@@ -3251,7 +3119,7 @@ export default function MiddleEarthMap() {
       return null;
     }
     const offered = TRANSPORT_BY_LOCATION[visitedLocation.id];
-    if (!offered || (offered === "ship" && party.includes("cirdan"))) {
+    if (!offered) {
       return null;
     }
     if (offered === "eagle" && !eagleOffered) {
@@ -3818,17 +3686,8 @@ export default function MiddleEarthMap() {
     }
     // "Sea" remarks only on the open sea — all four neighbours water too, so a
     // river crossing (land on the banks) never triggers them. Only under sail.
-    if (terrain === "water" && transport === "ship") {
-      const step = 10;
-      const openSea = [
-        { x: here.x + step, y: here.y },
-        { x: here.x - step, y: here.y },
-        { x: here.x, y: here.y + step },
-        { x: here.x, y: here.y - step },
-      ].every((p) => getTerrainAtPoint(p).name === "water");
-      if (openSea) {
-        speakRandom("sea");
-      }
+    if (terrain === "water" && transport === "ship" && isOpenSea(here, 10, getTerrainAtPoint)) {
+      speakRandom("sea");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journeyDay]);
@@ -3904,7 +3763,9 @@ export default function MiddleEarthMap() {
   }, [ringDestroyed, hasFallen, rogueBearerId, ending, bearerId, battle, encounter, party, squads, focusSquad, triggerRingFlight]);
 
   useEffect(() => {
-    if (!created || ending || party.length > 0) {
+    // Hold while the lost battle is still on screen — the player dismisses its
+    // "Поражение" footer first (then the pending-ending effect rolls the end).
+    if (!created || ending || party.length > 0 || battle) {
       return;
     }
     // The active squad was wiped out, but if others still wander the map, take
@@ -3915,13 +3776,12 @@ export default function MiddleEarthMap() {
       focusSquad(squad.id);
       return;
     }
-    setEnding(rogueBearerId || !bearerId ? "nothing" : "battle");
-    setBattle(null);
+    setEnding((prev) => prev ?? (rogueBearerId || !bearerId ? "nothing" : "battle"));
     setEncounter(null);
     setTarget(null);
     setTargetLocation(null);
     setIsMoving(false);
-  }, [created, ending, party.length, squads, rogueBearerId, bearerId, focusSquad]);
+  }, [created, ending, party.length, squads, rogueBearerId, bearerId, focusSquad, battle]);
 
   // The bearer fell and the Ring is loose (reclaim pending), but the survivors
   // still here can't carry it — only non-bearers linger. If a splinter squad has
@@ -4180,6 +4040,16 @@ export default function MiddleEarthMap() {
     }
   }, [battle, expById, statBonusById, t, charName, applyBattleCasualties, showRecruitRefusal, visitedLocation, visitedLocationIds, banishTraitor, sendSarumanScouring]);
 
+  // A game-over loss leaves the battle's "Поражение" screen up; once the player
+  // dismisses it ("Продолжить"), the ending is finally shown.
+  useEffect(() => {
+    if (!battle && pendingEndingRef.current) {
+      const next = pendingEndingRef.current;
+      pendingEndingRef.current = null;
+      setEnding((prev) => prev ?? next);
+    }
+  }, [battle]);
+
   // Show the next level-up allocation modal when the queue advances — but only
   // after the battle modal is dismissed, so it doesn't pop up over the fight.
   // A short closed-gap between consecutive modals turns the swap from a flicker
@@ -4232,12 +4102,14 @@ export default function MiddleEarthMap() {
   }, [visitedLocation, party, grimaFled, grimaFleePending, showRecruitRefusal, t]);
 
   // Reaching Barad-dûr is simply the end — no fight. At Sauron's doorstep the
-  // Eye finds the Ring and it leaps to its master; the quest is lost.
+  // Eye finds the Ring and it leaps to its master; the quest is lost. Once the
+  // Ring is unmade (freeplay) there is nothing left to claim — the tower is just
+  // an empty ruin, so no ending fires.
   useEffect(() => {
-    if (visitedLocation?.id === BARAD_DUR_ID) {
+    if (visitedLocation?.id === BARAD_DUR_ID && !ringDestroyed) {
       setEnding((prev) => prev ?? "sauron");
     }
-  }, [visitedLocation]);
+  }, [visitedLocation, ringDestroyed]);
 
   // Bring Treebeard to fallen Isengard and he settles to rule it: he leaves the
   // party and stays for good (found there forever after). Only the brought-along
@@ -4438,7 +4310,7 @@ export default function MiddleEarthMap() {
         }
         // Corsair raids only out at sea (under sail — not while fording a river),
         // sharply likelier the further south, all but absent at Grey Havens' latitude.
-        const atSea = onWater && (transport === "ship" || party.includes("cirdan"));
+        const atSea = onWater && transport === "ship";
         if (!visitedLocation && atSea && !corsairPeace) {
           const south = clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
           if (Math.random() < CORSAIR_SEA_MAX * Math.pow(south, CORSAIR_SEA_POWER)) {
@@ -4948,18 +4820,11 @@ export default function MiddleEarthMap() {
                     )}
                   </HoverHint>
                   <HoverHint
-                    label={
-                      transport
-                        ? t(`transport.${transport}`)
-                        : party.includes("cirdan")
-                          ? t("transport.ship")
-                          : t("ui.onFoot")
-                    }
+                    label={transport ? t(`transport.${transport}`) : t("ui.onFoot")}
                     className="inline-flex items-center"
                   >
                     <TransportIcon
                       transport={transport}
-                      sailingWithCirdan={party.includes("cirdan")}
                       className="size-5 select-none object-contain"
                     />
                   </HoverHint>
@@ -5585,6 +5450,12 @@ export default function MiddleEarthMap() {
           <PortalBubble
             key={recruitBubble.key}
             getEl={() =>
+              // Prefer the portrait inside the open location card (a just-recruited
+              // speaker like Celeborn/Haldir also has one in the party strip behind
+              // the overlay; that ambiguity pinned the bubble to the wrong place).
+              document.querySelector<HTMLElement>(
+                `[data-recruit-portraits] [data-character-portrait="${recruitBubble.speakerId}"]`,
+              ) ??
               document.querySelector<HTMLElement>(
                 `[data-character-portrait="${recruitBubble.speakerId}"]`,
               )
@@ -5698,6 +5569,8 @@ export default function MiddleEarthMap() {
           onRandomize={randomizeCreation}
           onConfirm={confirmCreation}
           onAutoPlay={startAutoPlay}
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
         />
 
         <RogueFledModal

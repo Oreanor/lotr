@@ -244,8 +244,12 @@ export const GRIMBEORN_BEAST_BONUS = 4;
 
 // Roaming specials.
 export const EDORAS_POINT = { x: 909, y: 1062 };
-export const ROHAN_RADIUS = 280;
+export const ROHAN_RADIUS = 200;
+// Gollum stalks the Ring ever more boldly the nearer it draws to Mordor: his
+// per-encounter chance ramps from the base (far north-west) up to the max right
+// at the Mountain, scaled by proximity to MORDOR_POINT (the SE diagonal).
 export const GOLLUM_ENCOUNTER_CHANCE = 0.033;
+export const GOLLUM_ENCOUNTER_CHANCE_MAX = 0.3;
 export const EOMER_ENCOUNTER_CHANCE = 0.2;
 // Fangorn: a ~6×6-cell wood between Isengard and Lothlórien where Treebeard
 // roams (centre + half-extent in map px; cell ≈ 9.6px).

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Heart } from "lucide-react";
+import { Heart, Moon, Sun } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { StatAllocator } from "@/components/ui/StatAllocator";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
@@ -18,6 +18,8 @@ export function CreationModal({
   onRandomize,
   onConfirm,
   onAutoPlay,
+  theme,
+  onToggleTheme,
 }: {
   open: boolean;
   hero: Character;
@@ -28,11 +30,23 @@ export function CreationModal({
   onRandomize: () => void;
   onConfirm: () => void;
   onAutoPlay: () => void;
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const maxHealth = maxHpFromStats(hero.strength + bonus.strength, hero.defense + bonus.defense);
   return (
     <Modal open={open} z="z-[60]" overlayClassName="bg-black/85" className="relative flex max-h-[90vh] w-full max-w-xs flex-col border-amber-800 text-center">
+      {/* Theme toggle (sun/moon), top-left — set the mood before setting out. */}
+      <button
+        type="button"
+        onClick={onToggleTheme}
+        aria-label={t("ui.theme")}
+        title={t("ui.theme")}
+        className="absolute left-3 top-3 z-10 flex size-8 items-center justify-center rounded border border-neutral-700 bg-neutral-900/90 text-neutral-200 transition hover:bg-neutral-800"
+      >
+        {theme === "light" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </button>
       {/* Pick the language right here, before the journey begins. */}
       <button
         type="button"

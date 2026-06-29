@@ -2,30 +2,9 @@ import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { ZoomableImage } from "@/components/ui/ZoomableImage";
 import { iconVariant } from "@/game";
-import type { Character } from "@/game";
+import type { Character, Ending } from "@/game";
 
-export type Ending =
-  | "victory"
-  // Gollum springs for the Precious at the brink and falls with it into the Fire
-  // — the Ring unmade in spite of the bearer (as the tale truly ended).
-  | "gollumFall"
-  | "lord"
-  | "starved"
-  | "battle"
-  | "nothing"
-  | "rogueLord"
-  | "sauron"
-  | "valinorWest"
-  | "valinorRing"
-  | "valinorSink"
-  // The bearer fell and only a companion who cannot truly carry the Ring is left;
-  // each takes it to a different doom.
-  | "sarumanLord"
-  | "boromirGondor"
-  | "bombadilLost"
-  | "gollumHides"
-  | "treebeardBuries"
-  | "deadKeep";
+export type { Ending };
 
 // Artwork for the endings that have it (in /public/endings). The two "Valar
 // refuse" sea endings share the one painting.

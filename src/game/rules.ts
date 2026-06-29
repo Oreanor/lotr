@@ -34,6 +34,7 @@ import {
   FOOD_DAYS_PONY,
   FLEE_AT_HALF_FOES,
   GOLLUM_ENCOUNTER_CHANCE,
+  GOLLUM_ENCOUNTER_CHANCE_MAX,
   GRIMA_ENCOUNTER_CHANCE,
   GRIMBEORN_BEAST_BONUS,
   EOWYN_NAZGUL_BONUS,
@@ -131,6 +132,14 @@ export function tierAt(point: Point): number {
   return clamp(Math.round((1 - dist / ENCOUNTER_TIER_SPAN) * 5), 0, 5);
 }
 
+// Gollum's per-encounter chance, ramping from the base far off to the max right
+// at Mordor (the SE diagonal). Proximity reuses the tier span.
+export function gollumChanceAt(point: Point): number {
+  const dist = Math.hypot(point.x - MORDOR_POINT.x, point.y - MORDOR_POINT.y);
+  const proximity = clamp(1 - dist / ENCOUNTER_TIER_SPAN, 0, 1);
+  return GOLLUM_ENCOUNTER_CHANCE + (GOLLUM_ENCOUNTER_CHANCE_MAX - GOLLUM_ENCOUNTER_CHANCE) * proximity;
+}
+
 // Pick a foe for the local tier; sometimes a stronger one ("too tough for now").
 export function pickMonster(localTier: number, point: Point): { monster: Monster; dangerous: boolean } {
   const region = regionAt(point);
@@ -186,10 +195,16 @@ export function recruitRefusalKey(characterId: string, party: string[]): string 
     return "refuse.gandalfSaruman";
   }
   // Arwen, Galadriel and Círdan (like Legolas) don't mind a dwarf along the road.
+  // Celeborn and Haldir would refuse — unless the Lady Galadriel herself is along,
+  // for they will follow her anywhere.
   if (
     characterId !== "arwen" &&
     characterId !== "galadriel" &&
     characterId !== "cirdan" &&
+    !(
+      (characterId === "celeborn" || characterId === "haldir") &&
+      party.includes("galadriel")
+    ) &&
     ELF_IDS.has(characterId) &&
     party.some((id) => DWARF_IDS.has(id))
   ) {
@@ -283,7 +298,7 @@ export function rollEncounter(
   }
   if (
     !roamingRecruitBlocked("gollum", party, leftBehind, slainRoamingRecruits) &&
-    Math.random() < GOLLUM_ENCOUNTER_CHANCE
+    Math.random() < gollumChanceAt(point)
   ) {
     return { monster: GOLLUM_ENEMY, dangerous: false, solo: true };
   }
