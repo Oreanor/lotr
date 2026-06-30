@@ -25,6 +25,7 @@ import type { TalkResult } from "@/components/modals/TalkResultModal";
 import { OrodruinModal } from "@/components/modals/OrodruinModal";
 import { RecruitOfferModal } from "@/components/modals/RecruitOfferModal";
 import { LevelUpModal } from "@/components/modals/LevelUpModal";
+import type { LevelUpMode } from "@/components/modals/LevelUpModal";
 import { CreationModal } from "@/components/modals/CreationModal";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useMapCamera } from "@/hooks/useMapCamera";
@@ -98,6 +99,7 @@ import {
   getStartPosition,
   HEAL_PER_DAY,
   maxHpFromStats,
+  currentHp,
   HUNGER_DAMAGE_FRACTION,
   HOBBITON_ID,
   iconVariant,
@@ -186,6 +188,7 @@ import {
   SPEED_PX_PER_SECOND,
   TERRAIN_OVERLAY_OPACITY,
   TERRAIN_PREF_KEY,
+  LEVELUP_MODE_PREF_KEY,
   terrainImage,
   TRAITORS,
   TRANSPORT_BY_LOCATION,
@@ -247,6 +250,34 @@ const parseMapIndex = (raw: string) => {
 };
 const parsePrefTheme = (raw: string): "dark" | "light" => (raw === "light" ? "light" : "dark");
 const identityPref = (value: string) => value;
+const LEVELUP_MODE_VALUES: LevelUpMode[] = [
+  "random",
+  "randomAll",
+  "strengthAll",
+  "defenseAll",
+  "intelligenceAll",
+  "luckAll",
+];
+const parseLevelUpMode = (raw: string): LevelUpMode =>
+  (LEVELUP_MODE_VALUES as string[]).includes(raw) ? (raw as LevelUpMode) : "random";
+// Spread one hero's `points` per the chosen mode: scattered for the random modes,
+// or all into a single stat otherwise.
+const allocateForMode = (points: number, mode: LevelUpMode): StatBonus => {
+  if (mode === "random" || mode === "randomAll") {
+    return rollStatBonus(points);
+  }
+  const spread: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
+  const stat: keyof StatBonus =
+    mode === "strengthAll"
+      ? "strength"
+      : mode === "defenseAll"
+        ? "defense"
+        : mode === "intelligenceAll"
+          ? "intelligence"
+          : "luck";
+  spread[stat] = points;
+  return spread;
+};
 
 export default function MiddleEarthMap() {
   const { t, i18n } = useTranslation();
@@ -455,6 +486,15 @@ export default function MiddleEarthMap() {
   // 1 = often, 0.5 = rare, 0 = never. Multiplies every flavour-line probability.
   const reactionMultRef = useRef(1);
   reactionMultRef.current = reactionMode === "never" ? 0 : reactionMode === "rare" ? 0.5 : 1;
+  // The remembered level-up split-button mode — spares the player from re-picking
+  // "spend the whole team's points" every battle. Only post-battle level-ups use
+  // it; hero creation keeps its plain single button.
+  const [levelUpMode, setLevelUpMode] = usePersistentState<LevelUpMode>(
+    LEVELUP_MODE_PREF_KEY,
+    "random",
+    parseLevelUpMode,
+    identityPref,
+  );
   // Apply the theme to the document root so index.css's CSS-variable palette swaps.
   useEffect(() => {
     const root = document.documentElement;
@@ -546,11 +586,12 @@ export default function MiddleEarthMap() {
   const [eaglesLeft, setEaglesLeft] = useState(false);
   // A transport swap awaiting the player's confirmation (replaces the current one).
   const [pendingTransport, setPendingTransport] = useState<TransportId | null>(null);
-  // Food (days left) and per-character starvation damage are simulated per day.
-  // Damage is per character so new recruits join at full health; with double
-  // rations on, a damaged party heals at the cost of extra food.
+  // Food (days left) and per-character starvation are simulated per day. HP is
+  // stored as current health per character (a missing entry = full), so new
+  // recruits join at full health; with double rations on, a hurt party heals at
+  // the cost of extra food.
   const [food, setFood] = useState(initialSave?.food ?? INITIAL_FOOD_DAYS);
-  const [damageById, setDamageById] = useState<Record<string, number>>(initialSave?.damageById ?? {});
+  const [hpById, setHpById] = useState<Record<string, number>>(initialSave?.hpById ?? {});
   const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>(
     initialSave?.deathCauseById ?? {},
   );
@@ -699,7 +740,7 @@ export default function MiddleEarthMap() {
   // player dismisses the fight (so the defeat, and who fell, is actually seen).
   const pendingEndingRef = useRef<Ending | null>(null);
   const foodRef = useRef(initialSave?.food ?? INITIAL_FOOD_DAYS);
-  const damageRef = useRef<Record<string, number>>(initialSave?.damageById ?? {});
+  const hpRef = useRef<Record<string, number>>(initialSave?.hpById ?? {});
   // Days already simulated — start at the loaded day so they aren't replayed.
   const processedDayRef = useRef(initialSave?.journeyDay ?? 0);
   // Movement halts while any modal is open; the rAF loop reads this.
@@ -939,9 +980,9 @@ export default function MiddleEarthMap() {
     if (character) {
       // Subdued in battle → joins wounded (half health); a peaceful join is unhurt.
       if (!peaceful) {
-        const half = Math.floor(maxHpFromStats(character.strength, character.defense) / 2);
-        damageRef.current = { ...damageRef.current, [id]: half };
-        setDamageById(damageRef.current);
+        const max = maxHpFromStats(character.strength, character.defense);
+        hpRef.current = { ...hpRef.current, [id]: max - Math.floor(max / 2) };
+        setHpById(hpRef.current);
       }
       attemptRecruit(character);
       // Éomer sends his sister Éowyn home as he joins; she's recruitable again at
@@ -966,7 +1007,7 @@ export default function MiddleEarthMap() {
       let battleState = createBetrayalBattle(bearer, traitor, traitorId, {
         party,
         statBonusById,
-        damageById,
+        hpById,
         expById,
       });
       if (autoPlayRef.current) {
@@ -974,7 +1015,7 @@ export default function MiddleEarthMap() {
       }
       setBattle(battleState);
     },
-    [bearerId, party, statBonusById, damageById, expById],
+    [bearerId, party, statBonusById, hpById, expById],
   );
 
   // Leave a companion at the current spot. Everyone left at the same place forms
@@ -1032,7 +1073,7 @@ export default function MiddleEarthMap() {
       pack: enc.pack,
       bearerId,
       statBonusById,
-      damageById,
+      hpById,
       expById,
       equippedItems,
       wraithsStand: enc.wraithsStand,
@@ -1042,7 +1083,7 @@ export default function MiddleEarthMap() {
       battleState = resolveBattleInstantly(battleState);
     }
     setBattle(battleState);
-  }, [encounter, party, statBonusById, damageById, bearerId, equippedItems, expById]);
+  }, [encounter, party, statBonusById, hpById, bearerId, equippedItems, expById]);
 
   // Rate a wild encounter "strong" only if it would, on average, take down more
   // than half the company — a forecast from the real battle engine, not a coin
@@ -1055,11 +1096,11 @@ export default function MiddleEarthMap() {
         pack,
         bearerId,
         statBonusById,
-        damageById,
+        hpById,
         expById,
         equippedItems,
       }),
-    [party, bearerId, statBonusById, damageById, expById, equippedItems],
+    [party, bearerId, statBonusById, hpById, expById, equippedItems],
   );
 
   // Flee before the fight: succeed and the foe is left behind; fail and there's
@@ -1146,17 +1187,9 @@ export default function MiddleEarthMap() {
     // Clear the draft now (not at advance): the points are spent, so during the
     // reaction-hold "points left" reads 0, never a negative.
     setLevelUpDraft(ZERO_BONUS);
-    // Leveling raises the max HP pool but doesn't heal: the extra capacity comes
-    // in "empty", so carry the gain into damage to leave current health untouched.
-    const hpGain = maxHpFromStats(draft.strength, draft.defense);
-    if (hpGain > 0) {
-      const nextDamage = {
-        ...damageRef.current,
-        [levelUpCharacterId]: (damageRef.current[levelUpCharacterId] ?? 0) + hpGain,
-      };
-      damageRef.current = nextDamage;
-      setDamageById(nextDamage);
-    }
+    // Leveling raises the max HP pool but doesn't heal — and since HP is stored as
+    // current health, the bigger max simply leaves the hero below full; nothing to
+    // carry over.
     // React to the stat that gained the most (~40%): a line at the portrait. If it
     // fires, hold the screen a beat so it can be read, then move on.
     const keys: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
@@ -1229,6 +1262,95 @@ export default function MiddleEarthMap() {
       levelUpRollingRef.current = false;
     }, 500);
   }, [levelUpCharacterId, expById, statBonusById, confirmLevelUp]);
+
+  // The "…All" modes: spend the open hero's points AND every queued hero's. Rather
+  // than commit silently, walk each card in turn — half a second on the old values,
+  // half a second on the new — so the player sees roughly who gained what before it
+  // closes. Stored HP is current health, so the bigger max from the new points
+  // just leaves each hero below full — no healing, nothing to compensate.
+  const applyLevelUpToAll = useCallback(
+    (mode: LevelUpMode) => {
+      if (!levelUpCharacterId || levelUpRollingRef.current) {
+        return;
+      }
+      // Precompute every spread up front; the heroes are distinct, so committing
+      // them one by one doesn't change anyone else's point total.
+      const spreads: Record<string, StatBonus> = {};
+      const ids: string[] = [];
+      for (const id of [levelUpCharacterId, ...levelUpQueueRef.current]) {
+        const total = unspentPointsFor(id, expById[id] ?? 0, statBonusById[id] ?? ZERO_BONUS);
+        if (total <= 0) {
+          continue;
+        }
+        spreads[id] = allocateForMode(total, mode);
+        ids.push(id);
+      }
+      if (ids.length === 0) {
+        return;
+      }
+      // Block manual confirm / re-entry for the whole walkthrough.
+      levelUpRollingRef.current = true;
+      if (levelUpReactionTimerRef.current) {
+        window.clearTimeout(levelUpReactionTimerRef.current);
+        levelUpReactionTimerRef.current = null;
+      }
+      setLevelUpReaction(null);
+      const commit = (id: string, spread: StatBonus) => {
+        setStatBonusById((prev) => ({
+          ...prev,
+          [id]: addBonus(prev[id] ?? ZERO_BONUS, spread),
+        }));
+        // HP is stored as current health, so the larger max from the new points
+        // just leaves the hero below full — no need to wound them to compensate.
+      };
+      let i = 0;
+      const step = () => {
+        if (i >= ids.length) {
+          setLevelUpDraft(ZERO_BONUS);
+          setLevelUpQueue([]);
+          setLevelUpCharacterId(null);
+          levelUpRollingRef.current = false;
+          return;
+        }
+        const id = ids[i];
+        // Show the card with its old values, then flip the new spread in.
+        setLevelUpCharacterId(id);
+        setLevelUpDraft(ZERO_BONUS);
+        window.setTimeout(() => {
+          setLevelUpDraft(spreads[id]);
+          window.setTimeout(() => {
+            commit(id, spreads[id]);
+            i += 1;
+            step();
+          }, 500);
+        }, 500);
+      };
+      step();
+    },
+    [levelUpCharacterId, expById, statBonusById],
+  );
+
+  // The main split-button click: route to the single-hero roll or the team-wide
+  // spend, depending on the remembered mode.
+  const runLevelUpMode = useCallback(
+    (mode: LevelUpMode) => {
+      if (mode === "random") {
+        randomizeAndConfirmLevelUp();
+      } else {
+        applyLevelUpToAll(mode);
+      }
+    },
+    [randomizeAndConfirmLevelUp, applyLevelUpToAll],
+  );
+
+  // Picking from the chevron menu only swaps the active mode (and remembers it);
+  // the player still clicks the main button to actually spend the points.
+  const pickLevelUpMode = useCallback(
+    (mode: LevelUpMode) => {
+      setLevelUpMode(mode);
+    },
+    [setLevelUpMode],
+  );
 
   // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
   const adjustCreation = useCallback((stat: keyof StatBonus, delta: number) => {
@@ -1348,12 +1470,16 @@ export default function MiddleEarthMap() {
       setEscapeFailed("battle");
       return;
     }
-    const nextDamage = { ...damageRef.current };
+    const nextHp = { ...hpRef.current };
     for (const ally of battle.allies) {
-      nextDamage[ally.key] = ally.maxHp - ally.hp;
+      if (ally.hp >= ally.maxHp) {
+        delete nextHp[ally.key];
+      } else {
+        nextHp[ally.key] = ally.hp;
+      }
     }
-    damageRef.current = nextDamage;
-    setDamageById(nextDamage);
+    hpRef.current = nextHp;
+    setHpById(nextHp);
     applyBattleCasualties(battle.allies);
     // Fleeing means dropping the packs: all but a single day of food is lost.
     const nextFood = Math.min(foodRef.current, 1);
@@ -1428,12 +1554,16 @@ export default function MiddleEarthMap() {
     if (!battle) {
       return;
     }
-    const nextDamage = { ...damageRef.current };
+    const nextHp = { ...hpRef.current };
     for (const ally of battle.allies) {
-      nextDamage[ally.key] = ally.maxHp - ally.hp;
+      if (ally.hp >= ally.maxHp) {
+        delete nextHp[ally.key];
+      } else {
+        nextHp[ally.key] = ally.hp;
+      }
     }
-    damageRef.current = nextDamage;
-    setDamageById(nextDamage);
+    hpRef.current = nextHp;
+    setHpById(nextHp);
     applyBattleCasualties(battle.allies);
     // He's let go, not slain: alive and on the loose (drives the NW roam and the
     // Scouring two months hence). Isengard is still cleared (he's left it).
@@ -1512,7 +1642,7 @@ export default function MiddleEarthMap() {
       let battleState = createRogueBattle(rogueId, rogue, {
         party,
         statBonusById,
-        damageById,
+        hpById,
         expById,
       });
       if (autoPlayRef.current) {
@@ -1520,7 +1650,7 @@ export default function MiddleEarthMap() {
       }
       setBattle(battleState);
     },
-    [party, statBonusById, damageById, expById],
+    [party, statBonusById, hpById, expById],
   );
 
   // Re-roll who/what is around: sometimes-present companions and the eagles at
@@ -1588,7 +1718,7 @@ export default function MiddleEarthMap() {
     // spare to heal) — mirror that rule for the red "-N" so the numbers reconcile.
     // The actual subtraction happens in the day-upkeep effect below.
     const gain = foodRef.current - before;
-    const anyHurt = party.some((id) => (damageRef.current[id] ?? 0) > 0);
+    const anyHurt = party.some((id) => hpRef.current[id] !== undefined);
     const avail = foodRef.current;
     const eaten = anyHurt && avail >= 2 ? 2 : avail >= 1 ? 1 : 0;
     if (gain > 0 && !autoPlayRef.current) {
@@ -1777,7 +1907,7 @@ export default function MiddleEarthMap() {
       transport,
       eagleSince,
       food,
-      damageById,
+      hpById,
       deathCauseById,
       expById,
       statBonusById,
@@ -2235,7 +2365,7 @@ export default function MiddleEarthMap() {
             character,
             ringDaysById[id] ?? 0,
             bearerId,
-            damageById[id] ?? 0,
+            hpById[id],
             addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
           );
           return { id, stats };
@@ -2324,7 +2454,7 @@ export default function MiddleEarthMap() {
         startBattle();
         return;
       }
-      if (autoPlayShouldFleeEncounter(encounter, party, statBonusById, damageById)) {
+      if (autoPlayShouldFleeEncounter(encounter, party, statBonusById, hpById)) {
         setEncounter(null);
       } else {
         startBattle();
@@ -2345,7 +2475,7 @@ export default function MiddleEarthMap() {
           ? BOSSES_BY_LOCATION[loc.id]
           : null;
       if (lockedBoss && !defeatedBosses.has(lockedBoss.name)) {
-        const partyHurt = party.some((id) => (damageById[id] ?? 0) > 0);
+        const partyHurt = party.some((id) => hpById[id] !== undefined);
         if (partyHurt && food > 0) {
           waitOneDay();
           return;
@@ -2456,7 +2586,7 @@ export default function MiddleEarthMap() {
     levelUpQueue,
     expById,
     statBonusById,
-    damageById,
+    hpById,
     ringDaysById,
     reclaimedFrom,
     recruitRefusal,
@@ -2927,7 +3057,7 @@ export default function MiddleEarthMap() {
     () => CHARACTERS.filter((character) => party.includes(character.id)),
     [party],
   );
-  const anyHurt = partyCharacters.some((character) => (damageById[character.id] ?? 0) > 0);
+  const anyHurt = partyCharacters.some((character) => hpById[character.id] !== undefined);
   const foodCapacity = foodCapacityFor(transport);
   // Where food can be restocked, and up to how much: the great towns fill the
   // full carried capacity; any harbour stocks only a foot-traveller's ration.
@@ -3278,7 +3408,7 @@ export default function MiddleEarthMap() {
         openCharacter,
         ringDaysById[openCharacter.id] ?? 0,
         bearerId,
-        damageById[openCharacter.id] ?? 0,
+        hpById[openCharacter.id],
         totalBonusFor(openCharacter),
       )
     : null;
@@ -3293,7 +3423,7 @@ export default function MiddleEarthMap() {
       character,
       ringDaysById[character.id] ?? 0,
       bearerId,
-      damageById[character.id] ?? 0,
+      hpById[character.id],
       totalBonusFor(character),
     ),
   });
@@ -3445,7 +3575,7 @@ export default function MiddleEarthMap() {
         ringBearer,
         ringDaysById[ringBearer.id] ?? 0,
         bearerId,
-        damageById[ringBearer.id] ?? 0,
+        hpById[ringBearer.id],
         totalBonusFor(ringBearer),
       ).corruption
     : 0;
@@ -3699,7 +3829,7 @@ export default function MiddleEarthMap() {
     for (const character of partyCharacters) {
       const stats = effectiveStats(character, totalBonusFor(character));
       const maxHp = maxHpFromStats(stats.strength, stats.defense);
-      const hp = Math.max(0, maxHp - (damageById[character.id] ?? 0));
+      const hp = currentHp(maxHp, hpById[character.id]);
       const low = maxHp > 0 && hp > 0 && hp / maxHp < 0.33;
       if (low && !hurtSpokenRef.current.has(character.id)) {
         hurtSpokenRef.current.add(character.id);
@@ -3709,7 +3839,7 @@ export default function MiddleEarthMap() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [damageById, partyCharacters]);
+  }, [hpById, partyCharacters]);
 
   // When companions fall, a survivor mourns them by name — at most two per wave,
   // and never re-mourning the already-dead on load.
@@ -3835,12 +3965,16 @@ export default function MiddleEarthMap() {
     // Hunt for the fled bearer resolved: a win reclaims the Ring (and prompts
     // for a new bearer); a loss ends the tale with nothing.
     if (battle.rogueId) {
-      const nextDamage = { ...damageRef.current };
+      const nextHp = { ...hpRef.current };
       for (const ally of battle.allies) {
-        nextDamage[ally.key] = ally.maxHp - ally.hp;
+        if (ally.hp >= ally.maxHp) {
+        delete nextHp[ally.key];
+      } else {
+        nextHp[ally.key] = ally.hp;
       }
-      damageRef.current = nextDamage;
-      setDamageById(nextDamage);
+      }
+      hpRef.current = nextHp;
+      setHpById(nextHp);
       applyBattleCasualties(battle.allies);
       if (battle.outcome === "win") {
         setRogueBearerId(null);
@@ -3856,12 +3990,16 @@ export default function MiddleEarthMap() {
     // Betrayal lost: traitor takes the Ring — unless they cannot be its bearer.
     if (battle.outcome === "lose" && battle.betrayalBy) {
       if (NON_BEARERS.has(battle.betrayalBy)) {
-        const nextDamage = { ...damageRef.current };
+        const nextHp = { ...hpRef.current };
         for (const ally of battle.allies) {
-          nextDamage[ally.key] = ally.maxHp - ally.hp;
+          if (ally.hp >= ally.maxHp) {
+        delete nextHp[ally.key];
+      } else {
+        nextHp[ally.key] = ally.hp;
+      }
         }
-        damageRef.current = nextDamage;
-        setDamageById(nextDamage);
+        hpRef.current = nextHp;
+        setHpById(nextHp);
         const traitorId = battle.betrayalBy;
         banishTraitor(traitorId);
         setParty((prev) => prev.filter((id) => id !== traitorId));
@@ -3879,12 +4017,16 @@ export default function MiddleEarthMap() {
       // The traitor seizes the Ring and vanishes, racing for Mount Doom — the
       // party has two months to hunt him down before he crowns himself.
       const traitorId = battle.betrayalBy;
-      const nextDamage = { ...damageRef.current };
+      const nextHp = { ...hpRef.current };
       for (const ally of battle.allies) {
-        nextDamage[ally.key] = ally.maxHp - ally.hp;
+        if (ally.hp >= ally.maxHp) {
+        delete nextHp[ally.key];
+      } else {
+        nextHp[ally.key] = ally.hp;
       }
-      damageRef.current = nextDamage;
-      setDamageById(nextDamage);
+      }
+      hpRef.current = nextHp;
+      setHpById(nextHp);
       applyBattleCasualties(battle.allies);
       banishTraitor(traitorId);
       triggerRingFlight(traitorId);
@@ -3892,12 +4034,16 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    const nextDamage = { ...damageRef.current };
+    const nextHp = { ...hpRef.current };
     for (const ally of battle.allies) {
-      nextDamage[ally.key] = ally.maxHp - ally.hp;
+      if (ally.hp >= ally.maxHp) {
+        delete nextHp[ally.key];
+      } else {
+        nextHp[ally.key] = ally.hp;
+      }
     }
-    damageRef.current = nextDamage;
-    setDamageById(nextDamage);
+    hpRef.current = nextHp;
+    setHpById(nextHp);
     applyBattleCasualties(battle.allies);
     if (battle.outcome === "win") {
       // Tally felled foes for the statistics panel — both a running kill count
@@ -4147,14 +4293,14 @@ export default function MiddleEarthMap() {
 
   // Simulate each elapsed day: eat (1/day), or with double rations heal +HEAL
   // per member for 2 food while anyone is hurt, or starve (5% max health/day)
-  // when out of food. Damage is tracked per current party member.
+  // when out of food. HP is tracked per current party member.
   useEffect(() => {
     if (journeyDay <= processedDayRef.current) {
       processedDayRef.current = journeyDay;
       return;
     }
     let nextFood = foodRef.current;
-    const nextDamage = { ...damageRef.current };
+    const nextHp = { ...hpRef.current };
     const members = party;
     // Survival (food, healing, starvation) covers everyone on the map: parked
     // squads age and eat from the shared store too. Each member's aura comes
@@ -4225,13 +4371,37 @@ export default function MiddleEarthMap() {
     const ambushedSquads = new Set<string>();
     const onWater =
       getTerrainAtPoint(playerRef.current ?? hobbiton.point).name === "water";
+    // Live max HP for a survivor, from their group's auras (matching how the rest
+    // of upkeep reads stats). Items are intentionally left out here, as before.
+    const maxHpOf = (id: string): number => {
+      const character = CHARACTERS.find((c) => c.id === id);
+      if (!character) {
+        return 0;
+      }
+      const es = effectiveStats(
+        character,
+        addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, groupOf(id))),
+      );
+      return maxHpFromStats(es.strength, es.defense);
+    };
     for (let day = processedDayRef.current; day < journeyDay; day += 1) {
-      const anyHurt = survivors.some((id) => (nextDamage[id] ?? 0) > 0);
+      // A tracked entry means below full; a missing one means full health.
+      const anyHurt = survivors.some((id) => nextHp[id] !== undefined);
       // Wounded + spare food: auto-spend a 2nd ration to heal each.
       if (anyHurt && nextFood >= 2) {
         nextFood -= 2;
         for (const id of survivors) {
-          nextDamage[id] = Math.max(0, (nextDamage[id] ?? 0) - heal);
+          if (nextHp[id] === undefined) {
+            continue; // already at full health
+          }
+          const max = maxHpOf(id);
+          const healed = Math.min(max, (nextHp[id] ?? max) + heal);
+          // Back to full → drop the entry so it reads as full everywhere.
+          if (healed >= max) {
+            delete nextHp[id];
+          } else {
+            nextHp[id] = healed;
+          }
         }
       } else if (nextFood >= 1) {
         nextFood -= 1;
@@ -4240,20 +4410,17 @@ export default function MiddleEarthMap() {
           if (id === "king_dead") {
             continue;
           }
-          const prev = nextDamage[id] ?? 0;
           const character = CHARACTERS.find((c) => c.id === id);
           if (character) {
-            const es = effectiveStats(
-              character,
-              addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, groupOf(id))),
-            );
-            const maxHp = maxHpFromStats(es.strength, es.defense);
-            nextDamage[id] = prev + Math.round(maxHp * HUNGER_DAMAGE_FRACTION);
-            if (nextDamage[id] >= maxHp && prev < maxHp) {
+            const maxHp = maxHpOf(id);
+            const prev = nextHp[id] ?? maxHp;
+            const now = prev - Math.round(maxHp * HUNGER_DAMAGE_FRACTION);
+            nextHp[id] = now;
+            if (now <= 0 && prev > 0) {
               hungerDead.push(id);
             }
           } else {
-            nextDamage[id] = prev + 1;
+            nextHp[id] = (nextHp[id] ?? 0) - 1;
           }
         }
       }
@@ -4343,9 +4510,9 @@ export default function MiddleEarthMap() {
     }
     processedDayRef.current = journeyDay;
     foodRef.current = nextFood;
-    damageRef.current = nextDamage;
+    hpRef.current = nextHp;
     setFood(nextFood);
-    setDamageById(nextDamage);
+    setHpById(nextHp);
     if (hungerDead.length > 0) {
       const starvedRoaming = slainRoamingRecruitIds(hungerDead);
       if (starvedRoaming.length > 0) {
@@ -4951,7 +5118,7 @@ export default function MiddleEarthMap() {
                 {partyCharacters.map((character) => {
                   const es = effectiveStats(character, totalBonusFor(character));
                   const maxHp = maxHpFromStats(es.strength, es.defense);
-                  const hp = Math.max(0, maxHp - (damageById[character.id] ?? 0));
+                  const hp = currentHp(maxHp, hpById[character.id]);
                   return (
                   <button
                     key={character.id}
@@ -5541,14 +5708,16 @@ export default function MiddleEarthMap() {
         <LevelUpModal
           hero={autoPlay ? null : levelUpHero}
           level={levelUpLevel}
-          damage={levelUpCharacterId ? (damageById[levelUpCharacterId] ?? 0) : 0}
+          hp={levelUpCharacterId ? hpById[levelUpCharacterId] : undefined}
           existingBonus={levelUpExistingBonus}
           draft={levelUpDraft}
           totalPoints={levelUpTotalPoints}
           draftSpent={levelUpDraftSpent}
           charName={charName}
           onAdjust={adjustLevelUpDraft}
-          onRandomize={randomizeAndConfirmLevelUp}
+          mode={levelUpMode}
+          onMainAction={() => runLevelUpMode(levelUpMode)}
+          onPickMode={pickLevelUpMode}
           onConfirm={() => confirmLevelUp()}
           reaction={levelUpReaction}
         />

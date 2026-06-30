@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Heart } from "lucide-react";
+import { ChevronDown, Heart } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PortalBubble } from "@/components/ui/PortalBubble";
 import { StatAllocator } from "@/components/ui/StatAllocator";
@@ -8,37 +8,78 @@ import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBa
 import { iconVariant, maxHpFromStats } from "@/game";
 import type { Character, StatBonus } from "@/game";
 
+// The remembered behaviour of the level-up split button. "random" spends only
+// the open hero's points (the classic single roll); every *All mode spends the
+// whole pending team in one click — randomly, or all into one stat.
+export type LevelUpMode =
+  | "random"
+  | "randomAll"
+  | "strengthAll"
+  | "defenseAll"
+  | "intelligenceAll"
+  | "luckAll";
+
+// Menu order; also the source of truth for which modes exist.
+export const LEVELUP_MODES: LevelUpMode[] = [
+  "random",
+  "randomAll",
+  "strengthAll",
+  "defenseAll",
+  "intelligenceAll",
+  "luckAll",
+];
+
+const MODE_EMOJI: Record<LevelUpMode, string> = {
+  random: "🎲",
+  randomAll: "🎲",
+  strengthAll: "⚔️",
+  defenseAll: "🛡️",
+  intelligenceAll: "✨",
+  luckAll: "🍀",
+};
+
 // Spend the points earned on level-up across the hero's four stats.
 export function LevelUpModal({
   hero,
   level,
-  damage,
+  hp,
   existingBonus,
   draft,
   totalPoints,
   draftSpent,
   charName,
   onAdjust,
-  onRandomize,
+  mode,
+  onMainAction,
+  onPickMode,
   onConfirm,
   reaction,
 }: {
   hero: Character | null;
   level: { level: number; intoLevel: number; nextLevelXp: number };
-  damage: number;
+  // Stored current HP of the hero (undefined = full health).
+  hp: number | undefined;
   existingBonus: StatBonus;
   draft: StatBonus;
   totalPoints: number;
   draftSpent: number;
   charName: (id: string) => string;
   onAdjust: (stat: keyof StatBonus, delta: number) => void;
-  onRandomize: () => void;
+  // The remembered button mode, the click on the main button (runs that mode),
+  // and a pick from the chevron menu (remembers + runs the chosen mode).
+  mode: LevelUpMode;
+  onMainAction: () => void;
+  onPickMode: (mode: LevelUpMode) => void;
   onConfirm: () => void;
   // A spoken line shown at the portrait just after committing (null = none).
   reaction?: string | null;
 }) {
   const { t } = useTranslation();
   const portraitRef = useRef<HTMLDivElement>(null);
+  // The chevron menu offering the other allocation modes.
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Never strand the menu open across heroes (each swaps the modal's hero in).
+  useEffect(() => setMenuOpen(false), [hero?.id]);
   // The hero beams for a beat when their level-up screen first appears.
   const [joy, setJoy] = useState(false);
   useEffect(() => {
@@ -61,13 +102,10 @@ export function LevelUpModal({
   // Current HP is what the hero carries in (wounds and all) — spending points
   // raises the max cap but heals nothing, so it stays put while the bar's max
   // grows. Drafted points are deliberately left out of this figure.
-  const health = hero
-    ? Math.max(
-        0,
-        maxHpFromStats(hero.strength + existingBonus.strength, hero.defense + existingBonus.defense) -
-          damage,
-      )
+  const maxHealthNoDraft = hero
+    ? maxHpFromStats(hero.strength + existingBonus.strength, hero.defense + existingBonus.defense)
     : 0;
+  const health = hero ? Math.max(0, Math.min(maxHealthNoDraft, hp ?? maxHealthNoDraft)) : 0;
   return (
     <Modal
       open={hero !== null}
@@ -145,13 +183,55 @@ export function LevelUpModal({
             {t("levelUp.pointsLeft", { n: totalPoints - draftSpent })}
           </p>
 
-          <button
-            type="button"
-            onClick={onRandomize}
-            className="mt-4 w-full rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
-          >
-            🎲 {t("levelUp.random")}
-          </button>
+          {/* Split button: the wide half runs the remembered mode; the chevron
+              opens the other modes, and picking one both runs and remembers it
+              for future level-ups. */}
+          <div className="relative mt-4 flex">
+            <button
+              type="button"
+              onClick={onMainAction}
+              className="flex-1 rounded-l border border-r-0 border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+            >
+              {MODE_EMOJI[mode]} {t(`levelUp.${mode}`)}
+            </button>
+            <button
+              type="button"
+              aria-label={t("levelUp.moreModes")}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+              className="flex items-center justify-center rounded-r border border-neutral-700 bg-neutral-800 px-2 text-neutral-100 transition hover:bg-neutral-700"
+            >
+              <ChevronDown className={`size-4 transition ${menuOpen ? "rotate-180" : ""}`} />
+            </button>
+            {menuOpen && (
+              <>
+                {/* Click-away backdrop so the menu closes on an outside tap. */}
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  className="fixed inset-0 z-[1] cursor-default"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="absolute bottom-full left-0 z-[2] mb-1 w-full overflow-hidden rounded border border-neutral-700 bg-neutral-900 shadow-lg">
+                  {LEVELUP_MODES.filter((m) => m !== mode).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onPickMode(m);
+                      }}
+                      className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-sm text-neutral-100 transition hover:bg-neutral-800"
+                    >
+                      <span className="w-4 text-center">{MODE_EMOJI[m]}</span>
+                      {t(`levelUp.${m}`)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button
             type="button"
             onClick={onConfirm}

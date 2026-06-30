@@ -3,7 +3,10 @@
 import type { DeathCause, Point, StatBonus, TransportId } from "@/game/types";
 
 const SAVE_KEY = "lotr-save";
-const SAVE_VERSION = 3;
+// v4: per-character HP is now stored as current health (`hpById`) instead of
+// accumulated damage, so a shrinking max (e.g. losing an aura-granting companion)
+// no longer retroactively wounds survivors. Older saves are dropped on load.
+const SAVE_VERSION = 4;
 
 // A splinter group waiting on the map: its members travel together and can be
 // taken control of via the squad switcher.
@@ -23,7 +26,8 @@ export interface GameSave {
   transport: TransportId | null;
   eagleSince: number | null;
   food: number;
-  damageById: Record<string, number>;
+  // Current HP per character; a missing entry means full health.
+  hpById: Record<string, number>;
   deathCauseById: Record<string, DeathCause>;
   expById: Record<string, number>;
   statBonusById: Record<string, StatBonus>;

@@ -70,6 +70,8 @@ export const MAP_PREF_KEY = "lotr-map";
 export const THEME_PREF_KEY = "lotr-theme";
 // Remembers the optional-chatter (companion reactions) toggle between sessions.
 export const REACTIONS_PREF_KEY = "lotr-reactions";
+// Remembers the chosen level-up split-button mode (see LevelUpMode) between sessions.
+export const LEVELUP_MODE_PREF_KEY = "lotr-levelup-mode";
 // Narrow water (rivers) up to this many cells can be forded; wider water blocks.
 export const MAX_WATER_CROSSING_CELLS = 2;
 // The figure stays within this margin (share of viewport) from each edge.

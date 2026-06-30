@@ -4,19 +4,20 @@
 // (advanceBattleTick / resolveBattleInstantly / createBattleState).
 import { ZERO_BONUS } from "@/game/constants";
 import { CHARACTERS } from "@/game/data";
-import { addBonus, auraBonus, effectiveStats, levelForExp, maxHpFromStats } from "@/game/rules";
+import { addBonus, auraBonus, currentHp, effectiveStats, levelForExp, maxHpFromStats } from "@/game/rules";
 import type { BattleState, Character, Combatant, StatBonus } from "@/game/types";
 
 // Everything a builder needs to read a character's live battle stats.
 export interface CombatContext {
   party: string[];
   statBonusById: Record<string, StatBonus>;
-  damageById: Record<string, number>;
+  hpById: Record<string, number>;
   expById: Record<string, number>;
 }
 
 // A party member as a combatant, with effective stats (allocated bonus + party
-// auras), current HP (max minus carried wounds, floored at `minHp`), and level.
+// auras), current HP (stored health clamped to the live max, floored at `minHp`),
+// and level.
 export function heroCombatant(c: Character, ctx: CombatContext, minHp: number): Combatant {
   const s = effectiveStats(c, addBonus(ctx.statBonusById[c.id] ?? ZERO_BONUS, auraBonus(c, ctx.party)));
   const maxHp = maxHpFromStats(s.strength, s.defense);
@@ -24,7 +25,7 @@ export function heroCombatant(c: Character, ctx: CombatContext, minHp: number): 
     key: c.id,
     name: c.name,
     icon: c.icon,
-    hp: Math.max(minHp, maxHp - (ctx.damageById[c.id] ?? 0)),
+    hp: Math.max(minHp, currentHp(maxHp, ctx.hpById[c.id])),
     maxHp,
     strength: s.strength,
     attack: s.strength,

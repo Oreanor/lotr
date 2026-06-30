@@ -280,6 +280,12 @@
     "title": "Новый уровень!",
     "pointsLeft": "Осталось очков: {{n}}",
     "random": "Случайно",
+    "randomAll": "Случайно всем",
+    "strengthAll": "Всем силу",
+    "defenseAll": "Всем защиту",
+    "intelligenceAll": "Всем интеллект",
+    "luckAll": "Всем удачу",
+    "moreModes": "Другие варианты",
     "confirm": "Готово"
   },
   "partyTable": {

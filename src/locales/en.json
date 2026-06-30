@@ -276,6 +276,12 @@
     "title": "Level up!",
     "pointsLeft": "Points left: {{n}}",
     "random": "Randomize",
+    "randomAll": "Randomize all",
+    "strengthAll": "Strength to all",
+    "defenseAll": "Defense to all",
+    "intelligenceAll": "Intelligence to all",
+    "luckAll": "Luck to all",
+    "moreModes": "More options",
     "confirm": "Done"
   },
   "partyTable": {

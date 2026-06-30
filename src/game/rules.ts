@@ -382,7 +382,7 @@ export function autoPlayShouldFleeEncounter(
   encounter: EncounterState,
   party: string[],
   statBonusById: Record<string, StatBonus>,
-  damageById: Record<string, number>,
+  hpById: Record<string, number>,
 ): boolean {
   return autoPlayShouldFleeCombat({
     dangerous: encounter.dangerous,
@@ -390,7 +390,7 @@ export function autoPlayShouldFleeEncounter(
     recruitId: encounter.monster.recruitId,
     party,
     statBonusById,
-    damageById,
+    hpById,
     enemies: encounter.pack,
   });
 }
@@ -401,10 +401,10 @@ export function autoPlayShouldFleeCombat(opts: {
   recruitId?: string | null;
   party: string[];
   statBonusById: Record<string, StatBonus>;
-  damageById: Record<string, number>;
+  hpById: Record<string, number>;
   enemies: Pick<Monster, "name" | "strength" | "tier">[];
 }): boolean {
-  const { dangerous, solo, recruitId, party, statBonusById, damageById, enemies } = opts;
+  const { dangerous, solo, recruitId, party, statBonusById, hpById, enemies } = opts;
   if (dangerous) {
     return true;
   }
@@ -424,7 +424,7 @@ export function autoPlayShouldFleeCombat(opts: {
     const maxHp = maxHpFromStats(stats.strength, stats.defense);
     partyStrength += stats.strength;
     partyMaxHp += maxHp;
-    partyHp += Math.max(0, maxHp - (damageById[id] ?? 0));
+    partyHp += currentHp(maxHp, hpById[id]);
   }
 
   let enemyStrength = 0;
@@ -940,7 +940,7 @@ export interface CreateBattleOpts {
   pack: Monster[];
   bearerId: string | null;
   statBonusById: Record<string, StatBonus>;
-  damageById: Record<string, number>;
+  hpById: Record<string, number>;
   expById: Record<string, number>;
   equippedItems: Record<string, string>;
   wraithsStand?: boolean;
@@ -951,7 +951,7 @@ export interface CreateBattleOpts {
 // single source of truth for how stats, carried items, auras and wounds become
 // combatants — used both to start a real fight and to forecast its danger.
 export function createBattleState(opts: CreateBattleOpts): BattleState {
-  const { party, monster, pack, bearerId, statBonusById, damageById, expById, equippedItems } = opts;
+  const { party, monster, pack, bearerId, statBonusById, hpById, expById, equippedItems } = opts;
   const packHasUndead = pack.some((mm) => WRAITH_FOES.has(mm.name));
   const packHasOrcs = pack.some((mm) => ORC_FOES.has(mm.name));
   // The Phial of Galadriel blinds Shelob — her strength is halved.
@@ -975,7 +975,7 @@ export function createBattleState(opts: CreateBattleOpts): BattleState {
         key: id,
         name: character.name,
         icon: character.icon,
-        hp: Math.max(0, maxHp - (damageById[id] ?? 0)),
+        hp: currentHp(maxHp, hpById[id]),
         maxHp,
         strength: s.strength,
         attack: s.strength * undeadMultiplier + attackBonus,
@@ -1215,18 +1215,25 @@ export function maxHpFromStats(strength: number, defense: number): number {
   return strength * HEALTH_PER_STR + defense * HEALTH_PER_DEF;
 }
 
+// Resolve stored HP against the live max: a missing entry means full health, and
+// the value is clamped to [0, maxHp] so a shrunken pool (e.g. an aura-granter
+// fell) just caps current HP rather than retroactively wounding the survivor.
+export function currentHp(maxHp: number, storedHp: number | undefined): number {
+  return Math.max(0, Math.min(maxHp, storedHp ?? maxHp));
+}
+
 // Derive current stats from a character and how many days have been travelled.
 export function computeCharacterStats(
   character: Character,
   ringDays: number,
   bearerId: string,
-  damage: number,
+  hp: number | undefined,
   bonus: StatBonus,
 ): CharacterStats {
   const isBearer = character.id === bearerId;
   const s = effectiveStats(character, bonus);
   const maxHealth = maxHpFromStats(s.strength, s.defense);
-  const health = Math.max(0, maxHealth - damage);
+  const health = currentHp(maxHealth, hp);
 
   const accumulated = (character.ringExposure ?? 0) * 100;
   const journeyCorruption = (ringDays / character.resilience) * 100;
