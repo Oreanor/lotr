@@ -50,20 +50,17 @@ function Portrait({
   src,
   label,
   found,
-  level,
   onClick,
 }: {
   src: string;
   label: string;
   found: boolean;
-  // Companion level, shown as a corner badge (works for the fallen too).
-  level?: number;
   onClick?: () => void;
 }) {
   const content = (
     <>
       <div
-        className={`relative aspect-square w-full overflow-hidden rounded border border-neutral-700 ${
+        className={`aspect-square w-full overflow-hidden rounded border border-neutral-700 ${
           found ? "bg-parchment" : "bg-[#7a7a7a]"
         }`}
       >
@@ -75,11 +72,6 @@ function Portrait({
             found ? "" : "grayscale opacity-50"
           }`}
         />
-        {level !== undefined && (
-          <span className="pointer-events-none absolute left-0 top-0 rounded-br bg-black/70 px-1 text-[9px] font-bold leading-tight text-amber-200">
-            {level}
-          </span>
-        )}
       </div>
       <span
         className={`w-full truncate text-center text-[9px] leading-tight ${
@@ -116,7 +108,6 @@ export function StatsModal({
   stats,
   foundCharacterIds,
   defeatedEnemyIcons,
-  levelById,
   onCharacterClick,
 }: {
   open: boolean;
@@ -124,8 +115,6 @@ export function StatsModal({
   stats: GameStats;
   foundCharacterIds: Set<string>;
   defeatedEnemyIcons: Set<string>;
-  // Level reached per discovered companion (fallen included), for a corner badge.
-  levelById?: Record<string, number>;
   // Open a discovered companion's stat panel (tap their gallery portrait).
   onCharacterClick?: (id: string) => void;
 }) {
@@ -193,7 +182,6 @@ export function StatsModal({
               src={c.icon}
               label={t(`char.${c.id}`)}
               found={found}
-              level={found ? levelById?.[c.id] : undefined}
               onClick={found && onCharacterClick ? () => onCharacterClick(c.id) : undefined}
             />
           );

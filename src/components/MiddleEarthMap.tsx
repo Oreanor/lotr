@@ -1871,16 +1871,6 @@ export default function MiddleEarthMap() {
       statsOpen,
     ],
   );
-  // Level reached by each discovered companion — for the stats gallery badge.
-  // Computed for everyone met (the fallen keep their final XP), so you can see
-  // how far a hero got even after they're gone.
-  const statsLevelById = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const id of foundCharacterIds) {
-      out[id] = levelForExp(expById[id] ?? 0).level;
-    }
-    return out;
-  }, [foundCharacterIds, expById]);
 
   useEffect(() => {
     animationPausedRef.current = animationPaused;
@@ -5705,7 +5695,6 @@ export default function MiddleEarthMap() {
           stats={gameStats}
           foundCharacterIds={foundCharacterIds}
           defeatedEnemyIcons={defeatedEnemyIcons}
-          levelById={statsLevelById}
           onCharacterClick={(id) => openCharacterPanel(id, false)}
         />
         <PartySummaryModal
