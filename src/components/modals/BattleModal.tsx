@@ -168,6 +168,21 @@ export function BattleModal({
                         />
                       </span>
                     </div>
+                    {/* Bearer marker — same circular ring badge as the map HUD.
+                        Worn, the big centred ring inside the portrait shows instead. */}
+                    {!invisible && ally.key === battle.bearerKey && (
+                      <span
+                        className="pointer-events-none absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border border-amber-700 bg-neutral-900"
+                        title={t("character.bearer")}
+                      >
+                        <img
+                          src={ringImage}
+                          alt=""
+                          draggable={false}
+                          className="size-3.5 select-none object-contain"
+                        />
+                      </span>
+                    )}
                     <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
                       {charName(ally.key)}
                     </span>

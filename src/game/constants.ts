@@ -260,9 +260,12 @@ export const TREEBEARD_ENCOUNTER_CHANCE = 0.85;
 // borders — until run down. Found at Hobbiton itself he holds it (the Scouring).
 export const SARUMAN_ENCOUNTER_CHANCE = 0.2;
 // Days after being spared before Saruman reaches the Shire: he roams the NW and
-// can be run down until then; after this he holds Hobbiton (the Scouring) and no
-// longer turns up in the wild.
+// can be run down until then; after this he's come to the Shire and no longer
+// turns up in the wild.
 export const SARUMAN_SCOUR_DAYS = 60;
+// He doesn't despoil Hobbiton at once — for this grace period after he arrives the
+// village stays its normal self; only then does it become his scoured camp.
+export const SARUMAN_SCOUR_GRACE_DAYS = 7;
 // A masterless Gríma skulks the wilds if Isengard fell before he fled there —
 // uncommon, and no real threat to a couple of stout hobbits.
 export const GRIMA_ENCOUNTER_CHANCE = 0.04;

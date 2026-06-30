@@ -46,9 +46,19 @@ function StatRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Portrait({ src, label, found }: { src: string; label: string; found: boolean }) {
-  return (
-    <div title={label} className="flex flex-col items-center gap-0.5">
+function Portrait({
+  src,
+  label,
+  found,
+  onClick,
+}: {
+  src: string;
+  label: string;
+  found: boolean;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
       <div
         className={`aspect-square w-full overflow-hidden rounded border border-neutral-700 ${
           found ? "bg-parchment" : "bg-[#7a7a7a]"
@@ -70,6 +80,22 @@ function Portrait({ src, label, found }: { src: string; label: string; found: bo
       >
         {label}
       </span>
+    </>
+  );
+  const cls = "flex w-full flex-col items-center gap-0.5";
+  // A clickable portrait (a found companion) opens that hero's stat panel.
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={`${cls} rounded transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400`}
+    >
+      {content}
+    </button>
+  ) : (
+    <div title={label} className={cls}>
+      {content}
     </div>
   );
 }
@@ -82,12 +108,15 @@ export function StatsModal({
   stats,
   foundCharacterIds,
   defeatedEnemyIcons,
+  onCharacterClick,
 }: {
   open: boolean;
   onClose: () => void;
   stats: GameStats;
   foundCharacterIds: Set<string>;
   defeatedEnemyIcons: Set<string>;
+  // Open a discovered companion's stat panel (tap their gallery portrait).
+  onCharacterClick?: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const monstersFound = MONSTER_ROSTER.filter((foe) => defeatedEnemyIcons.has(foe.icon)).length;
@@ -145,14 +174,18 @@ export function StatsModal({
         </span>
       </h3>
       <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-9">
-        {CHARACTERS.map((c) => (
-          <Portrait
-            key={c.id}
-            src={c.icon}
-            label={t(`char.${c.id}`)}
-            found={foundCharacterIds.has(c.id)}
-          />
-        ))}
+        {CHARACTERS.map((c) => {
+          const found = foundCharacterIds.has(c.id);
+          return (
+            <Portrait
+              key={c.id}
+              src={c.icon}
+              label={t(`char.${c.id}`)}
+              found={found}
+              onClick={found && onCharacterClick ? () => onCharacterClick(c.id) : undefined}
+            />
+          );
+        })}
       </div>
 
       <h3 className="mt-6 font-serif text-lg text-neutral-200">

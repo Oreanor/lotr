@@ -203,6 +203,7 @@ import {
   SARUMAN_NAME,
   SARUMAN_ENCOUNTER_CHANCE,
   SARUMAN_SCOUR_DAYS,
+  SARUMAN_SCOUR_GRACE_DAYS,
   ORC_FOES,
   XP_INT_FLOOR,
   XP_BONUS_PER_INT,
@@ -939,7 +940,13 @@ export default function MiddleEarthMap() {
       if (needed) {
         recruitAttemptsRef.current[character.id] = (recruitAttemptsRef.current[character.id] ?? 0) + 1;
         if (recruitAttemptsRef.current[character.id] < needed) {
-          refuse(t(`refuse.${character.id}`));
+          // Once the Ring is gone, Denethor drops the "the Ring belongs to Minas
+          // Tirith" line for a plain brush-off.
+          const refusalKey =
+            character.id === "denethor" && ringDestroyed
+              ? "refuse.denethorFree"
+              : `refuse.${character.id}`;
+          refuse(t(refusalKey));
           return;
         }
       }
@@ -954,7 +961,7 @@ export default function MiddleEarthMap() {
         speakRefusalBubble(character.id, t(`recruit.${character.id}Follows`), "joy");
       }
     },
-    [bearerId, party, grimaFled, recruitCharacter, speakRefusalBubble, statBonusById, t],
+    [bearerId, party, grimaFled, ringDestroyed, recruitCharacter, speakRefusalBubble, statBonusById, t],
   );
 
   // Invite the foe defeated in battle (or decline).
@@ -3077,10 +3084,13 @@ export default function MiddleEarthMap() {
   const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
   // Saruman has left Isengard one way or another (slain there, or spared).
   const sarumanGone = defeatedBosses.has(sarumanBossName) || sarumanSpared;
-  // After he's spared, he roams the NW for two months, then holds the Shire.
+  // After he's spared, he roams the NW for two months, then comes to the Shire.
+  // He doesn't camp at once: for a grace week Hobbiton stays normal, then the
+  // Scouring proper begins (scoured ruin + a fight to the death).
   const sarumanDaysOut = sarumanSpared ? journeyDay - sarumanSparedDay : 0;
   const sarumanRoams = sarumanSpared && sarumanDaysOut < SARUMAN_SCOUR_DAYS;
-  const sarumanScouring = sarumanSpared && sarumanDaysOut >= SARUMAN_SCOUR_DAYS;
+  const sarumanScouring =
+    sarumanSpared && sarumanDaysOut >= SARUMAN_SCOUR_DAYS + SARUMAN_SCOUR_GRACE_DAYS;
   const sarumanFriendly = (() => {
     // Once Wormtongue has slunk to Isengard, Saruman is beyond parley.
     if (
@@ -3818,8 +3828,9 @@ export default function MiddleEarthMap() {
     } else {
       mountainStreakRef.current = 0;
     }
-    // "Sea" remarks only on the open sea — all four neighbours water too, so a
-    // river crossing (land on the banks) never triggers them. Only under sail.
+    // "Sea" remarks only on the open sea — at least 7 of the 8 surrounding cells
+    // are water too, so a shore or a river (more land around) never triggers
+    // them. Only under sail.
     if (terrain === "water" && transport === "ship" && isOpenSea(here, 10, getTerrainAtPoint)) {
       speakRandom("sea");
     }
@@ -3939,6 +3950,11 @@ export default function MiddleEarthMap() {
   // the new company (e.g. Gollum once a non-hobbit joins) walks off. One per
   // pass — the effect re-runs until the party is stable.
   useEffect(() => {
+    // At sea the company can't split — an incompatible member only slips away
+    // once ashore (the transport dep re-runs this when the voyage ends).
+    if (transport === "ship" && getTerrainAtPoint(playerRef.current ?? hobbiton.point).name === "water") {
+      return;
+    }
     const evictee = party.find((id) => {
       if (id === bearerId) {
         return false;
@@ -3955,7 +3971,7 @@ export default function MiddleEarthMap() {
       t("refuse.evicted", { name: charName(evictee), line: key ? t(key) : "" }).trim(),
       evictee,
     );
-  }, [party, bearerId, showRecruitRefusal, t, charName]);
+  }, [party, bearerId, showRecruitRefusal, t, charName, transport, getTerrainAtPoint, hobbiton]);
 
   useBattleClock(battle, battleSpeed, autoPlay, setBattle);
 
@@ -4370,6 +4386,9 @@ export default function MiddleEarthMap() {
     const ambushedSquads = new Set<string>();
     const onWater =
       getTerrainAtPoint(playerRef.current ?? hobbiton.point).name === "water";
+    // At sea (under sail on open water) the company is stuck together — no one
+    // wanders off mid-voyage.
+    const atSea = onWater && transport === "ship";
     // Live max HP for a survivor, from their group's auras (matching how the rest
     // of upkeep reads stats). Items are intentionally left out here, as before.
     const maxHpOf = (id: string): number => {
@@ -4476,7 +4495,6 @@ export default function MiddleEarthMap() {
         }
         // Corsair raids only out at sea (under sail — not while fording a river),
         // sharply likelier the further south, all but absent at Grey Havens' latitude.
-        const atSea = onWater && transport === "ship";
         if (!visitedLocation && atSea && !corsairPeace) {
           const south = clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
           if (Math.random() < CORSAIR_SEA_MAX * Math.pow(south, CORSAIR_SEA_POWER)) {
@@ -4484,7 +4502,7 @@ export default function MiddleEarthMap() {
           }
         }
       }
-      if (members.includes("bombadil") && Math.random() < BOMBADIL_LEAVE_CHANCE) {
+      if (!atSea && members.includes("bombadil") && Math.random() < BOMBADIL_LEAVE_CHANCE) {
         bombadilLeaves = true;
       }
       // Idle splinter squads can be ambushed where they wait (at most one battle
@@ -5351,6 +5369,7 @@ export default function MiddleEarthMap() {
         <CharacterModal
           character={openCharacter}
           stats={openStats}
+          z={statsOpen ? "z-[70]" : undefined}
           reaction={
             panelReaction && openCharacter && panelReaction.charId === openCharacter.id
               ? panelReaction.text
@@ -5640,6 +5659,7 @@ export default function MiddleEarthMap() {
           stats={gameStats}
           foundCharacterIds={foundCharacterIds}
           defeatedEnemyIcons={defeatedEnemyIcons}
+          onCharacterClick={(id) => openCharacterPanel(id, false)}
         />
         <PartySummaryModal
           open={partySummaryOpen}

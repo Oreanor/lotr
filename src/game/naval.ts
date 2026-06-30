@@ -4,16 +4,22 @@ import type { MapLocation, Point, TerrainSample } from "@/game/types";
 
 type TerrainAt = (p: Point) => TerrainSample;
 
-// True open sea: all four orthogonal neighbours (each `step` px away) are water,
-// so a river crossing (land on the banks) doesn't count. Pure — the caller hands
-// in the terrain sampler.
+// True open sea: of the eight surrounding cells (each `step` px away), at least
+// seven are water. A shore or a river leaves more than one neighbour on land, so
+// it never counts. Pure — the caller hands in the terrain sampler.
 export function isOpenSea(point: Point, step: number, terrainAt: TerrainAt): boolean {
-  return [
-    { x: point.x + step, y: point.y },
-    { x: point.x - step, y: point.y },
-    { x: point.x, y: point.y + step },
-    { x: point.x, y: point.y - step },
-  ].every((p) => terrainAt(p).name === "water");
+  let water = 0;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      if (terrainAt({ x: point.x + dx * step, y: point.y + dy * step }).name === "water") {
+        water += 1;
+      }
+    }
+  }
+  return water >= 7;
 }
 
 // Cells a boarded ship may step onto (losing the ship): every harbour, plus any

@@ -31,6 +31,7 @@ export function CharacterModal({
   onClose,
   reaction,
   ringDestroyed = false,
+  z,
 }: {
   character: Character | null;
   stats: CharacterStats | null;
@@ -54,6 +55,8 @@ export function CharacterModal({
   reaction?: string | null;
   // Freeplay: the Ring is gone — hide all bearer/Ring UI.
   ringDestroyed?: boolean;
+  // Stacking layer (defaults to the Modal default); raised when shown over Stats.
+  z?: string;
 }) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -97,6 +100,7 @@ export function CharacterModal({
     <Modal
       open={character !== null && stats !== null}
       onClose={onClose}
+      z={z}
       overlayClassName="overflow-hidden bg-black/60"
       className="flex max-h-[90vh] w-full max-w-xs shrink-0 flex-col border-neutral-700"
     >
