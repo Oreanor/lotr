@@ -640,7 +640,8 @@
     "arwen": "Foes cannot land crits",
     "theoden": "Allies crit 1.5× more often",
     "saruman": "Orcs won't attack the party",
-    "galdor": "A ship is always in port"
+    "galdor": "A ship is always in port",
+    "gandalf_white": "The whole company gains 25% more battle experience"
   },
   "char": {
     "frodo": "Frodo",
@@ -672,7 +673,8 @@
     "gollum": "Gollum",
     "grima": "Gríma Wormtongue",
     "king_dead": "King of the Dead",
-    "treebeard": "Treebeard"
+    "treebeard": "Treebeard",
+    "gandalf_white": "Gandalf the White"
   },
   "monster": {
     "grima": "Gríma Wormtongue",

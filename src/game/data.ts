@@ -61,6 +61,8 @@ export const CHARACTERS: Character[] = [
   { id: "gollum", name: "Голлум", icon: "/allies/gollum.png", strength: 4, defense: 3, intelligence: 5, luck: 9, resilience: 20, ringExposure: 0.6 },
   { id: "king_dead", name: "Король Мёртвых", icon: "/allies/wight.png", strength: 8, defense: 8, intelligence: 6, luck: 4, resilience: 999 },
   { id: "treebeard", name: "Древобород", icon: "/allies/treebeard.png", strength: 12, defense: 5, intelligence: 12, luck: 3, resilience: 999 },
+  // Returns only after the Grey has fallen in battle. Stats mirror the Grey for now.
+  { id: "gandalf_white", name: "Гэндальф Белый", icon: "/allies/gandalf_white.png", strength: 7, defense: 7, intelligence: 10, luck: 9, resilience: 60 },
 ];
 
 export const PLAYER_ICON = CHARACTERS[0].icon;
@@ -101,6 +103,7 @@ export const TEMPERAMENT_BY_ID: Record<string, Temperament> = {
   denethor: "lofty",
   king_dead: "lofty",
   treebeard: "lofty",
+  gandalf_white: "lofty",
 };
 
 // Companions who take feminine grammatical forms in reaction lines (Russian).
@@ -400,6 +403,7 @@ export const ABILITIES: Record<string, string> = {
   theoden: "Союзники критуют в 1.5 раза чаще",
   saruman: "Орки не нападают на отряд",
   galdor: "В гаванях всегда есть корабль",
+  gandalf_white: "Весь отряд получает на 25% больше опыта в боях",
 };
 
 // Artwork filename per location id. Same names live in each season folder; the

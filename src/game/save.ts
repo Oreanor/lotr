@@ -74,6 +74,9 @@ export interface GameSave {
   hobbitonScoured?: boolean;
   // Set once Treebeard has been brought to fallen Isengard and settled to rule it.
   treebeardAtIsengard?: boolean;
+  // Journey day the Grey Gandalf fell in battle — gates when Gandalf the White
+  // may be met (a month on). Null/absent until he falls.
+  gandalfFellDay?: number;
 }
 
 export function loadSave(): GameSave | null {

@@ -275,6 +275,13 @@ export const NAZGUL_PACK_MAX = 3;
 export const ROAMING_RECRUIT_IDS = new Set(["gollum", "eomer", "treebeard"]);
 export const BOMBADIL_LEAVE_CHANCE = 1 / 40;
 
+// Gandalf the White: if the Grey falls in battle, he may be met anew upon the
+// road — but not before this many days have passed. After that the meeting is
+// fairly likely (a touch more so than running into Gollum), since he's actively
+// seeking the company. On meeting he at once offers to rejoin.
+export const GANDALF_WHITE_DELAY_DAYS = 30;
+export const GANDALF_WHITE_ENCOUNTER_CHANCE = 0.08;
+
 // Betrayal: a traitor must travel with the party a while before the Ring works
 // on them, then it's a low per-encounter roll (betrayal ~1-3 months after joining).
 export const TRAITORS = new Set(["bilbo", "boromir", "gollum", "saruman", "denethor"]);

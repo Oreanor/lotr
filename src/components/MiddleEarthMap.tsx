@@ -204,6 +204,8 @@ import {
   SARUMAN_ENCOUNTER_CHANCE,
   SARUMAN_SCOUR_DAYS,
   SARUMAN_SCOUR_GRACE_DAYS,
+  GANDALF_WHITE_DELAY_DAYS,
+  GANDALF_WHITE_ENCOUNTER_CHANCE,
   ORC_FOES,
   XP_INT_FLOOR,
   XP_BONUS_PER_INT,
@@ -595,6 +597,11 @@ export default function MiddleEarthMap() {
   const [hpById, setHpById] = useState<Record<string, number>>(initialSave?.hpById ?? {});
   const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>(
     initialSave?.deathCauseById ?? {},
+  );
+  // Journey day the Grey Gandalf fell in battle (null until he does) — gates when
+  // Gandalf the White may be met upon the road.
+  const [gandalfFellDay, setGandalfFellDay] = useState<number | null>(
+    initialSave?.gandalfFellDay ?? null,
   );
   const [randomPresence, setRandomPresence] = useState<Record<string, boolean>>({});
   // Forage result floated above the food counter: "+gathered" (green) and the
@@ -1893,6 +1900,14 @@ export default function MiddleEarthMap() {
     return () => document.removeEventListener("pointerdown", close);
   }, [settingsOpen]);
 
+  // The Grey Gandalf's fall in battle seeds his white return: stamp the day so
+  // the encounter timer (a month off) can start counting.
+  useEffect(() => {
+    if (deathCauseById.gandalf === "battle" && gandalfFellDay === null) {
+      setGandalfFellDay(journeyDayRef.current);
+    }
+  }, [deathCauseById, gandalfFellDay]);
+
   // Ring corruption days accrue only for whoever currently carries it, freezing
   // while the Ring is fled (a chase) or once it's unmade (freeplay).
   useRingDecay({
@@ -1946,6 +1961,7 @@ export default function MiddleEarthMap() {
       sarumanSparedDay,
       hobbitonScoured,
       treebeardAtIsengard,
+      gandalfFellDay: gandalfFellDay ?? undefined,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -4084,9 +4100,14 @@ export default function MiddleEarthMap() {
       // Intelligence is learning aptitude: each survivor earns the battle's XP
       // scaled by their own wits above the floor (so a clever hero advances
       // faster from the very same fight).
+      // Gandalf the White, marching with the company, quickens everyone's learning
+      // from a fight: the whole party earns +25% XP while he's in the battle.
+      const whiteBonus = battle.allies.some((a) => a.key === "gandalf_white") ? 1.25 : 1;
       const xpGain = (ally: Combatant) =>
         Math.round(
-          battle.exp * (1 + XP_BONUS_PER_INT * Math.max(0, ally.intelligence - XP_INT_FLOOR)),
+          battle.exp *
+            (1 + XP_BONUS_PER_INT * Math.max(0, ally.intelligence - XP_INT_FLOOR)) *
+            whiteBonus,
         );
       const toLevel: string[] = [];
       for (const ally of battle.allies) {
@@ -4627,6 +4648,21 @@ export default function MiddleEarthMap() {
         setEncounter({ monster: SARUMAN_ENEMY, dangerous: true, solo: pack.length === 1, pack });
         return;
       }
+      // Gandalf the White: a month after the Grey fell in battle he may be met
+      // anew upon the road — rarely, and anywhere. No fight: on meeting he at
+      // once offers to walk with the company again (peaceful join, full health).
+      const gandalfWhiteAvailable =
+        deathCauseById.gandalf === "battle" &&
+        gandalfFellDay !== null &&
+        journeyDay - gandalfFellDay >= GANDALF_WHITE_DELAY_DAYS &&
+        !party.includes("gandalf_white") &&
+        !parkedMembers.includes("gandalf_white") &&
+        !deathCauseById.gandalf_white;
+      if (gandalfWhiteAvailable && Math.random() < GANDALF_WHITE_ENCOUNTER_CHANCE) {
+        setPeacefulOffer(true);
+        setRecruitOffer("gandalf_white");
+        return;
+      }
       const rolled = rollEncounter(
         position,
         party,
@@ -4684,7 +4720,7 @@ export default function MiddleEarthMap() {
         pack,
       });
     }
-  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardAtIsengard, sarumanRoams, corsairPeace, mapSize, assessDanger]);
+  }, [journeyDay, party, squads, parkedMembers, slainRoamingRecruits, hasCloaks, hobbiton, bearerId, statBonusById, equippedItems, deadSummoned, samCaughtUp, deathCauseById, t, getTerrainAtPoint, visitedLocation, showRecruitRefusal, transport, eagleSince, rogueBearerId, rogueSinceDay, startRogueBattle, grimaRoaming, grimaSlain, nazgulGone, ringDestroyed, treebeardAtIsengard, sarumanRoams, corsairPeace, mapSize, assessDanger, gandalfFellDay]);
 
   // Kick off a betrayal battle once one is queued (with full party context).
   // Serialized behind any active fight, and if the traitor is in an idle squad
