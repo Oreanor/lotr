@@ -194,8 +194,6 @@ export const FOCUS_PER_INT = 0.12;
 export const FOCUS_MAX_CHANCE = 0.95;
 export const RING_BEARER_ID = "frodo";
 export const DEFAULT_PARTY = ["frodo"];
-// Hard cap on enemies in a single encounter pack.
-export const MAX_PACK_SIZE = 9;
 // Terrain mask is 192 px wide; one "cell" of map = mapWidth / this.
 export const MAP_GRID_COLS = 192;
 
@@ -367,6 +365,10 @@ export const EOWYN_NAZGUL_BONUS = 3;
 // Haldir, marchwarden, lands heavier blows on orc-kin; Thranduil crits trolls
 // far more often. Both are secondary-elf combat abilities.
 export const HALDIR_ORC_BONUS = 3;
+// The King of the Dead drains the living: a random share of the damage he lands
+// on a non-undead foe returns to him as health (no leech from other undead).
+export const KING_DEAD_LEECH_MIN = 0.3;
+export const KING_DEAD_LEECH_MAX = 0.6;
 export const TROLL_FOES = new Set(["Горный тролль", "Тролль Горгорота"]);
 export const THRANDUIL_TROLL_CRIT_BONUS = 0.2;
 // Orc-kin — targets of the elven arrows' bonus.

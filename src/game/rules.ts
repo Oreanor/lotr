@@ -39,6 +39,8 @@ import {
   GRIMBEORN_BEAST_BONUS,
   EOWYN_NAZGUL_BONUS,
   HALDIR_ORC_BONUS,
+  KING_DEAD_LEECH_MIN,
+  KING_DEAD_LEECH_MAX,
   TROLL_FOES,
   THRANDUIL_TROLL_CRIT_BONUS,
   HEALTH_PER_STR,
@@ -47,7 +49,6 @@ import {
   LEVEL_BASE_XP,
   LEVEL_XP_EXPONENT,
   MAP_GRID_COLS,
-  MAX_PACK_SIZE,
   MIN_DAMAGE_FRACTION,
   MORDOR_POINT,
   NAZGUL_ENCOUNTER_CHANCE,
@@ -350,9 +351,9 @@ export function buildEncounterPack(
     const count = 1 + Math.floor(Math.random() * maxCount);
     return Array.from({ length: count }, () => lead);
   }
-  const count = solo
-    ? 1
-    : clamp(partySize + Math.floor(Math.random() * 5) - 2, 1, MAX_PACK_SIZE);
+  // Pack size tracks the party (size ±2), with no upper cap — a big company draws
+  // a correspondingly big swarm.
+  const count = solo ? 1 : Math.max(1, partySize + Math.floor(Math.random() * 5) - 2);
   const region = regionAt(point);
   const packPool = MONSTERS.filter(
     (mm) =>
@@ -771,10 +772,9 @@ export function enemyBeatenInBattle(enemy: Combatant, battle: BattleState): bool
   if (battle.recruitId) {
     return enemy.hp <= half;
   }
-  if (battle.betrayalBy === "gollum") {
-    return enemy.hp <= 0;
-  }
   if (battle.betrayalBy) {
+    // Beaten traitors (Gollum included) are driven off at half rather than slain,
+    // so a repelled Gollum survives to play his part at Mount Doom.
     return enemy.hp <= half;
   }
   if (FLEE_AT_HALF_FOES.has(enemy.name) && !battle.wraithsStand) {
@@ -834,7 +834,8 @@ export function advanceBattleTick(battle: BattleState): BattleState {
       }
       dealt += beastBonus + balrogBonus + nazgulBonus + orcBonus;
     }
-    enemies[target].hp = Math.max(0, enemies[target].hp - dealt);
+    const targetHpBefore = enemies[target].hp;
+    enemies[target].hp = Math.max(0, targetHpBefore - dealt);
     // A foe that yields at half is never beaten below it — one big blow can't
     // overshoot and kill it; it simply drops out at half. This applies to
     // recruit captures and to wraiths that recoil at half — but NOT in a lair
@@ -851,6 +852,17 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     if (yieldsAtHalf) {
       const minHp = Math.max(1, Math.ceil(enemies[target].maxHp / 2));
       enemies[target].hp = Math.max(minHp, enemies[target].hp);
+    }
+    // The King of the Dead drains the living: a random 30–60% of the wound he
+    // deals to a non-undead foe returns to him as health. Other undead give him
+    // nothing to drain.
+    if (allies[i].key === "king_dead" && !WRAITH_FOES.has(enemies[target].name)) {
+      const drained = targetHpBefore - enemies[target].hp;
+      if (drained > 0) {
+        const share =
+          KING_DEAD_LEECH_MIN + Math.random() * (KING_DEAD_LEECH_MAX - KING_DEAD_LEECH_MIN);
+        allies[i].hp = Math.min(allies[i].maxHp, allies[i].hp + Math.round(drained * share));
+      }
     }
     // Saruman just hit half with Gandalf/Treebeard along — pause for the parley.
     if (sarumanHeld && enemies[target].hp <= Math.ceil(enemies[target].maxHp / 2)) {
@@ -970,7 +982,6 @@ export function createBattleState(opts: CreateBattleOpts): BattleState {
       );
       const maxHp = maxHpFromStats(s.strength, s.defense);
       const attackBonus = itemAttackBonus(item, packHasUndead, packHasOrcs);
-      const undeadMultiplier = packHasUndead && id === "king_dead" ? 2 : 1;
       return {
         key: id,
         name: character.name,
@@ -978,7 +989,7 @@ export function createBattleState(opts: CreateBattleOpts): BattleState {
         hp: currentHp(maxHp, hpById[id]),
         maxHp,
         strength: s.strength,
-        attack: s.strength * undeadMultiplier + attackBonus,
+        attack: s.strength + attackBonus,
         defense: s.defense,
         luck: s.luck,
         intelligence: s.intelligence,

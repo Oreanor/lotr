@@ -1713,14 +1713,18 @@ export default function MiddleEarthMap() {
       Math.floor(Math.random() * 3) +
       Math.floor(Math.random() * (Math.floor(luck / 3) + 1));
     const before = foodRef.current;
-    foodRef.current = Math.min(foodCapacityFor(transport), before + gained);
-    // The day that passes will eat 1 ration (or 2 if any are hurt and there's
-    // spare to heal) — mirror that rule for the red "-N" so the numbers reconcile.
-    // The actual subtraction happens in the day-upkeep effect below.
-    const gain = foodRef.current - before;
+    const cap = foodCapacityFor(transport);
+    const raw = before + gained;
+    // Foraging spends a day, and that day eats a ration (2 if anyone's hurt and
+    // there's spare to heal) — mirror that for the red "-N" so the numbers
+    // reconcile. The actual subtraction happens in the day-upkeep effect below;
+    // let the larder crest the cap by that ration here so it lands exactly full
+    // afterwards. Otherwise, sitting at cap-1, the gain is clipped to the cap and
+    // the day's meal drops you back below it — the cap is never reached.
     const anyHurt = party.some((id) => hpRef.current[id] !== undefined);
-    const avail = foodRef.current;
-    const eaten = anyHurt && avail >= 2 ? 2 : avail >= 1 ? 1 : 0;
+    const eaten = anyHurt && raw >= 2 ? 2 : raw >= 1 ? 1 : 0;
+    foodRef.current = Math.min(cap + eaten, raw);
+    const gain = foodRef.current - before;
     if (gain > 0 && !autoPlayRef.current) {
       foodFarmSeqRef.current += 1;
       setFoodChange({ gain, eaten, key: foodFarmSeqRef.current });
@@ -4126,26 +4130,21 @@ export default function MiddleEarthMap() {
         }
       }
 
-      // Betrayal repelled: subdued traitors flee; a slain Gollum never returns.
+      // Betrayal repelled: the traitor is driven off at half HP, never slain here
+      // (Gollum included), so a beaten Gollum lives on to play his part at Doom.
       if (battle.betrayalBy) {
         const traitorId = battle.betrayalBy;
-        const traitor = battle.enemies[0];
         banishTraitor(traitorId);
         setParty((prev) => prev.filter((id) => id !== traitorId));
-        if (traitorId === "gollum" && traitor.hp <= 0) {
-          setSlainRoamingRecruits((prev) => new Set(prev).add("gollum"));
-          setDeathCauseById((prev) => ({ ...prev, gollum: "battle" }));
-        } else {
-          sendSarumanScouring(traitorId);
-          // Defer the "slinks off in shame" line until the battle screen closes.
-          pendingRefusalRef.current = {
-            message:
-              traitorId === "gollum"
-                ? t("refuse.gollumFled")
-                : t("refuse.traitorReturns", { name: charName(traitorId) }),
-            characterId: traitorId,
-          };
-        }
+        sendSarumanScouring(traitorId);
+        // Defer the "slinks off in shame" line until the battle screen closes.
+        pendingRefusalRef.current = {
+          message:
+            traitorId === "gollum"
+              ? t("refuse.gollumFled")
+              : t("refuse.traitorReturns", { name: charName(traitorId) }),
+          characterId: traitorId,
+        };
       }
       if (battle.recruitId) {
         setRecruitOffer(battle.recruitId);

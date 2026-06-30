@@ -476,7 +476,7 @@
   },
   "refuse": {
     "gollumHobbits": "Gollum hisses: \"No! Gollum goes only with hobbitses, no strangers, gollum!\"",
-    "grima": "Wormtongue sneers: \"I'll stay by the king — someone must guard his peace from the likes of you.\"",
+    "grima": "I'll stay by the king — someone must guard his peace from the likes of you.",
     "theodenGrima": "Wormtongue whispers in the king's ear: \"What need have you, lord, of these wanderers and their mad errand?\" — and Théoden turns away.",
     "grimaFlees": "Wormtongue paled at the sight of Gandalf and slipped away into the gloom of the hall — and was never seen in Edoras again.",
     "elrondArwen": "My father will not let me go.",
@@ -629,7 +629,7 @@
     "elrond": "Elves' strength +2",
     "galadriel": "Elves' defense +2",
     "celeborn": "Elves' intelligence +2",
-    "king_dead": "Double damage against the undead",
+    "king_dead": "Heals for 30–60% of damage dealt to the living",
     "eowyn": "Bonus damage versus Ringwraiths",
     "haldir": "Bonus damage versus orcs and goblins",
     "thranduil": "Crits trolls far more often",
