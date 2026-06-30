@@ -326,7 +326,7 @@
   "reaction": {
     "playful": {
       "itemLike": ["Ha! Now this is a fine piece — stand back!", "With this I could dance and fight at once!"],
-      "itemDislike": ["Pinches a bit… and it smells of troll.", "Got nothing in my size?"],
+      "itemDislike": ["Thanks and all… but my heart's not in it.", "Got nothing a bit newer?"],
       "itemOff": ["Phew, travelling light at last!", "Off it comes — my back's not made of iron."],
       "ringTake": ["This shiny thing? Fine, I'll carry it…", "Pretty little thing. Heavy, though."],
       "ringGive": ["Whew, take it! Gives me the shivers.", "Here, I rest easier without it."],
@@ -355,7 +355,7 @@
     },
     "plain": {
       "itemLike": ["Good gear, it'll serve in a fight.", "Just what I needed. My thanks."],
-      "itemDislike": ["This isn't for my hand.", "I've no use for this."],
+      "itemDislike": ["This isn't for me.", "I've no use for this."],
       "itemOff": ["I'll take it off for now.", "I'll set it aside a while."],
       "ringTake": ["I'll carry it. As long as I can.", "Trust it to me — I won't fail."],
       "ringGive": ["Guard it well. It's no trinket.", "Take it. It's surer this way."],
@@ -383,7 +383,7 @@
       "battleNarrow": ["We barely survived. A close call.", "We were a hair from death.", "Came through by a thread.", "We barely pulled that one out."]
     },
     "lofty": {
-      "itemLike": ["A worthy gift. I shall not shame it.", "This steel has known noble hands."],
+      "itemLike": ["A worthy gift. I shall not shame it.", "A gift that has known noble hands."],
       "itemDislike": ["This is not my burden to bear.", "Leave it to one it will serve better."],
       "itemOff": ["I'll set it by until the hour of need.", "I'll lay it aside for now."],
       "ringTake": ["I take this burden, and may my strength suffice.", "I'll bear it, while my will holds."],
@@ -414,7 +414,7 @@
     "gollum": {
       "ringTake": ["Preciousss… my preciousss…", "It comes back to us, yesss!"],
       "ringGive": ["Noo! Give it back!… kheh, fine.", "My… my precious… they take it, nasty!"],
-      "itemLike": ["Shiny, good thing, we likes it!", "Sss, a sharp one! Good, yes."],
+      "itemLike": ["Shiny, good thing, we likes it!", "Sss, it'll do! We keeps it, precious."],
       "itemDislike": ["It burns us! No, no, we hates it!", "Nasty thing, not for us."],
       "itemOff": ["Off, off, we don't wants it!"],
       "food": ["Hungry, we're so hungry… a nice juicy fish!", "Empty in the belly, preciousss…"],
@@ -446,8 +446,8 @@
       "levelLuck": ["Hoom-hoom… the wind favours the boughs.", "A good season settles on the wood."]
     },
     "king_dead": {
-      "itemLike": ["Steel… I remember its cold. I will take it."],
-      "itemDislike": ["The dead have no need of living men's armour."],
+      "itemLike": ["Cold and familiar… I will take it."],
+      "itemDislike": ["The dead have no need of living men's gifts."],
       "itemOff": ["Dust to dust. I leave it."],
       "food": ["The dead know no hunger… but it is dread to the living."],
       "transport": ["I follow you. The road means nothing to me."],
