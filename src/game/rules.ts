@@ -197,13 +197,14 @@ export function recruitRefusalKey(characterId: string, party: string[]): string 
   if (characterId === "gandalf" && party.includes("saruman")) {
     return "refuse.gandalfSaruman";
   }
-  // Arwen, Galadriel and Círdan (like Legolas) don't mind a dwarf along the road.
-  // Celeborn and Haldir would refuse — unless the Lady Galadriel herself is along,
-  // for they will follow her anywhere.
+  // Arwen, Galadriel, Círdan and Galdor (like Legolas) don't mind a dwarf along
+  // the road. Celeborn and Haldir would refuse — unless the Lady Galadriel herself
+  // is along, for they will follow her anywhere.
   if (
     characterId !== "arwen" &&
     characterId !== "galadriel" &&
     characterId !== "cirdan" &&
+    characterId !== "galdor" &&
     !(
       (characterId === "celeborn" || characterId === "haldir") &&
       party.includes("galadriel")

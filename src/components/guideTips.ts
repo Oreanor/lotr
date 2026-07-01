@@ -36,8 +36,8 @@ export const GUIDE_TIPS: GuideTipGroup[] = [
         en: "Some foes join if you beat them: Gollum (anywhere, but only if the whole party is hobbits), Éomer (in Rohan, ~20%), and Treebeard (in Fangorn, ~85%, until the Ents take Isengard).",
       },
       {
-        ru: "Составы конфликтуют: эльфы (кроме Леголаса) не идут с гномом, Арвен — при Элронде, Эовин — при Эомере/Тхеодене, а Гэндальф и Саруман взаимно исключают друг друга.",
-        en: "Rosters clash: elves (except Legolas) refuse a dwarf, Arwen refuses if Elrond is along, Éowyn if Éomer/Théoden are, and Gandalf and Saruman won't travel together.",
+        ru: "Составы конфликтуют: эльфы не идут с гномом — кроме Леголаса, Арвен, Галадриэли, Кирдана и Галдора (Келеборн и Халдир — только при Галадриэли); Арвен не идёт при Элронде, Эовин — при Эомере/Теодене, а Гэндальф и Саруман взаимно исключают друг друга.",
+        en: "Rosters clash: elves refuse a dwarf — except Legolas, Arwen, Galadriel, Círdan and Galdor (Celeborn and Haldir only if Galadriel is along); Arwen refuses if Elrond is along, Éowyn if Éomer/Théoden are, and Gandalf and Saruman won't travel together.",
       },
       {
         ru: "Некоторые ставят условия: Кирдан отплывёт лишь с отрядом умнее себя (средний интеллект выше 9), а Тхеоден вступит только после того, как Гэндальф изгонит Гриму из Эдораса.",
@@ -68,6 +68,10 @@ export const GUIDE_TIPS: GuideTipGroup[] = [
       {
         ru: "Корсары у Умбара пропустят вас миром, если средний интеллект отряда выше 8: тогда с капитаном можно договориться, и морские набеги прекратятся.",
         en: "The Corsairs will let you pass in peace if the party's average intelligence is above 8: the captain then parleys instead of fighting, and the sea-raids stop.",
+      },
+      {
+        ru: "Денетора нужно забрать из Минас Тирита до 15 марта 3019 года: иначе отчаявшийся наместник предаёт себя огню, и вернуть его уже нельзя.",
+        en: "Denethor must be taken from Minas Tirith before 15 March 3019: otherwise the despairing Steward gives himself to the fire, and can no longer be recruited.",
       },
     ],
   },
@@ -106,8 +110,8 @@ export const GUIDE_TIPS: GuideTipGroup[] = [
         en: "Heroes have combat niches: Éowyn hits Nazgûl harder, Haldir orcs, Thranduil crits trolls more often, Grimbeorn beasts, and the King of the Dead heals by wounding the living.",
       },
       {
-        ru: "Приказы в бою: кликните союзника, чтобы прикрыть его (каждый 2-й удар по нему перехватят), или врага, чтобы отряд навалился на него; интеллект повышает шанс крита и меткого фокуса.",
-        en: "Battle orders: click an ally to shield him (every 2nd blow aimed at him is intercepted), or a foe to gang up on it; intelligence raises both crit chance and focus-fire reliability.",
+        ru: "Приказы в бою: кликните союзника, чтобы прикрыть его (до него доходит лишь ~50% ударов, с Фарамиром в отряде — 25%; кольценосца в надетом Кольце прикрыть нельзя), или врага, чтобы отряд навалился на него; интеллект повышает шанс крита и меткого фокуса.",
+        en: "Battle orders: click an ally to shield him (only ~50% of blows reach him, 25% with Faramir along; a bearer wearing the Ring can't be shielded), or a foe to gang up on it; intelligence raises both crit chance and focus-fire reliability.",
       },
     ],
   },
@@ -116,8 +120,8 @@ export const GUIDE_TIPS: GuideTipGroup[] = [
     titleEn: "Travel",
     tips: [
       {
-        ru: "Чёрную стену гор вокруг Мордора не пройти пешком — только Орлы Манвэ перелетают её; они бывают у Карн Дума (~25% визитов), слушаются лишь Гэндальфа и улетают через 30 дней.",
-        en: "The black mountain wall around Mordor can't be crossed on foot — only the Eagles of Manwë fly over it; they appear at Carn Dûm (~25% of visits), answer only to Gandalf, and leave after 30 days.",
+        ru: "Чёрную стену гор вокруг Мордора не пройти пешком — только Орлы Манвэ перелетают её; они бывают у Карн Дума (~25% визитов), слушаются лишь Гэндальфа и улетают через 30 дней (но не бросят вас над морем — уход откладывается, пока не будете над сушей).",
+        en: "The black mountain wall around Mordor can't be crossed on foot — only the Eagles of Manwë fly over it; they appear at Carn Dûm (~25% of visits), answer only to Gandalf, and leave after 30 days (but never over the sea — their departure waits until you're above land).",
       },
       {
         ru: "Корабли берут в гаванях (не всегда есть в порту); Кирдан удваивает скорость на море, но чем южнее плывёте, тем вероятнее набеги корсаров.",
@@ -142,8 +146,8 @@ export const GUIDE_TIPS: GuideTipGroup[] = [
         en: "If Gollum is still alive at the finale, half the moments the bearer would put the Ring on end as the book did: he seizes the Precious and topples with it into the Fire — the Ring unmade despite the bearer.",
       },
       {
-        ru: "Доплыв на корабле до западного края мира, можно уйти на Запад: с уничтоженным Кольцом — в Валинор, с Кольцом на руках — иная судьба, а иначе спасёт лишь высокая удача отряда (иначе корабль сгинет).",
-        en: "Sailing a ship to the world's western edge lets you take the Straight Road West: with the Ring destroyed you reach Valinor, still bearing it a different fate, and otherwise only high party luck saves you (or the ship is lost).",
+        ru: "Доплыв на корабле до западного края мира, можно уйти на Запад: с уничтоженным Кольцом — в Валинор, с Кольцом на руках — иная судьба, а иначе спасёт лишь высокая удача отряда (иначе корабль сгинет). На орлах туда же: но Кольцо на Запад они не понесут — только когда оно уничтожено.",
+        en: "Sailing a ship to the world's western edge lets you take the Straight Road West: with the Ring destroyed you reach Valinor, still bearing it a different fate, and otherwise only high party luck saves you (or the ship is lost). The Eagles can bear you there too — but they won't carry the Ring West, only once it's unmade.",
       },
     ],
   },
