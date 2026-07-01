@@ -68,6 +68,19 @@ const TABS: Tab[] = [
 // location to cycle through them (unlike the game, which only uses fall/winter).
 const SEASONS = ["spring", "summer", "fall", "winter"] as const;
 
+// Location ids laid out roughly along the quest — Shire and the west havens,
+// east across Eriador and Rivendell, over the Misty Mountains through Wilderland,
+// down to Rohan/Isengard, into Gondor and the south, and last into Mordor. Any
+// id not listed here is appended in its natural order (a safety net).
+const LOCATION_ORDER = [
+  10, 30, 12, 11, 6, 13, // Shire & the western havens
+  8, 9, 4, 1, 32, 7, // across Eriador to Rivendell
+  14, 5, 3, 31, 2, 33, 15, // Moria, Wilderland, Lothlórien
+  16, 17, 18, // Isengard & Rohan
+  24, 25, 20, 26, 27, 28, 29, // Gondor & the south
+  23, 22, 19, 21, // into Mordor
+];
+
 // The Doors of Durin riddle: "say friend and enter." Only «mellon» opens.
 const GATE_OPTIONS = ["Lennon", "Mellon", "Lemon", "Melon"];
 const GATE_ANSWER = "Mellon";
@@ -703,7 +716,13 @@ const LOCATION_RECRUITS = recruitsByLocation();
 
 function LocationsSection({ lang }: { lang: string }) {
   const { t } = useTranslation();
-  const ids = useMemo(() => locationData.locations.map((l) => l.id), []);
+  const ids = useMemo(() => {
+    const all = locationData.locations.map((l) => l.id);
+    const known = new Set(all);
+    const ordered = LOCATION_ORDER.filter((id) => known.has(id));
+    const rest = all.filter((id) => !LOCATION_ORDER.includes(id));
+    return [...ordered, ...rest];
+  }, []);
   return (
     <section>
       <SectionTitle>{t("guide.tabs.locations")}</SectionTitle>
