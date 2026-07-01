@@ -22,6 +22,8 @@ export function BattleModal({
   fleeChance,
   onSkip,
   onContinue,
+  onSelectAlly,
+  onSelectEnemy,
   parleyBubble,
 }: {
   battle: BattleState | null;
@@ -35,6 +37,9 @@ export function BattleModal({
   fleeChance: number;
   onSkip: () => void;
   onContinue: () => void;
+  // Player battle orders: frame a hero to be shielded, a foe to be ganged up on.
+  onSelectAlly: (key: string) => void;
+  onSelectEnemy: (key: string) => void;
   // Saruman parley: the line to show now, anchored at that speaker's portrait.
   parleyBubble?: { key: string; text: string } | null;
 }) {
@@ -120,6 +125,9 @@ export function BattleModal({
               {battle.allies.map((ally) => {
                 const invisible =
                   battle.ringOn && !battle.ringIneffective && ally.key === battle.bearerKey;
+                const guarded = battle.guardedAllyKey === ally.key && !invisible;
+                // A ring-hidden bearer can't be shielded — the Ring already hides him.
+                const canOrder = !battle.outcome && ally.hp > 0 && !invisible;
                 return (
                   <div key={ally.key} className="relative flex w-14 flex-col items-center gap-1 sm:w-20">
                     <div
@@ -130,7 +138,11 @@ export function BattleModal({
                           portraitRefs.current.delete(ally.key);
                         }
                       }}
+                      onClick={canOrder ? () => onSelectAlly(ally.key) : undefined}
+                      title={canOrder ? t("battle.guardHint") : undefined}
                       className={`relative size-14 overflow-hidden border sm:size-20 ${
+                        canOrder ? "cursor-pointer" : ""
+                      } ${
                         ally.hp <= 0 ? "bg-[#7a7a7a]" : "bg-parchment"
                       } ${
                         battle.attacker === ally.key
@@ -167,6 +179,15 @@ export function BattleModal({
                           style={{ width: `${healthBarWidthPct(ally.hp, ally.maxHp)}%` }}
                         />
                       </span>
+                      {/* Guard order: the party shields this hero — a defensive glyph. */}
+                      {guarded && (
+                        <span
+                          className="pointer-events-none absolute left-0 top-0 text-lg leading-none [filter:drop-shadow(0_0_1px_#f5c542)_drop-shadow(0_0_1px_#f5c542)_drop-shadow(0_0_2px_#8a5a00)] sm:text-2xl"
+                          title={t("battle.guarded")}
+                        >
+                          🛡️
+                        </span>
+                      )}
                     </div>
                     {/* Bearer marker — same circular ring badge as the map HUD.
                         Worn, the big centred ring inside the portrait shows instead. */}
@@ -194,10 +215,17 @@ export function BattleModal({
             <img src="/ui/swords.png" alt="" className="size-7 self-center object-contain" />
 
             <div className="grid grid-cols-2 content-start justify-items-center gap-2.5 sm:flex sm:max-w-[17rem] sm:flex-wrap sm:justify-center sm:gap-3">
-              {battle.enemies.map((enemy) => (
+              {battle.enemies.map((enemy) => {
+                const focused = battle.focusEnemyKey === enemy.key;
+                const canOrder = !battle.outcome && !enemyDown(enemy);
+                return (
                 <div key={enemy.key} className="flex w-14 flex-col items-center gap-1 sm:w-20">
                   <div
+                    onClick={canOrder ? () => onSelectEnemy(enemy.key) : undefined}
+                    title={canOrder ? t("battle.focusHint") : undefined}
                     className={`relative flex size-14 items-center justify-center overflow-hidden border text-2xl sm:size-20 sm:text-3xl ${
+                      canOrder ? "cursor-pointer" : ""
+                    } ${
                       enemyDown(enemy) ? "bg-[#7a7a7a]" : "bg-parchment"
                     } ${
                       battle.attacker === enemy.key
@@ -238,6 +266,15 @@ export function BattleModal({
                         style={{ width: `${healthBarWidthPct(enemy.hp, enemy.maxHp)}%` }}
                       />
                     </span>
+                    {/* Focus order: the party gangs up on this foe — an attack glyph. */}
+                    {focused && (
+                      <span
+                        className="pointer-events-none absolute left-0 top-0 text-lg leading-none [filter:drop-shadow(0_0_1px_#f5c542)_drop-shadow(0_0_1px_#f5c542)_drop-shadow(0_0_2px_#8a5a00)] sm:text-2xl"
+                        title={t("battle.focused")}
+                      >
+                        ⚔️
+                      </span>
+                    )}
                   </div>
                   <span className="w-full truncate text-center text-[10px] leading-tight text-neutral-300">
                     {battle.betrayalBy || battle.rogueId
@@ -247,7 +284,8 @@ export function BattleModal({
                         : enemy.name}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
           {battle.reactions?.map((r, i) => (

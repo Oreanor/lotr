@@ -96,6 +96,9 @@
     "cloaksHave": "🧥 Cloaks taken",
     "waitDay": "Wait a day"
   },
+  "denethor": {
+    "pyre": "Steward Denethor did not wait for you. In despair he mounted the pyre and gave himself to the fire in the House of the Stewards. A shadow lies over Minas Tirith, and the city keeps its mournful silence. May he rest — proud he was, yet he served Gondor faithfully to the very end."
+  },
   "recruit": {
     "call": "Recruit",
     "celebornFollows": "Where my lady Galadriel goes, I go.",
@@ -171,7 +174,11 @@
     "ringNote": "These foes see through the Ring — invisibility won't save you.",
     "balrogNote": "The Balrog is mighty — ordinary blows barely scratch it. Only Gandalf, Bombadil or Saruman strike hard.",
     "betrayalNote": "Nowhere to run — fight for the Ring.",
-    "rogueNote": "The Ring keeps him all but invisible — only a quarter of blows land."
+    "rogueNote": "The Ring keeps him all but invisible — only a quarter of blows land.",
+    "guardHint": "Shield this hero — every second blow aimed at him is taken by another",
+    "guarded": "The party shields him",
+    "focusHint": "Rally the whole party onto this foe",
+    "focused": "The party is ganging up on him"
   },
   "encounter": {
     "title": "You meet an enemy",
@@ -227,9 +234,11 @@
     "rogueLordTitle": "{{name}} put on the Ring",
     "rogueLordText": "You were too late. {{name}} reached Mount Doom first and proclaimed himself the new Lord. Game over.",
     "valinorAsk": "The ship has reached the edge of the world. Attempt to reach Valinor?",
+    "valinorAskEagle": "The Eagles have borne you to the edge of the world above the Sea. Ask them to fly the Straight Road into Valinor?",
     "valinorYes": "Set sail into the West",
     "valinorNo": "Turn back",
     "valinorReturn": "The Straight Road did not open, but the sea spared you — the ship comes out of the Shadowy Seas back to the shores of Middle-earth.",
+    "valinorEagleRefuse": "The Eagles will not bear the Ring into the West — the Valar would not receive it. While it endures they wheel about and carry you back to the shores of Middle-earth.",
     "valinorWestTitle": "The Straight Road",
     "valinorWestText": "The Ring is unmade, and as a reward to the Bearers the Ban relents — the white ship takes the Straight Road, the grey rain-curtain draws back, and there before you rise white shores and a green country under a swift sunrise.",
     "valinorRingTitle": "The Ring sinks into the ocean",
@@ -641,7 +650,9 @@
     "theoden": "Allies crit 1.5× more often",
     "saruman": "Orcs won't attack the party",
     "galdor": "A ship is always in port",
-    "gandalf_white": "The whole company gains 25% more battle experience"
+    "gandalf_white": "The whole company gains 25% more battle experience",
+    "faramir": "Tightens the shield wall: only a quarter of blows reach a guarded hero",
+    "bilbo": "Whole party's luck +25% of the party's average luck"
   },
   "char": {
     "frodo": "Frodo",
@@ -703,6 +714,133 @@
     "eomer": "Éomer",
     "gollum": "Gollum",
     "treebeard": "Treebeard"
+  },
+  "guide": {
+    "title": "Guide",
+    "back": "← To game",
+    "gate": {
+      "question": "Say “friend” in Sindarin, and enter.",
+      "hint": "The Doors of Moria open on a single word.",
+      "wrong": "The gate does not stir. Try another word."
+    },
+    "tabs": {
+      "intro": "Overview",
+      "heroes": "Heroes",
+      "enemies": "Enemies",
+      "items": "Items",
+      "recruit": "Who & where",
+      "locations": "Locations",
+      "combat": "Combat",
+      "levels": "Levels",
+      "secrets": "Secrets"
+    },
+    "col": {
+      "name": "Name",
+      "str": "Str",
+      "def": "Def",
+      "int": "Int",
+      "luck": "Luck",
+      "hp": "HP",
+      "res": "Resil.",
+      "ability": "Ability",
+      "tier": "Tier",
+      "xp": "XP",
+      "regions": "Regions",
+      "place": "Place",
+      "when": "When",
+      "level": "Lvl",
+      "toNext": "To next",
+      "totalXp": "Total XP"
+    },
+    "intro": {
+      "body": [
+        "The goal: carry the Ring from Hobbiton to Mount Doom and destroy it in the fire of Orodruin. Along the way you can gather a company, find gear, and reach one of several endings.",
+        "Time passes in days — travelling, waiting, searching and foraging. Click the map to set a route; click a red dot to enter a location.",
+        "The portraits up top open a character: there you change the Ring-bearer and equip found items. The party can be split and reunited.",
+        "This guide is built straight from the game's data — stats, formulas and schedules always match the live code."
+      ]
+    },
+    "heroes": {
+      "note": "Base hero stats. HP = strength×5 + defense×5. “Resil.” is how many days a hero can bear the Ring before breaking.",
+      "nonBearer": "Cannot become the Ring-bearer",
+      "legend": "⊘ — beyond the Ring's hold; will never bear it."
+    },
+    "enemies": {
+      "note": "Foes by rising strength. HP = strength×5 + defense×5. XP is the reward for beating them.",
+      "regionsLegend": "Regions: NW Eriador · NE Mirkwood · MW Rohan · ME Mordor/Gondor · SW/SE the far south."
+    },
+    "region": {
+      "NW": "NW",
+      "NE": "NE",
+      "MW": "MW",
+      "ME": "ME",
+      "SW": "SW",
+      "SE": "SE",
+      "any": "anywhere"
+    },
+    "items": {
+      "note": "Special items: found by exploring locations or given as gifts. Bonuses apply while the item is worn.",
+      "onlyFor": "Only for: {{names}}"
+    },
+    "recruit": {
+      "scheduleTitle": "Travelling companions",
+      "scheduleNote": "These appear at different places on set dates (day 0 = 23 September 3018).",
+      "andLater": "and later",
+      "night": "at night",
+      "alwaysTitle": "Always home",
+      "alwaysNote": "Found in their own lands at any time (sometimes gated by a luck check).",
+      "battleNote": "Some join only if beaten in battle or met on the road: Gollum, Éomer, Treebeard, and captives.",
+      "roamingTitle": "Random encounters",
+      "roamingNote": "These aren't found in one place — they roam their lands and turn up on the road (sometimes after a fight).",
+      "roaming": {
+        "gollum": "Skulks after the party — met at random on the road; at Mount Doom he may snatch the Ring.",
+        "eomer": "Patrols Rohan — met in a skirmish with orcs, especially with Rohirrim along.",
+        "treebeard": "Wanders Fangorn — met at random by the forest near Isengard.",
+        "gandalf_white": "Returns after the Grey Gandalf falls in battle — met on the road about a month later."
+      },
+      "condTitle": "Special conditions",
+      "conditions": [
+        "Bombadil and Grimbeorn aren't always home: Bombadil turns up on about 1 visit in 5, Grimbeorn 1 in 2.",
+        "Bilbo and Denethor are reluctant — they only relent after several attempts to persuade them.",
+        "Círdan joins only if the party is, on the whole, wiser than he is.",
+        "Saruman is recruited at Isengard only if the bearer is duller than him and no Gandalf or Treebeard is along; otherwise he's a boss. Spare him and you loose him to roam the north-west — two months on he comes to scour the Shire.",
+        "Gríma sits at Edoras until Gandalf drives him out; then he flees to Saruman or roams the wild until he is slain.",
+        "Treebeard, brought to fallen Isengard, may settle to rule it — then he leaves the party and is found there ever after.",
+        "Denethor must be taken from Minas Tirith before 15 March 3019 — otherwise the despairing Steward gives himself to the fire, and is lost for good."
+      ]
+    },
+    "locations": {
+      "note": "33 places of Middle-earth. Click a picture to cycle the season.",
+      "seasonHint": "Click to change season",
+      "guardian": "Guardian: {{name}}"
+    },
+    "season": {
+      "spring": "Spring",
+      "summer": "Summer",
+      "fall": "Autumn",
+      "winter": "Winter"
+    },
+    "combat": {
+      "hp": "Health",
+      "hpF": "strength × 5 + defense × 5",
+      "damage": "Damage",
+      "hit": "Hit",
+      "crit": "Crit",
+      "focus": "Focus",
+      "ring": "Ring in battle",
+      "ringF": "the bearer is all but invisible — only ~{{pct}} of blows land",
+      "ordersTitle": "Battle orders",
+      "guard": "Click your hero — the party shields him: only {{pass}} of blows reach him, the rest are taken by others (with Faramir along, just {{faramir}}). A bearer wearing the Ring can't be shielded. Click again to lift.",
+      "focusOrder": "Click a foe — the party gangs up on it, overriding wit-based target choice. Click again to lift.",
+      "statsNote": "Strength — damage and HP. Defense — HP and less damage (but at least 34% of an attack always lands). Intelligence — crits, focusing the dangerous foe, caution. Luck — hitting, dodging, fleeing and searching."
+    },
+    "levels": {
+      "note": "Leaving a level costs level×{{base}} XP. Each level past the first grants 1 stat point. Leveling is uncapped — the table just shows the first few.",
+      "pointNote": "You start with Frodo alone; the rest are recruited on the road."
+    },
+    "secrets": {
+      "note": "Non-obvious mechanics read straight from the code: how to unlock and try everything the game holds."
+    }
   },
   "months": [
     "January", "February", "March", "April", "May", "June",

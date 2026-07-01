@@ -127,6 +127,7 @@ import {
   MEMBER_PICKUP_RANGE,
   MILES_PER_DAY,
   MINAS_MORGUL_ID,
+  MINAS_TIRITH_ID,
   GONDOR_ARMOR_IDS,
   GONDOR_CACHE_MAX,
   GONDOR_SWORD_IDS,
@@ -253,6 +254,9 @@ const parseMapIndex = (raw: string) => {
 };
 const parsePrefTheme = (raw: string): "dark" | "light" => (raw === "light" ? "light" : "dark");
 const identityPref = (value: string) => value;
+// Denethor's last day: not taken from Minas Tirith by 15 March 3019, and the
+// despairing Steward gives himself to the pyre. After this he's gone.
+const DENETHOR_FINAL_DAY = dateToDayOffset(15, 3, 3019);
 const LEVELUP_MODE_VALUES: LevelUpMode[] = [
   "random",
   "randomAll",
@@ -556,6 +560,10 @@ export default function MiddleEarthMap() {
   const [osgiliathCacheFound, setOsgiliathCacheFound] = useState<boolean>(
     initialSave?.osgiliathCacheFound ?? false,
   );
+  // We've told the player, once, that Denethor gave himself to the pyre.
+  const [denethorMourned, setDenethorMourned] = useState<boolean>(
+    initialSave?.denethorMourned ?? false,
+  );
   // The Corsair captain has been talked round into letting the party sail in peace.
   const [corsairPeace, setCorsairPeace] = useState<boolean>(initialSave?.corsairPeace ?? false);
   // The three wraiths posted at Dol Guldur have been slain — so Minas Morgul
@@ -573,8 +581,11 @@ export default function MiddleEarthMap() {
   const [hobbitonScoured, setHobbitonScoured] = useState<boolean>(initialSave?.hobbitonScoured ?? false);
   // The One Ring has been cast into the Fire — the Ban over the West may lift.
   const [ringDestroyed, setRingDestroyed] = useState(initialSave?.ringDestroyed ?? false);
-  // A ship has reached the world's western edge — offer the passage to Valinor.
+  // A ship (or the Eagles) has reached the world's western edge — offer the
+  // passage to Valinor. `valinorByEagle` marks an Eagle attempt: the Eagles will
+  // not bear the Ring West, so they only carry the party across once it's unmade.
   const [valinorAttempt, setValinorAttempt] = useState(false);
+  const [valinorByEagle, setValinorByEagle] = useState(false);
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
   // Result of talking to a companion: a greeting or items handed over.
   const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
@@ -1516,6 +1527,17 @@ export default function MiddleEarthMap() {
     setBattle((b) => (b ? { ...b, ringOn: false } : b));
   }, []);
 
+  // Frame a hero: the party shields him (every 2nd blow aimed at him is taken by
+  // another). Frame a foe: the party gangs up on it, overriding wit-based aim.
+  // Clicking the framed portrait again lifts the order.
+  const selectGuardAlly = useCallback((key: string) => {
+    setBattle((b) => (b ? { ...b, guardedAllyKey: b.guardedAllyKey === key ? null : key } : b));
+  }, []);
+
+  const selectFocusEnemy = useCallback((key: string) => {
+    setBattle((b) => (b ? { ...b, focusEnemyKey: b.focusEnemyKey === key ? null : key } : b));
+  }, []);
+
   // Saruman's mercy parley: who speaks, in order. The advocate (Gandalf, else
   // Treebeard) pleads first; Gimli and Éomer, if present, object in turn. Then
   // the spare/fight choice. Absent speakers are skipped — no empty modals.
@@ -1954,6 +1976,7 @@ export default function MiddleEarthMap() {
       grimaFled,
       grimaSlain,
       osgiliathCacheFound,
+      denethorMourned,
       corsairPeace,
       ringDestroyed,
       dolGuldurNazgulSlain,
@@ -2952,11 +2975,13 @@ export default function MiddleEarthMap() {
         nextPlayer = activeTarget;
       }
 
-      // Reached the world's western edge under sail: offer to try the Straight
-      // Road into the West rather than sail off the map.
-      if (onShip && nextPlayer.x <= 14 && getTerrainAtPoint(nextPlayer).name === "water") {
+      // Reached the world's western edge under sail — or borne there on the Eagles:
+      // offer to try the Straight Road into the West rather than run off the map.
+      const atWesternEdge = nextPlayer.x <= 14 && getTerrainAtPoint(nextPlayer).name === "water";
+      if ((onShip || transportRef.current === "eagle") && atWesternEdge) {
         playerRef.current = nextPlayer;
         syncTravelState();
+        setValinorByEagle(transportRef.current === "eagle");
         setValinorAttempt(true);
         setTarget(null);
         setTargetLocation(null);
@@ -3140,12 +3165,31 @@ export default function MiddleEarthMap() {
   // Isengard has fallen (Saruman slain or spared) — the precondition for Treebeard
   // to settle there, but only if you actually brought him along.
   const isengardFallen = sarumanGone;
+  // Denethor is lost to the pyre once his last day passes without his ever having
+  // joined (in the party now, waiting in a squad, or recruited earlier — joinDay
+  // is stamped on recruitment and kept even if he later leaves).
+  const denethorTaken =
+    joinDayRef.current.denethor != null ||
+    party.includes("denethor") ||
+    parkedMembers.includes("denethor");
+  const denethorPerished = journeyDay > DENETHOR_FINAL_DAY && !denethorTaken;
+  // Entering Minas Tirith after Denethor's end: tell the player, once, that the
+  // Steward chose the fire.
+  useEffect(() => {
+    if (visitedLocation?.id === MINAS_TIRITH_ID && denethorPerished && !denethorMourned) {
+      setDenethorMourned(true);
+      setExploreResult({ found: false, message: "denethor.pyre" });
+    }
+  }, [visitedLocation, denethorPerished, denethorMourned]);
   const recruitsBase = visitedLocation
     ? CHARACTERS.filter(
         (character) =>
           isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
           (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
           !banishedTraitors.has(character.id) &&
+          // Denethor gives himself to the pyre if never taken from Minas Tirith in
+          // time — after his last day he's no longer there to recruit.
+          (character.id !== "denethor" || !denethorPerished) &&
           // The dead don't return — a companion who fell (in battle or to hunger)
           // is never offered for recruitment again.
           !deathCauseById[character.id] &&
@@ -4606,16 +4650,17 @@ export default function MiddleEarthMap() {
       return;
     }
     // Eagles tire of carrying you after a month — but they won't drop you over
-    // the sea: they only leave once you're over walkable land.
-    if (
-      transport === "eagle" &&
-      eagleSince !== null &&
-      journeyDay - eagleSince >= EAGLE_STAY_DAYS &&
-      !onWater
-    ) {
-      setTransport(null);
-      setEagleSince(null);
-      setEaglesLeft(true);
+    // the sea. If their time is up while you're above open water, they carry on
+    // and their leave is put off (the clock re-rolls), so they only set you down
+    // once you're over walkable land.
+    if (transport === "eagle" && eagleSince !== null && journeyDay - eagleSince >= EAGLE_STAY_DAYS) {
+      if (onWater) {
+        setEagleSince(journeyDay);
+      } else {
+        setTransport(null);
+        setEagleSince(null);
+        setEaglesLeft(true);
+      }
     }
     if (ringless) {
       const daysSinceFled = rogueSinceDay !== null ? journeyDay - rogueSinceDay : 0;
@@ -5479,6 +5524,8 @@ export default function MiddleEarthMap() {
           fleeChance={battleEscapePct}
           onSkip={() => setBattle((b) => (b ? resolveBattleInstantly(b) : b))}
           onContinue={() => setBattle(null)}
+          onSelectAlly={selectGuardAlly}
+          onSelectEnemy={selectFocusEnemy}
           parleyBubble={
             battle?.pendingParley && parleyStep < livingParleySpeakers.length
               ? {
@@ -5598,13 +5645,32 @@ export default function MiddleEarthMap() {
           overlayClassName="bg-black/80"
           className="w-full max-w-xs border-sky-800 p-6 text-center"
         >
-          <TransportIcon transport="ship" className="mx-auto size-12 object-contain" />
-          <p className="mt-3 text-sm text-sky-100">{t("ending.valinorAsk")}</p>
+          <TransportIcon
+            transport={valinorByEagle ? "eagle" : "ship"}
+            className="mx-auto size-12 object-contain"
+          />
+          <p className="mt-3 text-sm text-sky-100">
+            {t(valinorByEagle ? "ending.valinorAskEagle" : "ending.valinorAsk")}
+          </p>
           <div className="mt-5 flex gap-2">
             <button
               type="button"
               onClick={() => {
                 setValinorAttempt(false);
+                // The Eagles of Manwë will not bear the Ring into the West — while
+                // it endures they wheel back to the map. Only once it's unmade do
+                // they carry the company over the Sea.
+                if (valinorByEagle) {
+                  if (ringDestroyed) {
+                    setEnding("valinorWest");
+                    return;
+                  }
+                  const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
+                  playerRef.current = back;
+                  setPlayer(back);
+                  setExploreResult({ found: true, message: "ending.valinorEagleRefuse" });
+                  return;
+                }
                 if (hasRing) {
                   setEnding("valinorRing");
                   return;
@@ -5627,7 +5693,10 @@ export default function MiddleEarthMap() {
               }}
               className="flex flex-1 items-center justify-center gap-1.5 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"
             >
-              <TransportIcon transport="ship" className="size-5 shrink-0 object-contain" />
+              <TransportIcon
+                transport={valinorByEagle ? "eagle" : "ship"}
+                className="size-5 shrink-0 object-contain"
+              />
               {t("ending.valinorYes")}
             </button>
             <button

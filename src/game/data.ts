@@ -404,6 +404,8 @@ export const ABILITIES: Record<string, string> = {
   saruman: "Орки не нападают на отряд",
   galdor: "В гаванях всегда есть корабль",
   gandalf_white: "Весь отряд получает на 25% больше опыта в боях",
+  faramir: "Плотнее прикрывает: до прикрываемого героя доходит лишь четверть ударов",
+  bilbo: "Удача всего отряда +25% от средней удачи",
 };
 
 // Artwork filename per location id. Same names live in each season folder; the
@@ -420,7 +422,7 @@ export const LOCATION_IMAGE_FILE: Record<number, string> = {
   9: "09_weathertop.jpg",
   10: "10_hobbiton.jpg",
   11: "11_grey_havens.jpg",
-  12: "12_old%20forest.jpg",
+  12: "12_old_forest.jpg",
   13: "13_harlond.jpg",
   14: "14_moria.jpg",
   15: "15_lorien.jpg",

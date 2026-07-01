@@ -194,6 +194,9 @@ export interface BattleState {
   parleyDeclined?: boolean;
   noEnemyCrit?: boolean; // Arwen in the party — foes cannot land crits
   allyCritMult?: number; // Théoden in the party — allies crit this much more often
+  // Player battle orders, toggled by clicking a portrait's frame.
+  guardedAllyKey?: string | null; // hero the party shields — blows aimed at him are often taken by others
+  focusEnemyKey?: string | null; // foe the party rallies onto, overriding wit-based targeting
   // Spoken aftermath lines shown at 1-2 allies' portraits on the win screen
   // (keyed by ally key). Filled once the fight is resolved.
   reactions?: { key: string; text: string }[];

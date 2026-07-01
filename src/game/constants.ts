@@ -192,6 +192,17 @@ export const ENEMY_TARGET_INT_CEIL = 10; // at/above this int → max focus
 export const FOCUS_INT_FLOOR = 2;
 export const FOCUS_PER_INT = 0.12;
 export const FOCUS_MAX_CHANCE = 0.95;
+// Player battle orders (click a portrait to frame it). Framing a hero sets the
+// party to shield him: a blow aimed at him lands only GUARD_PASS_CHANCE of the
+// time, else a random other ally takes it for him. Faramir in the fight tightens
+// the screen to FARAMIR_GUARD_PASS_CHANCE. A ring-hidden bearer can't be shielded
+// — the Ring already hides him. Framing a foe rallies the party onto it,
+// overriding each fighter's wit-based target pick with probability
+// commandFocusChance — the passive coordination odds boosted by COMMAND_FOCUS_BONUS
+// (still capped at FOCUS_MAX_CHANCE, so even a commanded flail isn't guaranteed).
+export const GUARD_PASS_CHANCE = 0.5;
+export const FARAMIR_GUARD_PASS_CHANCE = 0.25;
+export const COMMAND_FOCUS_BONUS = 0.35;
 export const RING_BEARER_ID = "frodo";
 export const DEFAULT_PARTY = ["frodo"];
 // Terrain mask is 192 px wide; one "cell" of map = mapWidth / this.
@@ -301,11 +312,9 @@ export const ROGUE_MIN_CHASE_DAYS = 25;
 // Per travel day once the minimum is met; ~12 more days on average to catch him.
 export const ROGUE_ENCOUNTER_CHANCE = 0.08;
 
-// Leveling.
-export const LEVEL_BASE_XP = 300; // xp from level 1 to 2
-// XP to reach the next level = LEVEL_BASE_XP × level^LEVEL_XP_EXPONENT. A root
-// curve (0.5): the requirement jumps early, then the climb gradually eases.
-export const LEVEL_XP_EXPONENT = 0.5;
+// Leveling. XP to reach the next level = LEVEL_BASE_XP × current level: 1000 to
+// leave level 1, 2000 to leave level 2, and so on — a simple linear climb.
+export const LEVEL_BASE_XP = 1000;
 // Intelligence is learning aptitude: each point above XP_INT_FLOOR grants a
 // per-battle XP bonus of XP_BONUS_PER_INT, applied to each survivor's share
 // individually (a wits-7 hero earns +5%, wits-10 earns +20%).

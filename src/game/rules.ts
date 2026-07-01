@@ -31,6 +31,9 @@ import {
   FOCUS_INT_FLOOR,
   FOCUS_PER_INT,
   FOCUS_MAX_CHANCE,
+  COMMAND_FOCUS_BONUS,
+  GUARD_PASS_CHANCE,
+  FARAMIR_GUARD_PASS_CHANCE,
   FOOD_DAYS_PONY,
   FLEE_AT_HALF_FOES,
   GOLLUM_ENCOUNTER_CHANCE,
@@ -47,7 +50,6 @@ import {
   HEALTH_PER_DEF,
   HOBBIT_IDS,
   LEVEL_BASE_XP,
-  LEVEL_XP_EXPONENT,
   MAP_GRID_COLS,
   MIN_DAMAGE_FRACTION,
   MORDOR_POINT,
@@ -229,6 +231,17 @@ export function auraBonus(character: Character, party: string[]): StatBonus {
   }
   if (party.includes("boromir")) {
     bonus.strength += 1;
+  }
+  // Bilbo's long luck with the Ring rubs off on the whole company: everyone gains
+  // a quarter of the party's average luck (rounded).
+  if (party.includes("bilbo")) {
+    const lucks = party
+      .map((id) => CHARACTERS.find((c) => c.id === id)?.luck)
+      .filter((v): v is number => v !== undefined);
+    if (lucks.length > 0) {
+      const avgLuck = lucks.reduce((sum, v) => sum + v, 0) / lucks.length;
+      bonus.luck += Math.round(avgLuck * 0.25);
+    }
   }
   // Elf-lords' auras — only the elves of the company are lifted by them.
   if (ELF_IDS.has(character.id) || character.id === "legolas") {
@@ -552,11 +565,11 @@ export function rollEscape(
 export function levelForExp(exp: number): { level: number; intoLevel: number; nextLevelXp: number } {
   let level = 1;
   let acc = 0;
-  let need = LEVEL_BASE_XP;
+  let need = LEVEL_BASE_XP * level;
   while (exp >= acc + need) {
     acc += need;
     level += 1;
-    need = Math.round(LEVEL_BASE_XP * Math.pow(level, LEVEL_XP_EXPONENT));
+    need = LEVEL_BASE_XP * level;
   }
   return { level, intoLevel: exp - acc, nextLevelXp: need };
 }
@@ -665,6 +678,14 @@ export function critMultiplier(): number {
 // flail at a random foe — rising with intelligence.
 export function focusChance(intelligence: number): number {
   return clamp((intelligence - FOCUS_INT_FLOOR) * FOCUS_PER_INT, 0, FOCUS_MAX_CHANCE);
+}
+
+// How reliably a fighter obeys the player's "gang up on this foe" order: passive
+// coordination odds, boosted — sharper fighters still follow orders better, but
+// even a dull one heeds the command more often than it would coordinate on its
+// own. Capped, so a commanded strike is never a certainty.
+export function commandFocusChance(intelligence: number): number {
+  return clamp(focusChance(intelligence) + COMMAND_FOCUS_BONUS, 0, FOCUS_MAX_CHANCE);
 }
 
 // Choose which foe to strike. A clever fighter focuses the most dangerous one
@@ -783,7 +804,51 @@ export function enemyBeatenInBattle(enemy: Combatant, battle: BattleState): bool
   return enemy.hp <= 0;
 }
 
+// Post-tick bookkeeping applied after every strike (so it holds in auto-play too,
+// not just on the visible screen):
+//  • A player order lapses once its subject leaves the fight — drop the shield on
+//    a fallen hero, and the focus on a foe that's been beaten.
+//  • Ring-piercing sight dies with its owner: in a standard fight, once every
+//    wraith/Balrog that sees through the Ring is beaten, the surviving foes are
+//    blind to it, so the Ring becomes usable again.
+function clearResolvedOrders(state: BattleState): BattleState {
+  let guardedAllyKey = state.guardedAllyKey ?? null;
+  let focusEnemyKey = state.focusEnemyKey ?? null;
+  // The shield lapses when the guarded hero falls — or dons the Ring: a ring-hidden
+  // bearer can't be shielded (the Ring already hides him), so the order clears.
+  if (
+    guardedAllyKey &&
+    (!state.allies.some((a) => a.key === guardedAllyKey && a.hp > 0) ||
+      (state.ringOn && !state.ringIneffective && guardedAllyKey === state.bearerKey))
+  ) {
+    guardedAllyKey = null;
+  }
+  if (focusEnemyKey) {
+    const foe = state.enemies.find((e) => e.key === focusEnemyKey);
+    if (!foe || enemyBeatenInBattle(foe, state)) {
+      focusEnemyKey = null;
+    }
+  }
+  // Betrayal duels and the rogue hunt set ringIneffective by their own rules —
+  // leave those alone; only the monster-pack fight derives it from the foes.
+  let ringIneffective = state.ringIneffective;
+  if (!state.betrayalBy && !state.rogueId) {
+    ringIneffective = state.enemies.some(
+      (e) => RING_PIERCING_FOES.has(e.name) && !enemyBeatenInBattle(e, state),
+    );
+  }
+  const unchanged =
+    guardedAllyKey === (state.guardedAllyKey ?? null) &&
+    focusEnemyKey === (state.focusEnemyKey ?? null) &&
+    ringIneffective === state.ringIneffective;
+  return unchanged ? state : { ...state, guardedAllyKey, focusEnemyKey, ringIneffective };
+}
+
 export function advanceBattleTick(battle: BattleState): BattleState {
+  return clearResolvedOrders(advanceBattleTickRaw(battle));
+}
+
+function advanceBattleTickRaw(battle: BattleState): BattleState {
   if (battle.outcome) {
     return battle;
   }
@@ -806,7 +871,18 @@ export function advanceBattleTick(battle: BattleState): BattleState {
     if (aliveEnemies.length === 0) {
       return { ...battle, allies, enemies, outcome: "win" };
     }
-    const target = chooseTargetIndex(allies[i], enemies, aliveEnemies);
+    let target = chooseTargetIndex(allies[i], enemies, aliveEnemies);
+    // Player rallied the party onto a framed foe: obey with a wit-scaled chance,
+    // overriding this fighter's own target pick.
+    if (battle.focusEnemyKey) {
+      const focusIdx = enemies.findIndex((e) => e.key === battle.focusEnemyKey);
+      if (
+        aliveEnemies.includes(focusIdx) &&
+        Math.random() < commandFocusChance(allies[i].intelligence)
+      ) {
+        target = focusIdx;
+      }
+    }
     const beastBonus = allies[i].key === "grimbeorn" && battle.enemyBeast ? GRIMBEORN_BEAST_BONUS : 0;
     // Éowyn, no living man: she bites harder into the Ringwraiths.
     const nazgulBonus = allies[i].key === "eowyn" && battle.enemyNazgul ? EOWYN_NAZGUL_BONUS : 0;
@@ -905,7 +981,26 @@ export function advanceBattleTick(battle: BattleState): BattleState {
   if (aliveAllies.length === 0) {
     return { ...battle, allies, enemies, outcome: "lose" };
   }
-  const target = chooseAllyTarget(enemies[j], allies, aliveAllies);
+  let target = chooseAllyTarget(enemies[j], allies, aliveAllies);
+  // The party shields a framed hero: a blow aimed at him lands only part of the
+  // time, else a random other living ally takes the wound for him. Faramir in the
+  // fight tightens the screen (fewer blows get through). A ring-hidden bearer is
+  // already untargetable, so he can't be shielded on top of that.
+  const guardingRingBearer =
+    battle.ringOn && !battle.ringIneffective && allies[target].key === battle.bearerKey;
+  if (
+    battle.guardedAllyKey &&
+    allies[target].key === battle.guardedAllyKey &&
+    aliveAllies.length > 1 &&
+    !guardingRingBearer
+  ) {
+    const faramirCovers = allies.some((a) => a.key === "faramir" && a.hp > 0);
+    const passChance = faramirCovers ? FARAMIR_GUARD_PASS_CHANCE : GUARD_PASS_CHANCE;
+    if (Math.random() >= passChance) {
+      const shields = aliveAllies.filter((idx) => idx !== target);
+      target = shields[Math.floor(Math.random() * shields.length)];
+    }
+  }
   // The Ring hides its bearer but isn't total cover — only about ROGUE_HIT_CHANCE
   // of blows find him.
   const ringProtected =
