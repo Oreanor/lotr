@@ -153,8 +153,11 @@ export const BOSSES_BY_LOCATION: Record<number, Monster> = {
   [ISENGARD_ID]: { name: "Саруман", icon: "/allies/saruman.png", tier: 4, strength: 15, defense: 15, intelligence: 9, luck: 5 },
   // Barad-dûr has no boss to fight — reaching it is simply the end (see the
   // "sauron" ending). The /enemies/baraddur.png art is kept for possible reuse.
-  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 20, intelligence: 5, luck: 5 },
-  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 20, intelligence: 9, luck: 6 },
+  // Shelob is a HP sponge: attack kept modest, defense carries her to 500 HP
+  // (5×str+5×def). The Phial halves her strength, dropping her to ~450 HP.
+  [CIRITH_UNGOL_ID]: { name: "Шелоб", icon: "/enemies/shelob.png", tier: 5, strength: 20, defense: 80, intelligence: 5, luck: 5 },
+  // The Witch-king holds 300 HP (defense raised, attack unchanged).
+  [MINAS_MORGUL_ID]: { name: "Король-чародей", icon: "/enemies/witchking.png", tier: 5, strength: 20, defense: 40, intelligence: 9, luck: 6 },
   [CORSAIRS_CITY_ID]: { name: "Корсар", icon: "/enemies/corsair.png", tier: 4, strength: 14, defense: 14, intelligence: 5, luck: 5 },
 };
 // Unique boss names — a defeated boss never returns to its location.

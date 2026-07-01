@@ -750,7 +750,11 @@
       "when": "When",
       "level": "Lvl",
       "toNext": "To next",
-      "totalXp": "Total XP"
+      "totalXp": "Total XP",
+      "effect": "Effect",
+      "where": "Where",
+      "companions": "Companions",
+      "how": "How to meet"
     },
     "intro": {
       "body": [
@@ -767,7 +771,9 @@
     },
     "enemies": {
       "note": "Foes by rising strength. HP = strength×5 + defense×5. XP is the reward for beating them.",
-      "regionsLegend": "Regions: NW Eriador · NE Mirkwood · MW Rohan · ME Mordor/Gondor · SW/SE the far south."
+      "regionsLegend": "Regions: NW Eriador · NE Mirkwood · MW Rohan · ME Mordor/Gondor · SW/SE the far south.",
+      "bossesTitle": "Bosses",
+      "bossesNote": "Location guardians — powerful foes barring key places. Some can only be passed under special conditions."
     },
     "region": {
       "NW": "NW",
@@ -806,7 +812,7 @@
         "Saruman is recruited at Isengard only if the bearer is duller than him and no Gandalf or Treebeard is along; otherwise he's a boss. Spare him and you loose him to roam the north-west — two months on he comes to scour the Shire.",
         "Gríma sits at Edoras until Gandalf drives him out; then he flees to Saruman or roams the wild until he is slain.",
         "Treebeard, brought to fallen Isengard, may settle to rule it — then he leaves the party and is found there ever after.",
-        "Denethor must be taken from Minas Tirith before 15 March 3019 — otherwise the despairing Steward gives himself to the fire, and is lost for good."
+        "On 15 March 3019 the despairing Steward Denethor gives himself to the fire — after that he can no longer be recruited at Minas Tirith."
       ]
     },
     "locations": {

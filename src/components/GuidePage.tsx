@@ -457,6 +457,56 @@ function EnemiesSection({ lang }: { lang: string }) {
         </table>
       </div>
       <p className="mt-3 text-xs text-neutral-500">{t("guide.enemies.regionsLegend", { lang })}</p>
+
+      <h3 className="mb-2 mt-6 font-serif text-lg text-red-300">{t("guide.enemies.bossesTitle")}</h3>
+      <p className="mb-3 text-sm text-neutral-400">{t("guide.enemies.bossesNote")}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-neutral-700">
+              <Th> </Th>
+              <Th>{t("guide.col.name")}</Th>
+              <Th>{t("guide.col.place")}</Th>
+              <Th right>{t("guide.col.tier")}</Th>
+              <Th right>{t("guide.col.str")}</Th>
+              <Th right>{t("guide.col.def")}</Th>
+              <Th right>{t("guide.col.int")}</Th>
+              <Th right>{t("guide.col.luck")}</Th>
+              <Th right>{t("guide.col.hp")}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(BOSSES_BY_LOCATION)
+              .sort(([, a], [, b]) => a.tier - b.tier)
+              .map(([locId, boss]) => {
+                const loc = locationData.locations.find((l) => l.id === Number(locId));
+                return (
+                  <tr key={locId} className="border-b border-neutral-800/70 align-middle">
+                    <Td>
+                      <Portrait src={boss.icon} alt={t(`monster.${monsterKey(boss.icon)}`)} />
+                    </Td>
+                    <Td>
+                      <span className="font-medium text-neutral-100">
+                        {t(`monster.${monsterKey(boss.icon)}`)}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className="text-amber-200/90">
+                        {loc ? getLocationLabel(loc, lang) : `#${locId}`}
+                      </span>
+                    </Td>
+                    <Td right>{boss.tier}</Td>
+                    <Td right>{boss.strength}</Td>
+                    <Td right>{boss.defense}</Td>
+                    <Td right>{boss.intelligence}</Td>
+                    <Td right>{boss.luck}</Td>
+                    <Td right>{maxHpFromStats(boss.strength, boss.defense)}</Td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -484,35 +534,46 @@ function ItemsSection({ lang }: { lang: string }) {
     <section>
       <SectionTitle>{t("guide.tabs.items")}</SectionTitle>
       <p className="mb-3 text-sm text-neutral-400">{t("guide.items.note")}</p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {families.map((it) => {
-          const fam = itemFamilyId(it.id);
-          const source = ITEM_SOURCES[sourceKey(it.id)];
-          return (
-            <div
-              key={it.id}
-              className="flex items-center gap-3 rounded border border-neutral-800 bg-neutral-900/60 p-2"
-            >
-              <Portrait src={it.icon} alt={t(`item.${fam}.name`)} />
-              <div className="min-w-0">
-                <p className="font-medium text-neutral-100">{t(`item.${fam}.name`)}</p>
-                <p className="text-xs text-neutral-400">{t(`item.${fam}.desc`)}</p>
-                {source && (
-                  <p className="mt-0.5 text-xs text-emerald-300/80">
-                    📍 {en ? source.en : source.ru}
-                  </p>
-                )}
-                {it.holders && (
-                  <p className="mt-0.5 text-xs text-amber-400/80">
-                    {t("guide.items.onlyFor", {
-                      names: it.holders.map((h) => t(`char.${h}`)).join(", "),
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-neutral-700">
+              <Th> </Th>
+              <Th>{t("guide.col.name")}</Th>
+              <Th>{t("guide.col.effect")}</Th>
+              <Th>{t("guide.col.where")}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {families.map((it) => {
+              const fam = itemFamilyId(it.id);
+              const source = ITEM_SOURCES[sourceKey(it.id)];
+              return (
+                <tr key={it.id} className="border-b border-neutral-800/70 align-middle">
+                  <Td>
+                    <Portrait src={it.icon} alt={t(`item.${fam}.name`)} />
+                  </Td>
+                  <Td>
+                    <div className="font-medium text-neutral-100">{t(`item.${fam}.name`)}</div>
+                    {it.holders && (
+                      <div className="text-xs text-amber-400/80">
+                        {t("guide.items.onlyFor", {
+                          names: it.holders.map((h) => t(`char.${h}`)).join(", "),
+                        })}
+                      </div>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className="text-neutral-300">{t(`item.${fam}.desc`)}</span>
+                  </Td>
+                  <Td>
+                    <span className="text-neutral-400">{source ? (en ? source.en : source.ru) : "—"}</span>
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -570,23 +631,34 @@ function RecruitSection({ lang }: { lang: string }) {
       <div>
         <SectionTitle>{t("guide.recruit.alwaysTitle")}</SectionTitle>
         <p className="mb-3 text-sm text-neutral-400">{t("guide.recruit.alwaysNote")}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {Object.entries(RECRUITS_BY_LOCATION).map(([locId, ids]) => (
-            <div
-              key={locId}
-              className="rounded border border-neutral-800 bg-neutral-900/60 p-3"
-            >
-              <p className="mb-2 font-medium text-amber-200">{locName(Number(locId))}</p>
-              <div className="flex flex-wrap gap-3">
-                {ids.map((id) => (
-                  <div key={id} className="flex items-center gap-1.5">
-                    <Portrait src={heroIcon(id)} alt={t(`char.${id}`)} />
-                    <span className="text-sm text-neutral-200">{t(`char.${id}`)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-neutral-700">
+                <Th>{t("guide.col.place")}</Th>
+                <Th>{t("guide.col.companions")}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(RECRUITS_BY_LOCATION).map(([locId, ids]) => (
+                <tr key={locId} className="border-b border-neutral-800/70 align-middle">
+                  <Td>
+                    <span className="font-medium text-amber-200">{locName(Number(locId))}</span>
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {ids.map((id) => (
+                        <span key={id} className="flex items-center gap-1.5">
+                          <Portrait src={heroIcon(id)} alt={t(`char.${id}`)} />
+                          <span className="text-neutral-200">{t(`char.${id}`)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <div className="mt-3 rounded border border-amber-900/40 bg-amber-950/20 p-3">
           <p className="mb-1.5 text-xs font-semibold text-amber-200">
@@ -606,19 +678,31 @@ function RecruitSection({ lang }: { lang: string }) {
       <div>
         <SectionTitle>{t("guide.recruit.roamingTitle")}</SectionTitle>
         <p className="mb-3 text-sm text-neutral-400">{t("guide.recruit.roamingNote")}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {[...ROAMING_RECRUIT_IDS, "gandalf_white"].map((id) => (
-            <div
-              key={id}
-              className="flex items-center gap-3 rounded border border-neutral-800 bg-neutral-900/60 p-2"
-            >
-              <Portrait src={heroIcon(id)} alt={t(`char.${id}`)} />
-              <div className="min-w-0">
-                <p className="font-medium text-neutral-100">{t(`char.${id}`)}</p>
-                <p className="text-xs text-neutral-400">{t(`guide.recruit.roaming.${id}`)}</p>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-neutral-700">
+                <Th> </Th>
+                <Th>{t("guide.col.name")}</Th>
+                <Th>{t("guide.col.how")}</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...ROAMING_RECRUIT_IDS, "gandalf_white"].map((id) => (
+                <tr key={id} className="border-b border-neutral-800/70 align-middle">
+                  <Td>
+                    <Portrait src={heroIcon(id)} alt={t(`char.${id}`)} />
+                  </Td>
+                  <Td>
+                    <span className="font-medium text-neutral-100">{t(`char.${id}`)}</span>
+                  </Td>
+                  <Td>
+                    <span className="text-neutral-400">{t(`guide.recruit.roaming.${id}`)}</span>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

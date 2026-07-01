@@ -70,8 +70,8 @@ export const GUIDE_TIPS: GuideTipGroup[] = [
         en: "The Corsairs will let you pass in peace if the party's average intelligence is above 8: the captain then parleys instead of fighting, and the sea-raids stop.",
       },
       {
-        ru: "Денетора нужно забрать из Минас Тирита до 15 марта 3019 года: иначе отчаявшийся наместник предаёт себя огню, и вернуть его уже нельзя.",
-        en: "Denethor must be taken from Minas Tirith before 15 March 3019: otherwise the despairing Steward gives himself to the fire, and can no longer be recruited.",
+        ru: "15 марта 3019 года наместник Денетор в отчаянии предаёт себя огню — после этого завербовать его в Минас Тирите уже нельзя.",
+        en: "On 15 March 3019 the despairing Steward Denethor gives himself to the fire — after that he can no longer be recruited at Minas Tirith.",
       },
     ],
   },
