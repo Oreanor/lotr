@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { PortalBubble } from "@/components/ui/PortalBubble";
 import { StatBar } from "@/components/ui/StatBar";
 import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { ABILITIES, itemFamilyId, ringImage } from "@/game";
+import { ABILITIES, itemEffectEntries, itemFamilyId, ringImage } from "@/game";
 import type { Character, CharacterStats, Item } from "@/game";
 
 // Hero details: portrait, level/XP, health, ring corruption, stat bars, ability,
@@ -248,7 +248,11 @@ export function CharacterModal({
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-sky-100">{t(`item.${itemFamilyId(equippedItem.id)}.name`)}</p>
-                      <p className="text-[11px] leading-tight text-sky-300/80">{t(`item.${itemFamilyId(equippedItem.id)}.desc`)}</p>
+                      <p className="text-[11px] leading-tight text-sky-300/80">
+                        {itemEffectEntries(equippedItem)
+                          .map((e) => t(`item.effect.${e.key}`, { n: e.value }))
+                          .join(" · ")}
+                      </p>
                     </div>
                   </button>
                 ) : (
@@ -325,7 +329,11 @@ export function CharacterModal({
                         className="size-12 object-contain"
                       />
                       <span className="text-sm font-semibold text-sky-100">{t(`item.${itemFamilyId(item.id)}.name`)}</span>
-                      <span className="text-xs text-sky-300/80">{t(`item.${itemFamilyId(item.id)}.desc`)}</span>
+                      <span className="text-xs text-sky-300/80">
+                        {itemEffectEntries(item)
+                          .map((e) => t(`item.effect.${e.key}`, { n: e.value }))
+                          .join(" · ")}
+                      </span>
                     </button>
                   );
                 })}

@@ -31,6 +31,7 @@ import {
   ROAMING_RECRUIT_IDS,
   ROGUE_HIT_CHANCE,
   getLocationLabel,
+  itemEffectEntries,
   itemFamilyId,
   locationData,
   maxHpFromStats,
@@ -564,7 +565,11 @@ function ItemsSection({ lang }: { lang: string }) {
                     )}
                   </Td>
                   <Td>
-                    <span className="text-neutral-300">{t(`item.${fam}.desc`)}</span>
+                    <span className="text-neutral-300">
+                      {itemEffectEntries(it)
+                        .map((e) => t(`item.effect.${e.key}`, { n: e.value }))
+                        .join(" · ")}
+                    </span>
                   </Td>
                   <Td>
                     <span className="text-neutral-400">{source ? (en ? source.en : source.ru) : "—"}</span>
@@ -958,6 +963,28 @@ function LevelsSection() {
       <p className="mt-3 text-xs text-neutral-500">
         {t("guide.levels.pointNote", { party: DEFAULT_PARTY.length })}
       </p>
+
+      <h3 className="mb-2 mt-8 font-serif text-lg text-red-300">{t("guide.levels.enemyTitle")}</h3>
+      <p className="mb-3 max-w-2xl text-sm text-neutral-400">{t("guide.levels.enemyNote")}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full max-w-md border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-neutral-700">
+              <Th>{t("guide.levels.enemyPoints")}</Th>
+              <Th right>{t("guide.levels.enemyDay")}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {[1, 3, 5, 8, 11, 15, 19, 24].map((n) => (
+              <tr key={n} className="border-b border-neutral-800/70">
+                <Td>+{n}</Td>
+                <Td right>{10 * n + (n * (n - 1)) / 2}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 max-w-2xl text-xs text-neutral-500">{t("guide.levels.enemyFoot")}</p>
     </section>
   );
 }

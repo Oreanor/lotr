@@ -149,7 +149,9 @@ export const BOSSES_BY_LOCATION: Record<number, Monster> = {
   // Bosses keep defense matched to strength so their HP holds under 5×str+5×def
   // (the old 10×strength), and their guard already floors the party's hits.
   [WEATHERTOP_ID]: { name: "Назгул", icon: "/enemies/nazgul.png", tier: 2, strength: 8, defense: 8, intelligence: 6, luck: 5 },
-  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 32, defense: 32, intelligence: 8, luck: 6 },
+  // Balrog holds 500 HP (defense raised, attack kept at 32); only Gandalf/Bombadil/
+  // Saruman wound it hard anyway.
+  [MORIA_GATE_ID]: { name: "Балрог", icon: "/enemies/balrog.png", tier: 5, strength: 32, defense: 68, intelligence: 8, luck: 6 },
   [ISENGARD_ID]: { name: "Саруман", icon: "/allies/saruman.png", tier: 4, strength: 15, defense: 15, intelligence: 9, luck: 5 },
   // Barad-dûr has no boss to fight — reaching it is simply the end (see the
   // "sauron" ending). The /enemies/baraddur.png art is kept for possible reuse.
@@ -168,7 +170,7 @@ export const NAZGUL_ENEMY: Monster = {
   icon: "/enemies/nazgul.png",
   tier: 4,
   strength: 18,
-  defense: 18, // matched to strength so HP holds under 5×str+5×def
+  defense: 12, // 150 HP (5×str+5×def), attack kept at 18
   intelligence: 8,
   luck: 5,
 };
@@ -325,33 +327,36 @@ export const GONDOR_ARMOR_IDS = Array.from(
 // pieces lend +3 strength (spear, sword), two +3 defense (shield, mail).
 export const ROHAN_ARMORY_IDS = ["rohan_spear", "rohan_sword", "rohan_shield", "rohan_armor"];
 
+// Item bonuses run 5–10 so gear stays worthwhile deep into the game (heroes
+// out-level a +2/+3 trinket almost at once). Legendary pieces (Mithril mail,
+// Palantír, Phial, Sting, Elessar) sit near the top; common cache kit near +5–6.
 export const ITEMS: Item[] = [
-  { id: "numenor_dagger", icon: "/items/01_numenor_dagger.png", strengthVsUndead: 3 },
-  { id: "old_helmet", icon: "/items/02_old_helmet.png", defense: 2 },
-  { id: "sting", icon: "/items/03_sting.png", strength: 3 },
-  { id: "mithril_mail", icon: "/items/04_mythrilmail.png", defense: 3 },
-  { id: "palantir", icon: "/items/05_palantir.png", intelligence: 3 },
+  { id: "numenor_dagger", icon: "/items/01_numenor_dagger.png", strengthVsUndead: 7 },
+  { id: "old_helmet", icon: "/items/02_old_helmet.png", defense: 5 },
+  { id: "sting", icon: "/items/03_sting.png", strength: 8 },
+  { id: "mithril_mail", icon: "/items/04_mythrilmail.png", defense: 10 },
+  { id: "palantir", icon: "/items/05_palantir.png", intelligence: 9 },
   // Galadriel's gifts.
-  { id: "phial", icon: "/items/06_phial.png", holders: ["frodo"], luck: 3 },
-  { id: "galadriel_box", icon: "/items/07_soil.png", holders: ["sam"], luck: 3 },
-  { id: "elessar", icon: "/items/08_elessar.png", holders: ["aragorn"], strength: 3 },
-  { id: "golden_belt", icon: "/items/09_golden_belt.png", holders: ["boromir"], defense: 3 },
-  { id: "silver_belt_1", icon: "/items/10_silver_belt.png", holders: ["merry"], defense: 2 },
-  { id: "silver_belt_2", icon: "/items/10_silver_belt.png", holders: ["pippin"], defense: 2 },
-  { id: "galadhrim_bow", icon: "/items/11_bow_galadrim.png", holders: ["legolas"], strength: 3 },
-  { id: "galadriel_hairs", icon: "/items/12_hair.png", holders: ["gimli"], luck: 3 },
-  { id: "mithril_helmet", icon: "/items/13_mythril_helm.png", defense: 2 },
-  { id: "numenor_blade", icon: "/items/14_numenor_blade.png", strengthVsUndead: 3 },
-  { id: "book_of_mazarbul", icon: "/items/15_book.png", intelligence: 3 },
+  { id: "phial", icon: "/items/06_phial.png", holders: ["frodo"], luck: 9 },
+  { id: "galadriel_box", icon: "/items/07_soil.png", holders: ["sam"], luck: 8 },
+  { id: "elessar", icon: "/items/08_elessar.png", holders: ["aragorn"], strength: 8 },
+  { id: "golden_belt", icon: "/items/09_golden_belt.png", holders: ["boromir"], defense: 7 },
+  { id: "silver_belt_1", icon: "/items/10_silver_belt.png", holders: ["merry"], defense: 5 },
+  { id: "silver_belt_2", icon: "/items/10_silver_belt.png", holders: ["pippin"], defense: 5 },
+  { id: "galadhrim_bow", icon: "/items/11_bow_galadrim.png", holders: ["legolas"], strength: 7 },
+  { id: "galadriel_hairs", icon: "/items/12_hair.png", holders: ["gimli"], luck: 8 },
+  { id: "mithril_helmet", icon: "/items/13_mythril_helm.png", defense: 6 },
+  { id: "numenor_blade", icon: "/items/14_numenor_blade.png", strengthVsUndead: 8 },
+  { id: "book_of_mazarbul", icon: "/items/15_book.png", intelligence: 7 },
   // Ring of Durin — only a dwarf (Gimli) may bear it.
-  { id: "durin_ring", icon: "/items/16_durin_ring.png", holders: ["gimli"], defense: 5, luck: 5 },
-  { id: "elven_arrows", icon: "/items/17_arrows.png", strengthVsOrcs: 4 },
-  { id: "rohan_spear", icon: "/items/18_spear.png", strength: 3 },
-  { id: "rohan_sword", icon: "/items/19_hornburg_blade.png", strength: 3 },
-  { id: "rohan_shield", icon: "/items/20_shield.png", defense: 3 },
-  { id: "rohan_armor", icon: "/items/21_mail.png", defense: 3 },
-  ...GONDOR_SWORD_IDS.map((id): Item => ({ id, icon: "/items/22_gondor_blade.png", strength: 3 })),
-  ...GONDOR_ARMOR_IDS.map((id): Item => ({ id, icon: "/items/23_gondor_armor.png", defense: 3 })),
+  { id: "durin_ring", icon: "/items/16_durin_ring.png", holders: ["gimli"], defense: 6, luck: 6 },
+  { id: "elven_arrows", icon: "/items/17_arrows.png", strengthVsOrcs: 8 },
+  { id: "rohan_spear", icon: "/items/18_spear.png", strength: 6 },
+  { id: "rohan_sword", icon: "/items/19_hornburg_blade.png", strength: 6 },
+  { id: "rohan_shield", icon: "/items/20_shield.png", defense: 6 },
+  { id: "rohan_armor", icon: "/items/21_mail.png", defense: 7 },
+  ...GONDOR_SWORD_IDS.map((id): Item => ({ id, icon: "/items/22_gondor_blade.png", strength: 6 })),
+  ...GONDOR_ARMOR_IDS.map((id): Item => ({ id, icon: "/items/23_gondor_armor.png", defense: 6 })),
 ];
 export const ITEM_BY_ID: Record<string, Item> = Object.fromEntries(
   ITEMS.map((item) => [item.id, item]),

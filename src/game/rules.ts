@@ -637,6 +637,19 @@ export function itemStatBonus(item: Item | undefined): StatBonus {
     : ZERO_BONUS;
 }
 
+// An item's bonuses as (stat-key, amount) pairs — the source of truth for its
+// effect text, so tuning the numbers never desyncs a hand-written description.
+export function itemEffectEntries(item: Item): { key: string; value: number }[] {
+  const entries: { key: string; value: number }[] = [];
+  if (item.strength) entries.push({ key: "strength", value: item.strength });
+  if (item.defense) entries.push({ key: "defense", value: item.defense });
+  if (item.intelligence) entries.push({ key: "intelligence", value: item.intelligence });
+  if (item.luck) entries.push({ key: "luck", value: item.luck });
+  if (item.strengthVsUndead) entries.push({ key: "strengthVsUndead", value: item.strengthVsUndead });
+  if (item.strengthVsOrcs) entries.push({ key: "strengthVsOrcs", value: item.strengthVsOrcs });
+  return entries;
+}
+
 // Cache items (gondor_sword_3, gondor_armor_1, …) are many distinct ids that
 // share one display name/desc — collapse the numeric suffix for i18n lookups.
 // Only the Gondor armoury family is pooled this way, so other "_1/_2" items
@@ -1053,6 +1066,9 @@ export interface CreateBattleOpts {
   equippedItems: Record<string, string>;
   wraithsStand?: boolean;
   sarumanParley?: boolean;
+  // World tension: flat stat points added to every foe (bosses included), grown
+  // over the journey. Raises HP too (HP = 5×str+5×def).
+  enemyBonus?: StatBonus;
 }
 
 // Snapshot the live party and a foe pack into a fresh, ready-to-run battle. The
@@ -1093,9 +1109,14 @@ export function createBattleState(opts: CreateBattleOpts): BattleState {
       };
     })
     .filter((c): c is Combatant => c !== null && c.hp > 0);
+  const eb = opts.enemyBonus;
   const enemies: Combatant[] = pack.map((mm, i) => {
-    const str = phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
-    const hp = maxHpFromStats(str, mm.defense);
+    const baseStr =
+      phialBlinded && mm.name === SHELOB_NAME ? Math.floor(mm.strength / 2) : mm.strength;
+    // World-tension growth lifts every foe's stats (and thus HP) over the journey.
+    const str = baseStr + (eb?.strength ?? 0);
+    const def = mm.defense + (eb?.defense ?? 0);
+    const hp = maxHpFromStats(str, def);
     return {
       key: `enemy-${i}`,
       name: mm.name,
@@ -1104,9 +1125,9 @@ export function createBattleState(opts: CreateBattleOpts): BattleState {
       maxHp: hp,
       strength: str,
       attack: str,
-      defense: mm.defense,
-      luck: mm.luck,
-      intelligence: mm.intelligence,
+      defense: def,
+      luck: mm.luck + (eb?.luck ?? 0),
+      intelligence: mm.intelligence + (eb?.intelligence ?? 0),
     };
   });
   return {

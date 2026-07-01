@@ -514,6 +514,14 @@
   },
   "item": {
     "chooseTitle": "Choose an item",
+    "effect": {
+      "strength": "+{{n}} strength",
+      "defense": "+{{n}} defense",
+      "intelligence": "+{{n}} intelligence",
+      "luck": "+{{n}} luck",
+      "strengthVsUndead": "+{{n}} strength vs undead",
+      "strengthVsOrcs": "+{{n}} strength vs orcs"
+    },
     "gondor_sword": {
       "name": "Gondorian sword",
       "desc": "+3 strength"
@@ -842,7 +850,12 @@
     },
     "levels": {
       "note": "Leaving a level costs level×{{base}} XP. Each level past the first grants 1 stat point. Leveling is uncapped — the table just shows the first few.",
-      "pointNote": "You start with Frodo alone; the rest are recruited on the road."
+      "pointNote": "You start with Frodo alone; the rest are recruited on the road.",
+      "enemyTitle": "Enemies level too",
+      "enemyNote": "Over time every foe (bosses included) gains +1 to a random stat — as if the enemy ranks level up as well. The interval grows: 10 days to the 1st point, then 11, 12, and so on, so enemies decelerate just like your own leveling.",
+      "enemyPoints": "Enemy points",
+      "enemyDay": "By day",
+      "enemyFoot": "Points scatter at random over strength/defense/intelligence/luck (strength and defense also raise HP). Pack sizes already scale to your party. Rough guide: ~11 points by six months, ~19 by a year."
     },
     "secrets": {
       "note": "Non-obvious mechanics read straight from the code: how to unlock and try everything the game holds."

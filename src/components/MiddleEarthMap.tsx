@@ -564,6 +564,30 @@ export default function MiddleEarthMap() {
   const [denethorMourned, setDenethorMourned] = useState<boolean>(
     initialSave?.denethorMourned ?? false,
   );
+  // World tension: every foe (bosses included) gains flat stat points as the
+  // journey drags on — as if the enemy ranks level up too. Points land on a
+  // slowing cadence (10 days to the 1st, then 11, 12, …), so growth tracks the
+  // party's own decelerating level curve rather than outpacing it.
+  const [enemyGrowth, setEnemyGrowth] = useState<StatBonus>(
+    () => initialSave?.enemyGrowth ?? { strength: 0, defense: 0, intelligence: 0, luck: 0 },
+  );
+  useEffect(() => {
+    setEnemyGrowth((prev) => {
+      let n = prev.strength + prev.defense + prev.intelligence + prev.luck;
+      // The m-th point lands on day 10 + 11 + … = 10m + m(m−1)/2 (interval grows).
+      const dayFor = (m: number) => 10 * m + (m * (m - 1)) / 2;
+      if (dayFor(n + 1) > journeyDay) {
+        return prev;
+      }
+      const next = { ...prev };
+      const stats: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
+      while (dayFor(n + 1) <= journeyDay) {
+        next[stats[Math.floor(Math.random() * stats.length)]] += 1;
+        n += 1;
+      }
+      return next;
+    });
+  }, [journeyDay]);
   // The Corsair captain has been talked round into letting the party sail in peace.
   const [corsairPeace, setCorsairPeace] = useState<boolean>(initialSave?.corsairPeace ?? false);
   // The three wraiths posted at Dol Guldur have been slain — so Minas Morgul
@@ -1103,12 +1127,13 @@ export default function MiddleEarthMap() {
       equippedItems,
       wraithsStand: enc.wraithsStand,
       sarumanParley: enc.sarumanParley,
+      enemyBonus: enemyGrowth,
     });
     if (autoPlayRef.current) {
       battleState = resolveBattleInstantly(battleState);
     }
     setBattle(battleState);
-  }, [encounter, party, statBonusById, hpById, bearerId, equippedItems, expById]);
+  }, [encounter, party, statBonusById, hpById, bearerId, equippedItems, expById, enemyGrowth]);
 
   // Rate a wild encounter "strong" only if it would, on average, take down more
   // than half the company — a forecast from the real battle engine, not a coin
@@ -1124,8 +1149,9 @@ export default function MiddleEarthMap() {
         hpById,
         expById,
         equippedItems,
+        enemyBonus: enemyGrowth,
       }),
-    [party, bearerId, statBonusById, hpById, expById, equippedItems],
+    [party, bearerId, statBonusById, hpById, expById, equippedItems, enemyGrowth],
   );
 
   // Flee before the fight: succeed and the foe is left behind; fail and there's
@@ -1977,6 +2003,7 @@ export default function MiddleEarthMap() {
       grimaSlain,
       osgiliathCacheFound,
       denethorMourned,
+      enemyGrowth,
       corsairPeace,
       ringDestroyed,
       dolGuldurNazgulSlain,
