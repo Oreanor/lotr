@@ -15,6 +15,7 @@ export * from "./OrodruinModal";
 export * from "./PartySummaryModal";
 export * from "./Preloader";
 export * from "./RecruitOfferModal";
+export * from "./RestartConfirmModal";
 export * from "./RogueModals";
 export * from "./SpeechModal";
 export * from "./SplitModal";
