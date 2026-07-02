@@ -8,6 +8,8 @@ import { TransportIcon } from "@/components/ui/TransportIcon";
 import { Modal } from "@/components/ui/Modal";
 import { HelpModal } from "@/components/modals/HelpModal";
 import { StatsModal, type GameStats } from "@/components/modals/StatsModal";
+import { ChronicleModal } from "@/components/modals/ChronicleModal";
+import { useChronicle } from "@/components/useChronicle";
 import { PartySummaryModal, type PartySummaryRow } from "@/components/modals/PartySummaryModal";
 import { RecruitRefusalModal, SamCatchUpModal } from "@/components/modals/Notices";
 import { EndingModal } from "@/components/modals/EndingModal";
@@ -112,6 +114,7 @@ import {
   WEATHERTOP_ID,
   THARBAD_ID,
   DOL_GULDUR_ID,
+  itemFamilyId,
   levelForExp,
   loadSave,
   locationData,
@@ -257,6 +260,8 @@ const identityPref = (value: string) => value;
 // Denethor's last day: not taken from Minas Tirith by 15 March 3019, and the
 // despairing Steward gives himself to the pyre. After this he's gone.
 const DENETHOR_FINAL_DAY = dateToDayOffset(15, 3, 3019);
+// Companions who can plead for Saruman's life at the Isengard parley.
+const SARUMAN_ADVOCATES = ["gandalf", "gandalf_white", "treebeard"];
 const LEVELUP_MODE_VALUES: LevelUpMode[] = [
   "random",
   "randomAll",
@@ -638,6 +643,7 @@ export default function MiddleEarthMap() {
   const [gandalfFellDay, setGandalfFellDay] = useState<number | null>(
     initialSave?.gandalfFellDay ?? null,
   );
+
   const [randomPresence, setRandomPresence] = useState<Record<string, boolean>>({});
   // Forage result floated above the food counter: "+gathered" (green) and the
   // day's "-eaten" (red), so the change adds up.
@@ -661,6 +667,7 @@ export default function MiddleEarthMap() {
   const [splitOpen, setSplitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [chronicleOpen, setChronicleOpen] = useState(false);
   // Party roster overview, shown when tapping the group's figure on the map.
   const [partySummaryOpen, setPartySummaryOpen] = useState(false);
   // Settings dropdown (terrain / hero-path / speed / language / help / restart).
@@ -764,6 +771,22 @@ export default function MiddleEarthMap() {
   const [statBonusById, setStatBonusById] = useState<Record<string, StatBonus>>(
     initialSave?.statBonusById ?? {},
   );
+
+  // The journey chronicle (log + stationed-town tagging + transport/level
+  // watchers) lives in its own hook; the game code just calls chronicleRef.current
+  // at the moment each event happens. Names are resolved to the display language
+  // via tRef at the call-site, so the log stays language-neutral structured data.
+  const { chronicle, chronicleRef, noteArrival, clearStationed } = useChronicle({
+    journeyDayRef,
+    initialChronicle: initialSave?.chronicle,
+    transport,
+    expById,
+    party,
+  });
+  const tRef = useRef(t);
+  tRef.current = t;
+  const locNameRef = useRef(locName);
+  locNameRef.current = locName;
   // Extra days of Ring decay bought by putting it on in battle.
   const [ringWear, setRingWear] = useState(initialSave?.ringWear ?? 0);
   // Days each character has carried the Ring; corruption never resets on transfer.
@@ -800,6 +823,9 @@ export default function MiddleEarthMap() {
       setVisitedLocationIds((prev) =>
         prev.has(location.id) ? prev : new Set(prev).add(location.id),
       );
+      // Records that events now happen "at" this town, and chronicles the arrival
+      // (skipping a mere re-open of the town we're already in).
+      noteArrival(location.id, locNameRef.current(location));
     };
     const src = locationImage(location.id, seasonAt(journeyDayRef.current));
     if (!src) {
@@ -881,6 +907,9 @@ export default function MiddleEarthMap() {
 
   const recruitCharacter = useCallback(
     (id: string) => {
+      if (!partyRef.current.includes(id)) {
+        chronicleRef.current("recruit", { name: tRef.current(`char.${id}`) });
+      }
       setParty((prev) => {
         if (prev.includes(id)) {
           return prev;
@@ -1631,6 +1660,10 @@ export default function MiddleEarthMap() {
     // Scouring two months hence). Isengard is still cleared (he's left it).
     setSarumanSpared(true);
     setSarumanSparedDay(journeyDayRef.current);
+    const advocate = SARUMAN_ADVOCATES.find((who) => partyRef.current.includes(who));
+    chronicleRef.current("sarumanSpared", {
+      advocate: advocate ? tRef.current(`char.${advocate}`) : "",
+    });
     setBattle(null);
     setParleyStep(0);
   }, [battle, applyBattleCasualties]);
@@ -1638,6 +1671,10 @@ export default function MiddleEarthMap() {
   // Fight on: drop the parley hold and half-floor so Saruman can be slain.
   const fightSaruman = useCallback(() => {
     setBattle((b) => (b ? { ...b, pendingParley: false, parleyDeclined: true } : b));
+    const advocate = SARUMAN_ADVOCATES.find((who) => partyRef.current.includes(who));
+    chronicleRef.current("sarumanFightOn", {
+      advocate: advocate ? tRef.current(`char.${advocate}`) : "",
+    });
     setParleyStep(0);
   }, []);
 
@@ -1667,6 +1704,18 @@ export default function MiddleEarthMap() {
     }
     if (previous !== id) {
       speakRef.current(id, "ringTake", { always: true });
+      const taker = tRef.current(`char.${id}`);
+      if (previous) {
+        // Record who took up the Ring and how corrupted the one handing it over had
+        // become — the whole reason bearers are swapped.
+        chronicleRef.current("bearerHandoff", {
+          name: taker,
+          from: tRef.current(`char.${previous}`),
+          corruption: Math.round(bearerCorruptionRef.current),
+        });
+      } else {
+        chronicleRef.current("bearerTake", { name: taker });
+      }
     }
     setBearerId(id);
   }, []);
@@ -1854,6 +1903,7 @@ export default function MiddleEarthMap() {
       reclaimedFrom !== null ||
       helpOpen ||
       statsOpen ||
+      chronicleOpen ||
       partySummaryOpen ||
       ((levelUpCharacterId !== null || levelUpQueue.length > 0) && !autoPlay) ||
       (encounter !== null && !autoPlay) ||
@@ -1871,6 +1921,7 @@ export default function MiddleEarthMap() {
       reclaimedFrom,
       helpOpen,
       statsOpen,
+      chronicleOpen,
       partySummaryOpen,
       levelUpCharacterId,
       levelUpQueue,
@@ -1953,8 +2004,17 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     if (deathCauseById.gandalf === "battle" && gandalfFellDay === null) {
       setGandalfFellDay(journeyDayRef.current);
+      chronicleRef.current("gandalfFell");
     }
   }, [deathCauseById, gandalfFellDay]);
+
+  // Once the party is under way to a new destination it is no longer stationed at
+  // a town — subsequent events are logged by the chronicle as happening on the road.
+  useEffect(() => {
+    if (targetLocation) {
+      clearStationed();
+    }
+  }, [targetLocation, clearStationed]);
 
   // Ring corruption days accrue only for whoever currently carries it, freezing
   // while the Ring is fled (a chase) or once it's unmade (freeplay).
@@ -2012,6 +2072,7 @@ export default function MiddleEarthMap() {
       hobbitonScoured,
       treebeardAtIsengard,
       gandalfFellDay: gandalfFellDay ?? undefined,
+      chronicle,
       visitedLocationIds: [...visitedLocationIds],
       enemiesKilled,
       defeatedEnemyIcons: [...defeatedEnemyIcons],
@@ -2207,6 +2268,7 @@ export default function MiddleEarthMap() {
           .filter((s) => s.members.length > 0),
       );
       setRingDestroyed(true);
+      chronicleRef.current("ringGollum");
       setEnding("gollumFall");
       return;
     }
@@ -2214,6 +2276,7 @@ export default function MiddleEarthMap() {
     if (viaBetrayal) {
       setDoomBetrayal(true);
     }
+    chronicleRef.current("ringClaimed", { name: tRef.current(`char.${bearerIdRef.current}`) });
     setEnding("lord");
   }, []);
 
@@ -2225,6 +2288,7 @@ export default function MiddleEarthMap() {
       wearRingAtDoom(true);
     } else {
       setRingDestroyed(true);
+      chronicleRef.current("ringDestroyed");
       setEnding("victory");
     }
   }, [wearRingAtDoom]);
@@ -2271,6 +2335,7 @@ export default function MiddleEarthMap() {
     if (loc.id === ERECH_ID) {
       if (party.includes("aragorn") && !deadSummoned) {
         setDeadSummoned(true);
+        chronicleRef.current("deadSummoned");
         setExploreResult({ found: true, message: "location.erechSummon" });
         if (!party.includes("king_dead") && !parkedMembers.includes("king_dead")) {
           setPendingExploreRecruit("king_dead");
@@ -2297,6 +2362,7 @@ export default function MiddleEarthMap() {
       const cacheIds = [...GONDOR_SWORD_IDS.slice(0, swords), ...GONDOR_ARMOR_IDS.slice(0, armor)];
       setFoundItems((prev) => [...prev, ...cacheIds.filter((id) => !prev.includes(id))]);
       setOsgiliathCacheFound(true);
+      chronicleRef.current("foundCache", { count: cacheIds.length });
       setExploreResult({ found: true, itemIds: cacheIds });
       return;
     }
@@ -2308,6 +2374,7 @@ export default function MiddleEarthMap() {
       if (party.includes("eomer") && !already) {
         const gained = ROHAN_ARMORY_IDS.filter((id) => !foundItems.includes(id));
         setFoundItems((prev) => [...prev, ...gained.filter((id) => !prev.includes(id))]);
+        chronicleRef.current("foundArmory", { count: gained.length });
         // Show the kit as a gift list (icons + names + effects), like Galadriel's.
         setTalkResult({ charId: "eomer", itemIds: gained, greeting: null });
       } else {
@@ -2319,6 +2386,7 @@ export default function MiddleEarthMap() {
     const found = !foundItems.includes(itemId) && Math.random() < avgLuck / 10;
     if (found) {
       setFoundItems((prev) => [...prev, itemId]);
+      chronicleRef.current("found", { item: t(`item.${itemFamilyId(itemId)}.name`) });
       setExploreResult({ found: true, itemId });
     } else {
       setExploreResult({ found: false });
@@ -2344,6 +2412,13 @@ export default function MiddleEarthMap() {
         }
         if (givesCloaks) {
           setHasCloaks(true);
+        }
+        const giver = t(`char.${charId}`);
+        for (const itemId of newItems) {
+          chronicleRef.current("gift", { name: giver, item: t(`item.${itemFamilyId(itemId)}.name`) });
+        }
+        if (givesCloaks) {
+          chronicleRef.current("giftCloaks", { name: giver });
         }
         setTalkResult({ charId, itemIds: newItems, greeting: null, cloaks: givesCloaks });
       } else {
@@ -2397,6 +2472,12 @@ export default function MiddleEarthMap() {
       }
       return next;
     });
+    if (itemId) {
+      chronicleRef.current("equip", {
+        item: tRef.current(`item.${itemFamilyId(itemId)}.name`),
+        name: tRef.current(`char.${charId}`),
+      });
+    }
     // Donning: he likes it or it doesn't sit right (random); taking off: a shrug.
     // Spoken right in the character panel, about half the time.
     panelReactionRef.current(charId, itemId ? (Math.random() < 0.5 ? "itemLike" : "itemDislike") : "itemOff");
@@ -3205,6 +3286,7 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     if (visitedLocation?.id === MINAS_TIRITH_ID && denethorPerished && !denethorMourned) {
       setDenethorMourned(true);
+      chronicleRef.current("denethorPyre");
       setExploreResult({ found: false, message: "denethor.pyre" });
     }
   }, [visitedLocation, denethorPerished, denethorMourned]);
@@ -3704,6 +3786,7 @@ export default function MiddleEarthMap() {
     !!visitedLocation ||
     openCharacterId !== null ||
     statsOpen ||
+    chronicleOpen ||
     partySummaryOpen ||
     levelUpCharacterId !== null ||
     recruitOffer !== null ||
@@ -3991,6 +4074,7 @@ export default function MiddleEarthMap() {
         return;
       }
     }
+    chronicleRef.current("bearerBroke", { name: tRef.current(`char.${bearerId}`) });
     triggerRingFlight(bearerId);
   }, [ringDestroyed, hasFallen, rogueBearerId, ending, bearerId, battle, encounter, party, squads, focusSquad, triggerRingFlight]);
 
@@ -4112,6 +4196,7 @@ export default function MiddleEarthMap() {
         setParty((prev) => prev.filter((id) => id !== traitorId));
         applyBattleCasualties(battle.allies);
         sendSarumanScouring(traitorId);
+        chronicleRef.current("betrayal", { name: charName(traitorId) });
         showRecruitRefusal(
           traitorId === "gollum"
             ? t("refuse.gollumFled")
@@ -4136,6 +4221,7 @@ export default function MiddleEarthMap() {
       setHpById(nextHp);
       applyBattleCasualties(battle.allies);
       banishTraitor(traitorId);
+      chronicleRef.current("betrayalFled", { name: charName(traitorId) });
       triggerRingFlight(traitorId);
       setBattle(null);
       return;
@@ -4152,6 +4238,20 @@ export default function MiddleEarthMap() {
     hpRef.current = nextHp;
     setHpById(nextHp);
     applyBattleCasualties(battle.allies);
+    // Chronicle the fight; the narrator merges consecutive road fights itself.
+    {
+      const fallen = battle.allies.filter((a) => a.hp <= 0).map((a) => a.key);
+      const foe = battle.enemies[0]?.name ?? "враг";
+      const fallenNames = fallen.map((id) => tRef.current(`char.${id}`)).join(", ");
+      if (battle.outcome === "win") {
+        chronicleRef.current(fallen.length > 0 ? "battleWonLosses" : "battleWon", {
+          foe,
+          fallen: fallenNames,
+        });
+      } else {
+        chronicleRef.current("battleLost", { foe });
+      }
+    }
     if (battle.outcome === "win") {
       // Tally felled foes for the statistics panel — both a running kill count
       // and the set of distinct portraits seen, so the foe gallery fills in.
@@ -4269,6 +4369,7 @@ export default function MiddleEarthMap() {
           : BOSSES_BY_LOCATION[visitedLocation.id];
       if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
+        chronicleRef.current("bossSlain", { foe: foe.name });
         // Clearing Dol Guldur while its wraiths were still posted there means the
         // three were slain — Minas Morgul will muster six of the Nine, not nine.
         if (visitedLocation?.id === DOL_GULDUR_ID && !visitedLocationIds.has(MINAS_MORGUL_ID)) {
@@ -4284,6 +4385,7 @@ export default function MiddleEarthMap() {
       if (battle.enemies.some((enemy) => enemy.icon === SARUMAN_ENEMY.icon)) {
         setSarumanSpared(false);
         setDefeatedBosses((prev) => new Set(prev).add(SARUMAN_NAME));
+        chronicleRef.current("bossSlain", { foe: SARUMAN_NAME });
       }
       // Gollum slain at the Crack of Doom (a fight to the death, not a recruit
       // capture) — he won't lurk there again.
@@ -4640,6 +4742,9 @@ export default function MiddleEarthMap() {
         }
         return next;
       });
+      for (const id of hungerDead) {
+        chronicleRef.current("deathHunger", { name: tRef.current(`char.${id}`) });
+      }
       // Everyone who starved leaves the company (active party or a parked squad).
       setParty((prev) => prev.filter((id) => !hungerDead.includes(id)));
       setSquads((prev) =>
@@ -5073,6 +5178,10 @@ export default function MiddleEarthMap() {
             setStatsOpen(true);
             setSettingsOpen(false);
           }}
+          onChronicle={() => {
+            setChronicleOpen(true);
+            setSettingsOpen(false);
+          }}
           onHelp={() => {
             setHelpOpen(true);
             setSettingsOpen(false);
@@ -5339,6 +5448,7 @@ export default function MiddleEarthMap() {
           }
           onParley={() => {
             setCorsairPeace(true);
+            chronicleRef.current("corsairPeace");
             setExploreResult({ found: true, message: "location.corsairPeace" });
           }}
           monsterName={monsterName}
@@ -5431,8 +5541,12 @@ export default function MiddleEarthMap() {
           onTakeSupplies={() => {
             // Top up to the local supply cap, but never reduce what's carried.
             const next = Math.max(foodRef.current, supplyCap);
+            const gained = next - foodRef.current;
             setFood(next);
             foodRef.current = next;
+            if (gained > 0) {
+              chronicleRef.current("supplies", { days: gained });
+            }
           }}
           onTakeTransport={() => {
             if (!locationTransport) {
@@ -5792,6 +5906,12 @@ export default function MiddleEarthMap() {
           foundCharacterIds={foundCharacterIds}
           defeatedEnemyIcons={defeatedEnemyIcons}
           onCharacterClick={(id) => openCharacterPanel(id, false)}
+        />
+        <ChronicleModal
+          open={chronicleOpen}
+          onClose={() => setChronicleOpen(false)}
+          entries={chronicle}
+          months={months}
         />
         <PartySummaryModal
           open={partySummaryOpen}

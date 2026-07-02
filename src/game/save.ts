@@ -1,6 +1,6 @@
 // Persisted game state so an accidental reload resumes from the last stable
 // point (a stop or a town) — never mid-move or mid-battle.
-import type { DeathCause, Point, StatBonus, TransportId } from "@/game/types";
+import type { ChronicleEntry, DeathCause, Point, StatBonus, TransportId } from "@/game/types";
 
 const SAVE_KEY = "lotr-save";
 // v4: per-character HP is now stored as current health (`hpById`) instead of
@@ -79,6 +79,8 @@ export interface GameSave {
   // Journey day the Grey Gandalf fell in battle — gates when Gandalf the White
   // may be met (a month on). Null/absent until he falls.
   gandalfFellDay?: number;
+  // The running third-person chronicle of notable events, in date order.
+  chronicle?: ChronicleEntry[];
 }
 
 export function loadSave(): GameSave | null {

@@ -69,7 +69,7 @@ export const PLAYER_ICON = CHARACTERS[0].icon;
 
 // Personality used to choose the flavour of a companion's spoken reactions.
 // Anyone not listed falls back to "plain".
-export const TEMPERAMENT_BY_ID: Record<string, Temperament> = {
+const TEMPERAMENT_BY_ID: Record<string, Temperament> = {
   // Playful — comic, earthy, grumbling.
   pippin: "playful",
   merry: "playful",

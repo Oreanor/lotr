@@ -11,6 +11,7 @@ import {
   Moon,
   RotateCcw,
   Route,
+  ScrollText,
   Settings,
   Sun,
 } from "lucide-react";
@@ -37,6 +38,7 @@ export function MapSettingsMenu({
   lang,
   onToggleLang,
   onStats,
+  onChronicle,
   onHelp,
   onRestart,
   onExit,
@@ -59,6 +61,7 @@ export function MapSettingsMenu({
   lang: string;
   onToggleLang: () => void;
   onStats: () => void;
+  onChronicle: () => void;
   onHelp: () => void;
   onRestart: () => void;
   // Desktop-only (Tauri). Omitted in the web build, where the row is hidden.
@@ -83,7 +86,16 @@ export function MapSettingsMenu({
         <Settings className="size-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 flex w-52 flex-col gap-0.5 rounded border border-neutral-700 bg-neutral-900/95 p-1.5 shadow-2xl">
+        <>
+          {/* Click-away layer: tapping anywhere outside the menu closes it. */}
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            onClick={onToggle}
+            className="fixed inset-0 z-40 cursor-default"
+          />
+        <div className="absolute right-0 top-full z-50 mt-2 flex w-52 flex-col gap-0.5 rounded border border-neutral-700 bg-neutral-900/95 p-1.5 shadow-2xl">
           <button type="button" onClick={onToggleTerrain} className={row}>
             {showTerrain ? <Eye className="size-4 shrink-0" /> : <EyeOff className="size-4 shrink-0" />}
             <span className="flex-1">{t("ui.terrain")}</span>
@@ -135,6 +147,10 @@ export function MapSettingsMenu({
             <BarChart3 className="size-4 shrink-0" />
             <span className="flex-1">{t("ui.stats")}</span>
           </button>
+          <button type="button" onClick={onChronicle} className={row}>
+            <ScrollText className="size-4 shrink-0" />
+            <span className="flex-1">{t("ui.chronicle")}</span>
+          </button>
           <button type="button" onClick={onHelp} className={row}>
             <span className="flex size-4 shrink-0 items-center justify-center text-base font-bold">?</span>
             <span className="flex-1">{t("ui.help")}</span>
@@ -150,6 +166,7 @@ export function MapSettingsMenu({
             </button>
           )}
         </div>
+        </>
       )}
     </div>
   );

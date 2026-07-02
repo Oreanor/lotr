@@ -130,21 +130,21 @@ export function regionAt(point: Point): RegionCode {
 }
 
 // Tier 0-5 at a map point: closer to Mordor → higher.
-export function tierAt(point: Point): number {
+function tierAt(point: Point): number {
   const dist = Math.hypot(point.x - MORDOR_POINT.x, point.y - MORDOR_POINT.y);
   return clamp(Math.round((1 - dist / ENCOUNTER_TIER_SPAN) * 5), 0, 5);
 }
 
 // Gollum's per-encounter chance, ramping from the base far off to the max right
 // at Mordor (the SE diagonal). Proximity reuses the tier span.
-export function gollumChanceAt(point: Point): number {
+function gollumChanceAt(point: Point): number {
   const dist = Math.hypot(point.x - MORDOR_POINT.x, point.y - MORDOR_POINT.y);
   const proximity = clamp(1 - dist / ENCOUNTER_TIER_SPAN, 0, 1);
   return GOLLUM_ENCOUNTER_CHANCE + (GOLLUM_ENCOUNTER_CHANCE_MAX - GOLLUM_ENCOUNTER_CHANCE) * proximity;
 }
 
 // Pick a foe for the local tier; sometimes a stronger one ("too tough for now").
-export function pickMonster(localTier: number, point: Point): { monster: Monster; dangerous: boolean } {
+function pickMonster(localTier: number, point: Point): { monster: Monster; dangerous: boolean } {
   const region = regionAt(point);
   const allowed = MONSTERS.filter((m) => !m.regions || m.regions.includes(region));
   const dangerous = localTier < 5 && Math.random() < DANGEROUS_ENCOUNTER_CHANCE;
@@ -268,7 +268,7 @@ export function addBonus(a: StatBonus, b: StatBonus): StatBonus {
   };
 }
 
-export function roamingRecruitBlocked(
+function roamingRecruitBlocked(
   id: string,
   party: string[],
   leftBehind: { id: string }[],
@@ -354,7 +354,7 @@ export function uniquePackTypes(pack: Monster[]): Monster[] {
   });
 }
 
-export function buildEncounterPack(
+function buildEncounterPack(
   lead: Monster,
   solo: boolean,
   partySize: number,
@@ -410,7 +410,7 @@ export function autoPlayShouldFleeEncounter(
   });
 }
 
-export function autoPlayShouldFleeCombat(opts: {
+function autoPlayShouldFleeCombat(opts: {
   dangerous: boolean;
   solo: boolean;
   recruitId?: string | null;
@@ -513,14 +513,14 @@ export function autoPlayShouldFleeCombat(opts: {
 // *average* luck compares to the foes'. Every point the party out-lucks the
 // enemy adds ESCAPE_LUCK_STEP; every point it's out-lucked subtracts the same.
 // Clamped to [MIN, MAX] so escape is never certain and never hopeless.
-export const ESCAPE_BASE_CHANCE = 0.5;
-export const ESCAPE_LUCK_STEP = 0.06; // chance shift per point of average-luck edge
-export const ESCAPE_MIN_CHANCE = 0.05;
-export const ESCAPE_MAX_CHANCE = 0.95;
+const ESCAPE_BASE_CHANCE = 0.5;
+const ESCAPE_LUCK_STEP = 0.06; // chance shift per point of average-luck edge
+const ESCAPE_MIN_CHANCE = 0.05;
+const ESCAPE_MAX_CHANCE = 0.95;
 // A small, nimble band breaks off more easily: each member short of
 // ESCAPE_SIZE_FULL adds ESCAPE_SIZE_STEP to the getaway odds.
-export const ESCAPE_SIZE_FULL = 5;
-export const ESCAPE_SIZE_STEP = 0.05;
+const ESCAPE_SIZE_FULL = 5;
+const ESCAPE_SIZE_STEP = 0.05;
 
 // Sum of the party's effective luck (auras and level-up bonuses included).
 export function partyLuck(party: string[], statBonusById: Record<string, StatBonus>): number {
@@ -659,7 +659,7 @@ export function itemFamilyId(id: string): string {
 }
 
 // Conditional bonus attack a carried item adds against the foes in this fight.
-export function itemAttackBonus(
+function itemAttackBonus(
   item: Item | undefined,
   packHasUndead: boolean,
   packHasOrcs: boolean,
@@ -674,23 +674,23 @@ export function itemAttackBonus(
 }
 
 // How often a landed blow crits, rising with the attacker's intelligence.
-export function critChance(intelligence: number): number {
+function critChance(intelligence: number): number {
   return clamp((intelligence - CRIT_INT_FLOOR) * CRIT_PER_INT, 0, CRIT_MAX_CHANCE);
 }
 
-export function rollCrit(intelligence: number, bonus = 0, mult = 1): boolean {
+function rollCrit(intelligence: number, bonus = 0, mult = 1): boolean {
   return Math.random() < critChance(intelligence) * mult + bonus;
 }
 
 // A crit's bite is a flat multiplier — intelligence governs frequency, not size,
 // so it never compounds (more-often × harder).
-export function critMultiplier(): number {
+function critMultiplier(): number {
   return CRIT_MULTIPLIER;
 }
 
 // How likely a fighter is to coordinate on the team's focus target rather than
 // flail at a random foe — rising with intelligence.
-export function focusChance(intelligence: number): number {
+function focusChance(intelligence: number): number {
   return clamp((intelligence - FOCUS_INT_FLOOR) * FOCUS_PER_INT, 0, FOCUS_MAX_CHANCE);
 }
 
@@ -706,7 +706,7 @@ export function commandFocusChance(intelligence: number): number {
 // (highest attack, finishing the frailest among equals) — and since that pick
 // is deterministic, all the clever ones converge on the same target. A dull one
 // just swings at a random foe; the duller, the likelier that random flail.
-export function chooseTargetIndex(
+function chooseTargetIndex(
   attacker: Combatant,
   foes: Combatant[],
   aliveIndices: number[],
@@ -733,7 +733,7 @@ export function chooseTargetIndex(
 // equally likely (top chance = 1/N); at the clever end the top-level hero draws
 // ENEMY_TARGET_TOP_MAX_CHANCE. This keeps a glass-cannon Ring-bearer from being
 // ganged up on just for hitting hard. With one ally left, there's no choice.
-export function chooseAllyTarget(
+function chooseAllyTarget(
   attacker: Combatant,
   allies: Combatant[],
   aliveIndices: number[],
@@ -771,7 +771,7 @@ export function chooseAllyTarget(
 // both sides — attack − defense — so defense counts the same for everyone, but a
 // blow always pushes through at least MIN_DAMAGE_FRACTION of its attack so high
 // defense can't nullify it into an endless grind. HP = 10×strength.
-export function hitDamage(attacker: Combatant, target: Combatant): number {
+function hitDamage(attacker: Combatant, target: Combatant): number {
   return Math.max(
     Math.ceil(attacker.attack * MIN_DAMAGE_FRACTION),
     attacker.attack - target.defense,
@@ -795,7 +795,7 @@ export function hitChance(attackerLuck: number, targetLuck: number): number {
   );
 }
 
-export function rollHit(attackerLuck: number, targetLuck: number): boolean {
+function rollHit(attackerLuck: number, targetLuck: number): boolean {
   return Math.random() < hitChance(attackerLuck, targetLuck);
 }
 
@@ -1055,7 +1055,7 @@ export function resolveBattleInstantly(battle: BattleState): BattleState {
   return state;
 }
 
-export interface CreateBattleOpts {
+interface CreateBattleOpts {
   party: string[];
   monster: Monster;
   pack: Monster[];
@@ -1257,7 +1257,7 @@ export function autoPlayShouldWaitAtLocation(
   return false;
 }
 
-export function autoFarmThreshold(capacity: number): number {
+function autoFarmThreshold(capacity: number): number {
   return Math.max(4, Math.floor(capacity * 0.35));
 }
 

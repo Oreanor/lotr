@@ -83,6 +83,20 @@ export interface CharacterStats {
 
 export type DeathCause = "hunger" | "battle";
 
+// One dated line in the journey chronicle. Written in a neutral third-person
+// voice (bearers change hands, so the log never speaks as "you"). `key` names a
+// `chronicle.*` locale template; `params` fill its placeholders — names are
+// pre-resolved to the display language at log time.
+export interface ChronicleEntry {
+  day: number;
+  key: string;
+  params?: Record<string, string | number>;
+  // The location id the party was stationed at when this happened, or absent if
+  // it happened on the road. Lets the narrator group a leg's road events under
+  // the town they were heading to, and keep in-town events with that town.
+  at?: number;
+}
+
 export type SavedSpeeds = { travel?: number; battle?: number };
 
 // The map is split into six rough habitats (west/east of REGION_X; north / mid

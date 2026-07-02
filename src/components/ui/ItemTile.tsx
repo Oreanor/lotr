@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { itemFamilyId } from "@/game";
+import { itemEffectEntries, itemFamilyId } from "@/game";
 import type { Item } from "@/game";
 
 // One item "card" — icon, name (with an optional ×count for a batch of the same
@@ -15,7 +15,11 @@ export function ItemTile({ item, count = 1 }: { item: Item; count?: number }) {
         {t(`item.${family}.name`)}
         {count > 1 ? ` ×${count}` : ""}
       </span>
-      <span className="text-[11px] leading-tight text-sky-300/80">{t(`item.${family}.desc`)}</span>
+      <span className="text-[11px] leading-tight text-sky-300/80">
+        {itemEffectEntries(item)
+          .map((e) => t(`item.effect.${e.key}`, { n: e.value }))
+          .join(" · ")}
+      </span>
     </div>
   );
 }

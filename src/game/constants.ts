@@ -15,7 +15,7 @@ export const TRANSPORT_ICONS: Record<TransportId, string> = {
   ship: "/ui/ship.png",
   eagle: "/ui/eagle.png",
 };
-export const ON_FOOT_ICON = "/ui/foot.png";
+const ON_FOOT_ICON = "/ui/foot.png";
 
 export function transportIconSrc(transport: TransportId | null, sailingWithCirdan = false): string {
   if (transport) {
@@ -79,25 +79,25 @@ export const FOLLOW_MARGIN_RATIO = 0.2;
 
 // Location ids — must match data/locations.json.
 export const CARN_DUM_ID = 1;
-export const EREBOR_ID = 2;
-export const WOODLAND_REALM_ID = 3;
-export const FORNOST_ID = 4;
-export const BEORN_ID = 5;
+const EREBOR_ID = 2;
+const WOODLAND_REALM_ID = 3;
+const FORNOST_ID = 4;
+const BEORN_ID = 5;
 export const RIVENDELL_ID = 7;
 export const BREE_ID = 8;
 export const WEATHERTOP_ID = 9;
 export const HOBBITON_ID = 10;
-export const GREY_HAVENS_ID = 11;
-export const OLD_FOREST_ID = 12;
+const GREY_HAVENS_ID = 11;
+const OLD_FOREST_ID = 12;
 export const MORIA_GATE_ID = 14;
 export const LOTHLORIEN_ID = 15;
 export const ISENGARD_ID = 16;
 export const HELMS_DEEP_ID = 17;
 export const EDORAS_ID = 18;
-export const FORLOND_ID = 6;
-export const HARLOND_ID = 13;
-export const DOL_AMROTH_ID = 26;
-export const PELARGIR_ID = 27;
+const FORLOND_ID = 6;
+const HARLOND_ID = 13;
+const DOL_AMROTH_ID = 26;
+const PELARGIR_ID = 27;
 export const CORSAIRS_CITY_ID = 28;
 export const BARAD_DUR_ID = 19;
 export const ERECH_ID = 20;
@@ -106,9 +106,9 @@ export const CIRITH_UNGOL_ID = 22;
 export const MINAS_MORGUL_ID = 23;
 export const MINAS_TIRITH_ID = 24;
 export const OSGILIATH_ID = 25;
-export const UMBAR_ID = 29;
-export const BUCKLAND_ID = 30;
-export const ESGAROTH_ID = 31;
+const UMBAR_ID = 29;
+const BUCKLAND_ID = 30;
+const ESGAROTH_ID = 31;
 export const THARBAD_ID = 32;
 export const DOL_GULDUR_ID = 33;
 
@@ -371,7 +371,7 @@ export const ELF_IDS = new Set([
 ]);
 // Wraith/undead foes see the bearer even with the Ring on (no invisibility).
 export const NAZGUL_NAME = "Назгул";
-export const WITCHKING_NAME = "Король-чародей";
+const WITCHKING_NAME = "Король-чародей";
 export const SARUMAN_NAME = "Саруман";
 export const WRAITH_FOES = new Set(["Умертвие", NAZGUL_NAME, WITCHKING_NAME]);
 // The Ringwraiths are driven off at half strength instead of slain — at
@@ -396,7 +396,7 @@ export const ORC_FOES = new Set(["Гоблин", "Орк-разведчик", "�
 export const SHELOB_NAME = "Шелоб";
 // Barrow-wights — they stop assailing the party once Aragorn rouses the Dead.
 export const WIGHT_NAME = "Умертвие";
-export const BALROG_NAME = "Балрог";
+const BALROG_NAME = "Балрог";
 // Supernatural foes that pierce the Ring's invisibility (wraiths and the Balrog).
 export const RING_PIERCING_FOES = new Set([...WRAITH_FOES, BALROG_NAME]);
 // Only these beings can wound the Balrog.
