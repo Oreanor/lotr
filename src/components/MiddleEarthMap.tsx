@@ -2,228 +2,61 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Loader2, LocateFixed, Split, Square, Users, Wheat, ZoomIn } from "lucide-react";
-import { HoverHint } from "@/components/ui/HoverHint";
-import { healthBarColorClass, healthBarWidthPct } from "@/components/ui/healthBar";
-import { TransportIcon } from "@/components/ui/TransportIcon";
-import { Modal } from "@/components/ui/Modal";
-import { HelpModal } from "@/components/modals/HelpModal";
-import { StatsModal, type GameStats } from "@/components/modals/StatsModal";
-import { ChronicleModal } from "@/components/modals/ChronicleModal";
-import { useChronicle } from "@/components/useChronicle";
-import { PartySummaryModal, type PartySummaryRow } from "@/components/modals/PartySummaryModal";
-import { RecruitRefusalModal, SamCatchUpModal } from "@/components/modals/Notices";
-import { EndingModal } from "@/components/modals/EndingModal";
-import { SpeechModal } from "@/components/modals/SpeechModal";
-import { MapSettingsMenu } from "@/components/map/MapSettingsMenu";
-import { isDesktop, exitApp } from "@/platform";
-import { RogueFledModal } from "@/components/modals/RogueModals";
-import { EncounterModal } from "@/components/modals/EncounterModal";
-import { BattleModal } from "@/components/modals/BattleModal";
-import { EscapeFailedModal } from "@/components/modals/EscapeFailedModal";
-import { ExploreResultModal } from "@/components/modals/ExploreResultModal";
-import type { ExploreResult } from "@/components/modals/ExploreResultModal";
-import { TalkResultModal } from "@/components/modals/TalkResultModal";
-import type { TalkResult } from "@/components/modals/TalkResultModal";
-import { OrodruinModal } from "@/components/modals/OrodruinModal";
-import { RecruitOfferModal } from "@/components/modals/RecruitOfferModal";
-import { LevelUpModal } from "@/components/modals/LevelUpModal";
-import type { LevelUpMode } from "@/components/modals/LevelUpModal";
-import { CreationModal } from "@/components/modals/CreationModal";
-import { usePersistentState } from "@/hooks/usePersistentState";
-import { useMapCamera } from "@/hooks/useMapCamera";
-import { Preloader } from "@/components/modals/Preloader";
-import { SplitModal } from "@/components/modals/SplitModal";
-import { LocationModal } from "@/components/modals/LocationModal";
-import { CharacterModal } from "@/components/modals/CharacterModal";
-import { EaglesLeftModal, TransportConfirmModal } from "@/components/modals/TransportModals";
-import { useSpeedSettings } from "@/hooks/useSpeedSettings";
-import { useTerrainGrid } from "@/hooks/useTerrainGrid";
-import { useBattleClock } from "@/hooks/useBattleClock";
-import { useGameAutosave } from "@/hooks/useGameAutosave";
-import { useRingDecay } from "@/hooks/useRingDecay";
 import {
-  addBonus,
-  appendPathPoint,
-  ARAGORN_ENCOUNTER_MULTIPLIER,
-  PARTY_INT_STEALTH_BASELINE,
-  PARTY_INT_STEALTH_PER_POINT,
-  PARTY_INT_STEALTH_FLOOR,
-  PARTY_STEALTH_NEUTRAL_SIZE,
-  PARTY_STEALTH_PER_MEMBER,
-  PARTY_STEALTH_FLOOR,
-  PARTY_STEALTH_CEIL,
-  auraBonus,
-  AUTO_MAX_TURN_STEPS,
-  AUTO_ROUTE,
-  AUTO_STALL_MS,
-  AUTO_TURN_DEG,
-  autoAssignLevelUpPoints,
-  autoFarmStopThreshold,
-  autoPlayNextStoryRecruit,
-  autoPlayShouldFarm,
-  autoPlayShouldFleeEncounter,
-  autoPlayShouldWaitAtLocation,
-  BETRAYAL_CHANCE,
-  BETRAYAL_GRACE_DAYS,
-  RELUCTANT_RECRUIT_ATTEMPTS,
-  BOMBADIL_LEAVE_CHANCE,
-  bonusPoints,
-  BOSS_NAMES,
-  BOSSES_BY_LOCATION,
-  BARAD_DUR_ID,
-  CARN_DUM_ID,
-  CORSAIRS_CITY_ID,
-  CORSAIR_ENEMY,
-  MONSTERS,
-  clearSave,
-  CHARACTERS,
-  CLOAKS_ENCOUNTER_MULTIPLIER,
-  clamp,
-  computeCharacterStats,
-  createEncounter,
-  CREATION_POINTS,
-  DEFAULT_PARTY,
-  EAGLE_PRESENCE_CHANCE,
-  EAGLE_STAY_DAYS,
-  effectiveStats,
-  itemStatBonus,
-  ENCOUNTER_CHANCE_PER_DAY,
-  BOMBADIL_SLOW_FACTOR,
-  EOMER_SPEED_MULTIPLIER,
-  FOLLOW_MARGIN_RATIO,
-  FOOD_SUPPLY_LOCATION_IDS,
-  FOOD_DAYS_BASE,
-  foodCapacityFor,
-  GANDALF_HEAL_MULTIPLIER,
-  getJourneyDate,
-  dateToDayOffset,
-  getLocationLabel,
-  getStartPosition,
-  HEAL_PER_DAY,
-  maxHpFromStats,
-  currentHp,
-  HUNGER_DAMAGE_FRACTION,
-  HOBBITON_ID,
-  iconVariant,
-  INITIAL_FOOD_DAYS,
-  EDORAS_ID,
-  INITIAL_HERO_PROGRESS,
-  isCharacterRecruitableHere,
-  ISENGARD_ID,
-  ERECH_ID,
-  WEATHERTOP_ID,
-  THARBAD_ID,
-  DOL_GULDUR_ID,
-  itemFamilyId,
-  levelForExp,
-  loadSave,
-  locationData,
-  locationImage,
-  LOTHLORIEN_ID,
-  mapImage,
-  MAP_VARIANTS,
-  MAP_PREF_KEY,
-  THEME_PREF_KEY,
-  REACTIONS_PREF_KEY,
-  MAX_PATH_POINTS,
-  MAX_WATER_CROSSING_CELLS,
-  MEMBER_PICKUP_RANGE,
-  MILES_PER_DAY,
-  MINAS_MORGUL_ID,
-  MINAS_TIRITH_ID,
-  GONDOR_ARMOR_IDS,
-  GONDOR_CACHE_MAX,
-  GONDOR_SWORD_IDS,
-  GRIMA_ENEMY,
-  GOLLUM_ENEMY,
-  SARUMAN_ENEMY,
-  HELMS_DEEP_ID,
-  ROHAN_ARMORY_IDS,
-  MORIA_GATE_ID,
-  MOVE_SUBSTEPS,
-  NAZGUL_ENEMY,
-  DOL_GULDUR_WRAITH,
-  DOL_GULDUR_CAPTAIN,
-  DOL_GULDUR_GARRISON,
-  WEATHERTOP_WITCHKING,
-  NON_BEARERS,
-  ORODRUIN_ID,
-  OSGILIATH_ID,
-  PLAYER_ICON,
-  preloadedLocationImages,
-  preloadImage,
-  preloadLocationImage,
-  RANDOM_PRESENCE,
-  recruitRefusalKey,
-  resolveBattleInstantly,
-  RING_BEARER_ID,
-  ROGUE_CHASE_DAYS,
-  ROGUE_ENCOUNTER_CHANCE,
-  ROGUE_MIN_CHASE_DAYS,
-  type RecruitRefusalNotice,
-  ringImage,
-  regionAt,
-  createBattleState,
-  createBetrayalBattle,
-  createRogueBattle,
-  nonBearerEnding,
-  followOffset,
-  computeLandfallCells,
-  isOpenSea,
-  estimateEncounterDanger,
-  rollEncounter,
-  rollEscape,
-  escapeChance,
-  partyLuck,
-  ITEMS,
-  ITEM_BY_ID,
-  GIFTS_BY_CHARACTER,
-  CLOAK_GIVERS,
-  EXPLORE_ITEM_BY_LOCATION,
-  WIGHT_NAME,
-  HOBBIT_IDS,
-  LOFTY_TALKERS,
-  rollStatBonus,
-  SAM_FARM_BONUS,
-  SAM_CATCH_UP_FOOD_DAYS,
-  seasonAt,
-  slainRoamingRecruitIds,
-  SLIDE_DEFLECTIONS,
-  SPEED_PX_PER_SECOND,
-  TERRAIN_OVERLAY_OPACITY,
-  TERRAIN_PREF_KEY,
-  LEVELUP_MODE_PREF_KEY,
-  terrainImage,
-  TRAITORS,
-  TRANSPORT_BY_LOCATION,
-  TRANSPORTS,
-  HARBOR_IDS,
-  SHIP_BOARD_OFFSET,
-  SHIP_PRESENCE_CHANCE,
-  CIRDAN_SEA_SPEED,
-  CORSAIR_SEA_MAX,
-  CORSAIR_SEA_POWER,
-  unspentPointsFor,
-  SARUMAN_NAME,
-  SARUMAN_ENCOUNTER_CHANCE,
-  SARUMAN_SCOUR_DAYS,
-  SARUMAN_SCOUR_GRACE_DAYS,
-  GANDALF_WHITE_DELAY_DAYS,
-  GANDALF_WHITE_ENCOUNTER_CHANCE,
-  ORC_FOES,
-  XP_INT_FLOOR,
-  XP_BONUS_PER_INT,
-  ZERO_BONUS,
-  reactionMood,
-  temperamentOf,
-  FEMALE_IDS,
-  REACTION_CHANCE,
-  REACTION_SHOW_MS,
-  REACTION_IDLE_MS,
-  REACTION_FOOD_LOW_DAYS,
-  REACTION_CORRUPTION_1,
-  REACTION_CORRUPTION_2,
-} from "@/game";
+  HoverHint,
+  healthBarColorClass,
+  healthBarWidthPct,
+  TransportIcon,
+  Modal,
+  ReactionBubble,
+  PortalBubble,
+} from "@/components/ui";
+import {
+  BattleModal,
+  CharacterModal,
+  ChronicleModal,
+  CreationModal,
+  EaglesLeftModal,
+  EncounterModal,
+  EndingModal,
+  EscapeFailedModal,
+  ExploreResultModal,
+  HelpModal,
+  LevelUpModal,
+  LocationModal,
+  OrodruinModal,
+  PartySummaryModal,
+  Preloader,
+  RecruitOfferModal,
+  RecruitRefusalModal,
+  RogueFledModal,
+  SamCatchUpModal,
+  SpeechModal,
+  SplitModal,
+  StatsModal,
+  TalkResultModal,
+  TransportConfirmModal,
+  type ExploreResult,
+  type GameStats,
+  type PartySummaryRow,
+  type TalkResult,
+} from "@/components/modals";
+import {
+  useBattleClock,
+  useGameAutosave,
+  useMapCamera,
+  useReactions,
+  useRingDecay,
+  useSpeedSettings,
+  useTerrainGrid,
+} from "@/hooks";
+import { MapSettingsMenu } from "@/components/map/MapSettingsMenu";
+import { useChronicle } from "@/components/useChronicle";
+import { useMapPrefs } from "@/components/useMapPrefs";
+import { useLevelUp } from "@/components/useLevelUp";
+import { isDesktop, exitApp } from "@/platform";
+import * as G from "@/game";
+import type { RecruitRefusalNotice } from "@/game";
 import type {
   BattleState,
   Character,
@@ -241,55 +74,16 @@ import type {
   StatBonus,
   TransportId,
 } from "@/game";
-import { useReactions } from "@/hooks/useReactions";
-import { ReactionBubble } from "@/components/ui/ReactionBubble";
-import { PortalBubble } from "@/components/ui/PortalBubble";
 
 // Stable parse/serialize helpers for the persistent UI prefs (kept at module
 // scope so usePersistentState's effect doesn't re-run every render).
 // How long each Saruman-parley line lingers before the next speaker (or the choice).
 const PARLEY_LINE_MS = 2300;
-const parsePrefBool = (raw: string) => raw === "1";
-const serializePrefBool = (value: boolean) => (value ? "1" : "0");
-const parseMapIndex = (raw: string) => {
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 && n < MAP_VARIANTS.length ? n : MAP_VARIANTS.length - 1;
-};
-const parsePrefTheme = (raw: string): "dark" | "light" => (raw === "light" ? "light" : "dark");
-const identityPref = (value: string) => value;
 // Denethor's last day: not taken from Minas Tirith by 15 March 3019, and the
 // despairing Steward gives himself to the pyre. After this he's gone.
-const DENETHOR_FINAL_DAY = dateToDayOffset(15, 3, 3019);
+const DENETHOR_FINAL_DAY = G.dateToDayOffset(15, 3, 3019);
 // Companions who can plead for Saruman's life at the Isengard parley.
 const SARUMAN_ADVOCATES = ["gandalf", "gandalf_white", "treebeard"];
-const LEVELUP_MODE_VALUES: LevelUpMode[] = [
-  "random",
-  "randomAll",
-  "strengthAll",
-  "defenseAll",
-  "intelligenceAll",
-  "luckAll",
-];
-const parseLevelUpMode = (raw: string): LevelUpMode =>
-  (LEVELUP_MODE_VALUES as string[]).includes(raw) ? (raw as LevelUpMode) : "random";
-// Spread one hero's `points` per the chosen mode: scattered for the random modes,
-// or all into a single stat otherwise.
-const allocateForMode = (points: number, mode: LevelUpMode): StatBonus => {
-  if (mode === "random" || mode === "randomAll") {
-    return rollStatBonus(points);
-  }
-  const spread: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
-  const stat: keyof StatBonus =
-    mode === "strengthAll"
-      ? "strength"
-      : mode === "defenseAll"
-        ? "defense"
-        : mode === "intelligenceAll"
-          ? "intelligence"
-          : "luck";
-  spread[stat] = points;
-  return spread;
-};
 
 export default function MiddleEarthMap() {
   const { t, i18n } = useTranslation();
@@ -303,12 +97,12 @@ export default function MiddleEarthMap() {
     (icon: string) => t(`monster.${icon.split("/").pop()?.replace(".png", "")}`),
     [t],
   );
-  const locName = useCallback((loc: MapLocation) => getLocationLabel(loc, lang), [lang]);
+  const locName = useCallback((loc: MapLocation) => G.getLocationLabel(loc, lang), [lang]);
   const toggleLang = () => i18n.changeLanguage(lang === "en" ? "ru" : "en");
 
   // Snapshot of a saved game (if any), read once. Seeds the state below so an
   // accidental reload resumes from the last stop/town.
-  const [initialSave] = useState(loadSave);
+  const [initialSave] = useState(G.loadSave);
 
   // Day each companion joined the party (for the betrayal grace period).
   const joinDayRef = useRef<Record<string, number>>(initialSave?.joinDay ?? {});
@@ -333,7 +127,7 @@ export default function MiddleEarthMap() {
   // keeps the full path. Computed once.
   const trailCapRef = useRef<number | undefined>(
     typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches
-      ? MAX_PATH_POINTS
+      ? G.MAX_PATH_POINTS
       : undefined,
   );
   // Distinct water cells stepped through since last on land. You may revisit
@@ -349,7 +143,7 @@ export default function MiddleEarthMap() {
   const onTapRef = useRef<(clientX: number, clientY: number) => void>(() => {});
   // Current transport, mirrored into a ref so the rAF loop reads it live.
   const transportRef = useRef<TransportId | null>(null);
-  const partyRef = useRef<string[]>(DEFAULT_PARTY);
+  const partyRef = useRef<string[]>(G.DEFAULT_PARTY);
   // Bearer's current corruption (0-100), mirrored so callbacks defined before it
   // is computed (auto-play) can still read it.
   const bearerCorruptionRef = useRef(0);
@@ -370,21 +164,21 @@ export default function MiddleEarthMap() {
   // Party members present when the current location was entered; used to hide
   // already-recruited companions on repeat visits.
   const [entryParty, setEntryParty] = useState<Set<string>>(
-    () => new Set(initialSave?.party ?? DEFAULT_PARTY),
+    () => new Set(initialSave?.party ?? G.DEFAULT_PARTY),
   );
 
   const mapSize = useMemo<Size>(
     () => ({
-      width: locationData.meta.map.width,
-      height: locationData.meta.map.height,
+      width: G.locationData.meta.map.width,
+      height: G.locationData.meta.map.height,
     }),
     [],
   );
 
-  const locations = useMemo<MapLocation[]>(() => locationData.locations, []);
+  const locations = useMemo<MapLocation[]>(() => G.locationData.locations, []);
 
   const hobbiton = useMemo<MapLocation>(
-    () => locations.find((location) => location.id === HOBBITON_ID) ?? locations[0],
+    () => locations.find((location) => location.id === G.HOBBITON_ID) ?? locations[0],
     [locations],
   );
 
@@ -418,7 +212,7 @@ export default function MiddleEarthMap() {
     handlePointerCancel,
   } = useMapCamera({
     mapSize,
-    initialFocus: getStartPosition(hobbiton.point),
+    initialFocus: G.getStartPosition(hobbiton.point),
     resizeFocus: hobbiton.point,
     playerRef,
     mapInputLockedRef,
@@ -426,18 +220,13 @@ export default function MiddleEarthMap() {
   });
   const { terrainReady, getTerrainAtPoint } = useTerrainGrid(mapSize);
   const [player, setPlayer] = useState<Point>(() => {
-    const start = initialSave?.player ?? getStartPosition(hobbiton.point);
+    const start = initialSave?.player ?? G.getStartPosition(hobbiton.point);
     playerRef.current = start;
     return start;
   });
   const [heroPath, setHeroPath] = useState<Point[]>(
-    () => [initialSave?.player ?? getStartPosition(hobbiton.point)],
+    () => [initialSave?.player ?? G.getStartPosition(hobbiton.point)],
   );
-  const [showHeroPath, setShowHeroPath] = useState(false);
-  // Latest-value ref for the rAF travel loop (which closes over stale state):
-  // only churn the hero-path state per frame while the trail is actually shown.
-  const showHeroPathRef = useRef(showHeroPath);
-  showHeroPathRef.current = showHeroPath;
   const [journeyDay, setJourneyDay] = useState(initialSave?.journeyDay ?? 0);
   const [target, setTarget] = useState<Point | null>(null);
   const [targetLocation, setTargetLocation] = useState<MapLocation | null>(null);
@@ -449,73 +238,22 @@ export default function MiddleEarthMap() {
   // Manually halted mid-journey: the destination (and its marker) is kept so the
   // march can be resumed; only a fresh target clears it.
   const [stopped, setStopped] = useState(false);
-  // Per-browser UI preferences, each mirrored to localStorage (see usePersistentState).
-  const [showTerrain, setShowTerrain] = usePersistentState(
-    TERRAIN_PREF_KEY,
-    false,
-    parsePrefBool,
-    serializePrefBool,
-  );
-  // Which of MAP_VARIANTS to draw as the background; defaults to the last (colour map3).
-  const [mapIndex, setMapIndex] = usePersistentState(
-    MAP_PREF_KEY,
-    MAP_VARIANTS.length - 1,
-    parseMapIndex,
-    String,
-  );
-  // Switching the background map: keep the current one shown (with a dimming
-  // veil + spinner over a locked map) until the next is fetched, then swap so it
-  // appears instantly with no half-loaded flash.
-  const [mapLoading, setMapLoading] = useState(false);
-  const cycleMap = useCallback(() => {
-    const next = (mapIndex + 1) % MAP_VARIANTS.length;
-    setMapLoading(true);
-    const img = new Image();
-    const swap = () => {
-      setMapIndex(next);
-      setMapLoading(false);
-    };
-    img.onload = swap;
-    img.onerror = swap;
-    img.src = MAP_VARIANTS[next];
-  }, [mapIndex, setMapIndex]);
-  // Interface theme: "dark" (default) or "light" (parchment).
-  const [theme, setTheme] = usePersistentState<"dark" | "light">(
-    THEME_PREF_KEY,
-    "dark",
-    parsePrefTheme,
-    identityPref,
-  );
-  // Optional companion chatter (flavour reaction bubbles): "often" (the default
-  // rate), "rare" (half as often), or "never". Mechanically-needed lines (recruit
-  // refusals, state-change notices) ignore this entirely.
-  const [reactionMode, setReactionMode] = usePersistentState<"often" | "rare" | "never">(
-    REACTIONS_PREF_KEY,
-    "often",
-    (raw) => (raw === "rare" ? "rare" : raw === "never" || raw === "0" ? "never" : "often"),
-    identityPref,
-  );
-  // 1 = often, 0.5 = rare, 0 = never. Multiplies every flavour-line probability.
-  const reactionMultRef = useRef(1);
-  reactionMultRef.current = reactionMode === "never" ? 0 : reactionMode === "rare" ? 0.5 : 1;
-  // The remembered level-up split-button mode — spares the player from re-picking
-  // "spend the whole team's points" every battle. Only post-battle level-ups use
-  // it; hero creation keeps its plain single button.
-  const [levelUpMode, setLevelUpMode] = usePersistentState<LevelUpMode>(
-    LEVELUP_MODE_PREF_KEY,
-    "random",
-    parseLevelUpMode,
-    identityPref,
-  );
-  // Apply the theme to the document root so index.css's CSS-variable palette swaps.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "light") {
-      root.dataset.theme = "light";
-    } else {
-      delete root.dataset.theme;
-    }
-  }, [theme]);
+  // Per-browser UI preferences (overlays, background map, theme, chatter rate,
+  // level-up mode) live in their own hook; `settingsMenuProps` is spread straight
+  // into <MapSettingsMenu>.
+  const {
+    showTerrain,
+    showHeroPath,
+    showHeroPathRef,
+    mapIndex,
+    mapLoading,
+    theme,
+    setTheme,
+    reactionMultRef,
+    levelUpMode,
+    setLevelUpMode,
+    settingsMenuProps,
+  } = useMapPrefs();
   const [openCharacterId, setOpenCharacterId] = useState<string | null>(null);
   // Whether the open details panel can page through the party (arrows). True
   // only when opened from the party HUD or by clicking the hero on the map.
@@ -532,7 +270,7 @@ export default function MiddleEarthMap() {
   const [lordClaimed, setLordClaimed] = useState(false);
   // Set when the bearer overrode a choice to destroy the Ring and claimed it.
   const [doomBetrayal, setDoomBetrayal] = useState(false);
-  const [party, setParty] = useState<string[]>(initialSave?.party ?? DEFAULT_PARTY);
+  const [party, setParty] = useState<string[]>(initialSave?.party ?? G.DEFAULT_PARTY);
   // Special items: found pool and who carries what.
   const [foundItems, setFoundItems] = useState<string[]>(initialSave?.foundItems ?? []);
   const [equippedItems, setEquippedItems] = useState<Record<string, string>>(
@@ -618,7 +356,7 @@ export default function MiddleEarthMap() {
   const [samCatchUpOpen, setSamCatchUpOpen] = useState(false);
   // Result of talking to a companion: a greeting or items handed over.
   const [talkResult, setTalkResult] = useState<TalkResult | null>(null);
-  const [bearerId, setBearerId] = useState(initialSave?.bearerId ?? RING_BEARER_ID);
+  const [bearerId, setBearerId] = useState(initialSave?.bearerId ?? G.RING_BEARER_ID);
   const [transport, setTransport] = useState<TransportId | null>(initialSave?.transport ?? null);
   // Eagles of Manwë: offered only on some Carn Dûm visits, and they leave after
   // a month. `eagleSince` is the journey day they joined (null when not flying).
@@ -633,7 +371,7 @@ export default function MiddleEarthMap() {
   // stored as current health per character (a missing entry = full), so new
   // recruits join at full health; with double rations on, a hurt party heals at
   // the cost of extra food.
-  const [food, setFood] = useState(initialSave?.food ?? INITIAL_FOOD_DAYS);
+  const [food, setFood] = useState(initialSave?.food ?? G.INITIAL_FOOD_DAYS);
   const [hpById, setHpById] = useState<Record<string, number>>(initialSave?.hpById ?? {});
   const [deathCauseById, setDeathCauseById] = useState<Record<string, DeathCause>>(
     initialSave?.deathCauseById ?? {},
@@ -674,24 +412,16 @@ export default function MiddleEarthMap() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Restart-the-game confirmation dialog (wipes the save and reloads).
   const [restartConfirm, setRestartConfirm] = useState(false);
-  // Hero creation: distribute CREATION_POINTS over Frodo's stats before play.
+  // Hero creation: distribute G.CREATION_POINTS over Frodo's stats before play.
   // A loaded save means the hero was already created.
   const [created, setCreated] = useState(initialSave !== null);
   const [autoPlay, setAutoPlay] = useState(false);
-  const [creationBonus, setCreationBonus] = useState<StatBonus>(ZERO_BONUS);
-  // Level-up point allocation queue (shown one modal at a time after battle).
-  const [levelUpQueue, setLevelUpQueue] = useState<string[]>([]);
-  const levelUpQueueRef = useRef<string[]>([]);
-  levelUpQueueRef.current = levelUpQueue;
-  const [levelUpCharacterId, setLevelUpCharacterId] = useState<string | null>(null);
-  // A ~40% spoken reaction shown at the hero's portrait on the level-up screen
-  // (kept here so it's reliable, unlike the map queue which a march/town pauses).
-  const [levelUpReaction, setLevelUpReaction] = useState<string | null>(null);
-  const levelUpReactionTimerRef = useRef<number | null>(null);
+  const [creationBonus, setCreationBonus] = useState<StatBonus>(G.ZERO_BONUS);
+  // Wired up later by the reactions system; the level-up hook reads it to speak a
+  // line at a hero's portrait when their fresh points land.
   const pickReactionRef = useRef<((c: string, e: ReactionEvent) => { text: string } | null) | null>(
     null,
   );
-  const [levelUpDraft, setLevelUpDraft] = useState<StatBonus>(ZERO_BONUS);
   const [defeatedBosses, setDefeatedBosses] = useState<Set<string>>(
     () => new Set(initialSave?.defeatedBosses ?? []),
   );
@@ -704,7 +434,7 @@ export default function MiddleEarthMap() {
     () => new Set(initialSave?.defeatedEnemyIcons ?? []),
   );
   const [maxPartySize, setMaxPartySize] = useState<number>(
-    initialSave?.maxPartySize ?? (initialSave?.party?.length ?? DEFAULT_PARTY.length),
+    initialSave?.maxPartySize ?? (initialSave?.party?.length ?? G.DEFAULT_PARTY.length),
   );
   // Everyone the party has laid eyes on — recruited, offered, refused, or faced
   // as a foe — so the "characters found" tally counts those who wouldn't join.
@@ -772,6 +502,30 @@ export default function MiddleEarthMap() {
     initialSave?.statBonusById ?? {},
   );
 
+  // The post-battle level-up modal machine (queue + current hero + draft + spoken
+  // reaction) lives in its own hook. The map keeps the derived modal props and the
+  // effects that enqueue heroes and open the next card, all via these setters.
+  const {
+    levelUpQueue,
+    setLevelUpQueue,
+    levelUpCharacterId,
+    setLevelUpCharacterId,
+    levelUpDraft,
+    setLevelUpDraft,
+    levelUpReaction,
+    adjustLevelUpDraft,
+    confirmLevelUp,
+    runLevelUpMode,
+    pickLevelUpMode,
+  } = useLevelUp({
+    expById,
+    statBonusById,
+    setStatBonusById,
+    setLevelUpMode,
+    reactionMultRef,
+    pickReactionRef,
+  });
+
   // The journey chronicle (log + stationed-town tagging + transport/level
   // watchers) lives in its own hook; the game code just calls chronicleRef.current
   // at the moment each event happens. Names are resolved to the display language
@@ -795,7 +549,7 @@ export default function MiddleEarthMap() {
       initialSave?.ringDaysById ??
       (initialSave?.bearerId
         ? { [initialSave.bearerId]: initialSave.bearerRingDays ?? 0 }
-        : { [RING_BEARER_ID]: 0 }),
+        : { [G.RING_BEARER_ID]: 0 }),
   );
   const bearerRingDays = bearerId ? (ringDaysById[bearerId] ?? 0) : 0;
   const addRingDays = useCallback((id: string, delta: number) => {
@@ -805,7 +559,7 @@ export default function MiddleEarthMap() {
   // A game-over ending queued behind the lost battle screen — shown once the
   // player dismisses the fight (so the defeat, and who fell, is actually seen).
   const pendingEndingRef = useRef<Ending | null>(null);
-  const foodRef = useRef(initialSave?.food ?? INITIAL_FOOD_DAYS);
+  const foodRef = useRef(initialSave?.food ?? G.INITIAL_FOOD_DAYS);
   const hpRef = useRef<Record<string, number>>(initialSave?.hpById ?? {});
   // Days already simulated — start at the loaded day so they aren't replayed.
   const processedDayRef = useRef(initialSave?.journeyDay ?? 0);
@@ -827,12 +581,12 @@ export default function MiddleEarthMap() {
       // (skipping a mere re-open of the town we're already in).
       noteArrival(location.id, locNameRef.current(location));
     };
-    const src = locationImage(location.id, seasonAt(journeyDayRef.current));
+    const src = G.locationImage(location.id, G.seasonAt(journeyDayRef.current));
     if (!src) {
       open();
       return;
     }
-    void preloadLocationImage(src).then(open);
+    void G.preloadLocationImage(src).then(open);
   }, []);
 
   useEffect(() => {
@@ -888,7 +642,7 @@ export default function MiddleEarthMap() {
       if (recruitBubbleTimerRef.current) {
         window.clearTimeout(recruitBubbleTimerRef.current);
       }
-      recruitBubbleTimerRef.current = window.setTimeout(() => setRecruitBubble(null), REACTION_SHOW_MS);
+      recruitBubbleTimerRef.current = window.setTimeout(() => setRecruitBubble(null), G.REACTION_SHOW_MS);
     },
     [flashEmote, showRecruitRefusal],
   );
@@ -920,7 +674,7 @@ export default function MiddleEarthMap() {
         return [...prev, id];
       });
 
-      const progress = INITIAL_HERO_PROGRESS[id];
+      const progress = G.INITIAL_HERO_PROGRESS[id];
       if (progress) {
         setExpById((prev) => (id in prev ? prev : { ...prev, [id]: progress.exp }));
         setStatBonusById((prev) =>
@@ -968,7 +722,7 @@ export default function MiddleEarthMap() {
         return;
       }
       // Deterministic party-composition rules (incl. Gollum's hobbits-only).
-      const blockedKey = recruitRefusalKey(character.id, party);
+      const blockedKey = G.recruitRefusalKey(character.id, party);
       if (blockedKey) {
         const speaker = blockedKey === "refuse.gandalfSaruman" ? "gandalf" : character.id;
         refuse(t(blockedKey, { name: charName(character.id) }), speaker);
@@ -991,11 +745,11 @@ export default function MiddleEarthMap() {
         const ids = partyRef.current;
         const avgInt = ids.length
           ? ids.reduce((sum, id) => {
-              const c = CHARACTERS.find((ch) => ch.id === id);
+              const c = G.CHARACTERS.find((ch) => ch.id === id);
               return (
                 sum +
                 (c
-                  ? effectiveStats(c, addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(c, ids)))
+                  ? G.effectiveStats(c, G.addBonus(statBonusById[id] ?? G.ZERO_BONUS, G.auraBonus(c, ids)))
                       .intelligence
                   : 0)
               );
@@ -1007,7 +761,7 @@ export default function MiddleEarthMap() {
         }
       }
       // Reluctant recruits (Bilbo, Denethor…) only relent after enough pestering.
-      const needed = RELUCTANT_RECRUIT_ATTEMPTS[character.id];
+      const needed = G.RELUCTANT_RECRUIT_ATTEMPTS[character.id];
       if (needed) {
         recruitAttemptsRef.current[character.id] = (recruitAttemptsRef.current[character.id] ?? 0) + 1;
         if (recruitAttemptsRef.current[character.id] < needed) {
@@ -1054,11 +808,11 @@ export default function MiddleEarthMap() {
       recruitCharacter(id);
       return;
     }
-    const character = CHARACTERS.find((c) => c.id === id);
+    const character = G.CHARACTERS.find((c) => c.id === id);
     if (character) {
       // Subdued in battle → joins wounded (half health); a peaceful join is unhurt.
       if (!peaceful) {
-        const max = maxHpFromStats(character.strength, character.defense);
+        const max = G.maxHpFromStats(character.strength, character.defense);
         hpRef.current = { ...hpRef.current, [id]: max - Math.floor(max / 2) };
         setHpById(hpRef.current);
       }
@@ -1075,21 +829,21 @@ export default function MiddleEarthMap() {
   // A tempted companion turns on the bearer: a 1v1 fight for the Ring.
   const startBetrayal = useCallback(
     (traitorId: string) => {
-      const bearer = CHARACTERS.find((c) => c.id === bearerId);
-      const traitor = CHARACTERS.find((c) => c.id === traitorId);
+      const bearer = G.CHARACTERS.find((c) => c.id === bearerId);
+      const traitor = G.CHARACTERS.find((c) => c.id === traitorId);
       if (!bearer || !traitor) {
         return;
       }
       battleAppliedRef.current = false;
       setEncounter(null);
-      let battleState = createBetrayalBattle(bearer, traitor, traitorId, {
+      let battleState = G.createBetrayalBattle(bearer, traitor, traitorId, {
         party,
         statBonusById,
         hpById,
         expById,
       });
       if (autoPlayRef.current) {
-        battleState = resolveBattleInstantly(battleState);
+        battleState = G.resolveBattleInstantly(battleState);
       }
       setBattle(battleState);
     },
@@ -1145,7 +899,7 @@ export default function MiddleEarthMap() {
     }
     battleAppliedRef.current = false;
     setEncounter(null);
-    let battleState = createBattleState({
+    let battleState = G.createBattleState({
       party,
       monster: enc.monster,
       pack: enc.pack,
@@ -1159,17 +913,17 @@ export default function MiddleEarthMap() {
       enemyBonus: enemyGrowth,
     });
     if (autoPlayRef.current) {
-      battleState = resolveBattleInstantly(battleState);
+      battleState = G.resolveBattleInstantly(battleState);
     }
     setBattle(battleState);
   }, [encounter, party, statBonusById, hpById, bearerId, equippedItems, expById, enemyGrowth]);
 
   // Rate a wild encounter "strong" only if it would, on average, take down more
   // than half the company — a forecast from the real battle engine, not a coin
-  // flip (see estimateEncounterDanger).
+  // flip (see G.estimateEncounterDanger).
   const assessDanger = useCallback(
     (monster: Monster, pack: Monster[]) =>
-      estimateEncounterDanger({
+      G.estimateEncounterDanger({
         party,
         monster,
         pack,
@@ -1189,7 +943,7 @@ export default function MiddleEarthMap() {
     if (!encounter) {
       return;
     }
-    if (rollEscape(party, statBonusById, encounter.pack.map((mm) => mm.luck))) {
+    if (G.rollEscape(party, statBonusById, encounter.pack.map((mm) => mm.luck))) {
       setEncounter(null);
       // Slipping away means the whole scattered company keeps its head down — a
       // splinter squad's pending ambush doesn't seize control right after.
@@ -1204,232 +958,16 @@ export default function MiddleEarthMap() {
   const encounterEscapePct = useMemo(
     () =>
       encounter
-        ? Math.round(escapeChance(party, statBonusById, encounter.pack.map((mm) => mm.luck)) * 100)
+        ? Math.round(G.escapeChance(party, statBonusById, encounter.pack.map((mm) => mm.luck)) * 100)
         : 0,
     [encounter, party, statBonusById],
   );
   const battleEscapePct = useMemo(
     () =>
       battle
-        ? Math.round(escapeChance(party, statBonusById, battle.enemies.map((e) => e.luck)) * 100)
+        ? Math.round(G.escapeChance(party, statBonusById, battle.enemies.map((e) => e.luck)) * 100)
         : 0,
     [battle, party, statBonusById],
-  );
-
-  const adjustLevelUpDraft = useCallback(
-    (stat: keyof StatBonus, delta: number) => {
-      if (!levelUpCharacterId) {
-        return;
-      }
-      setLevelUpDraft((prev) => {
-        const spent = bonusPoints(prev);
-        const total = unspentPointsFor(
-          levelUpCharacterId,
-          expById[levelUpCharacterId] ?? 0,
-          statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
-        );
-        const nextValue = prev[stat] + delta;
-        if (nextValue < 0 || (delta > 0 && spent >= total)) {
-          return prev;
-        }
-        return { ...prev, [stat]: nextValue };
-      });
-    },
-    [levelUpCharacterId, expById, statBonusById],
-  );
-
-
-  // True during the brief "show the roll" pause after a random level-up, so a
-  // manual confirm/adjust can't sneak in and commit against the wrong hero.
-  const levelUpRollingRef = useRef(false);
-  const confirmLevelUp = useCallback((override?: StatBonus) => {
-    if (!levelUpCharacterId) {
-      return;
-    }
-    // The timed auto-commit passes its rolled spread as `override`; a manual
-    // confirm (no override) is ignored while a roll is still on display.
-    if (override === undefined && levelUpRollingRef.current) {
-      return;
-    }
-    const draft = override ?? levelUpDraft;
-    const total = unspentPointsFor(
-      levelUpCharacterId,
-      expById[levelUpCharacterId] ?? 0,
-      statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
-    );
-    if (bonusPoints(draft) !== total) {
-      return;
-    }
-    setStatBonusById((prev) => {
-      const current = prev[levelUpCharacterId] ?? ZERO_BONUS;
-      return { ...prev, [levelUpCharacterId]: addBonus(current, draft) };
-    });
-    // Clear the draft now (not at advance): the points are spent, so during the
-    // reaction-hold "points left" reads 0, never a negative.
-    setLevelUpDraft(ZERO_BONUS);
-    // Leveling raises the max HP pool but doesn't heal — and since HP is stored as
-    // current health, the bigger max simply leaves the hero below full; nothing to
-    // carry over.
-    // React to the stat that gained the most (~40%): a line at the portrait. If it
-    // fires, hold the screen a beat so it can be read, then move on.
-    const keys: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
-    let top: keyof StatBonus = "strength";
-    for (const k of keys) {
-      if (draft[k] > draft[top]) top = k;
-    }
-    if (draft[top] > 0 && Math.random() < 0.3 * reactionMultRef.current) {
-      const ev: ReactionEvent =
-        top === "strength" ? "levelStr" : top === "defense" ? "levelDef" : top === "intelligence" ? "levelInt" : "levelLuck";
-      const picked = pickReactionRef.current?.(levelUpCharacterId, ev);
-      if (picked) {
-        setLevelUpReaction(picked.text);
-        if (levelUpReactionTimerRef.current) {
-          window.clearTimeout(levelUpReactionTimerRef.current);
-        }
-        levelUpReactionTimerRef.current = window.setTimeout(() => {
-          setLevelUpReaction(null);
-          advanceLevelUpRef.current();
-        }, REACTION_SHOW_MS);
-        return;
-      }
-    }
-    advanceLevelUpRef.current();
-  }, [levelUpCharacterId, levelUpDraft, expById, statBonusById]);
-
-  // Commit done — clear the draft and either show the next queued hero or close.
-  const advanceLevelUpRef = useRef(() => {});
-  advanceLevelUpRef.current = () => {
-    // Cancel any pending reaction-hold so a manual click can't double-advance.
-    if (levelUpReactionTimerRef.current) {
-      window.clearTimeout(levelUpReactionTimerRef.current);
-      levelUpReactionTimerRef.current = null;
-    }
-    setLevelUpReaction(null);
-    setLevelUpDraft(ZERO_BONUS);
-    const queue = levelUpQueueRef.current;
-    if (queue.length > 0) {
-      const [next, ...rest] = queue;
-      setLevelUpCharacterId(next);
-      setLevelUpQueue(rest);
-    } else {
-      setLevelUpCharacterId(null);
-    }
-  };
-
-  // Rolling a random spread on level-up doubles as confirming it — scatter the
-  // points and commit in one click, moving on to the next hero. (Hero creation
-  // keeps its separate roll/confirm; only post-battle level-ups chain.) The roll
-  // shows for half a second first, so the player can see the new spread before it
-  // commits and the next hero swaps in.
-  const randomizeAndConfirmLevelUp = useCallback(() => {
-    if (!levelUpCharacterId || levelUpRollingRef.current) {
-      return;
-    }
-    const total = unspentPointsFor(
-      levelUpCharacterId,
-      expById[levelUpCharacterId] ?? 0,
-      statBonusById[levelUpCharacterId] ?? ZERO_BONUS,
-    );
-    const stats: (keyof StatBonus)[] = ["strength", "defense", "intelligence", "luck"];
-    const rolled: StatBonus = { strength: 0, defense: 0, intelligence: 0, luck: 0 };
-    for (let i = 0; i < total; i += 1) {
-      rolled[stats[Math.floor(Math.random() * stats.length)]] += 1;
-    }
-    levelUpRollingRef.current = true;
-    setLevelUpDraft(rolled);
-    window.setTimeout(() => {
-      confirmLevelUp(rolled);
-      levelUpRollingRef.current = false;
-    }, 500);
-  }, [levelUpCharacterId, expById, statBonusById, confirmLevelUp]);
-
-  // The "…All" modes: spend the open hero's points AND every queued hero's. Rather
-  // than commit silently, walk each card in turn — half a second on the old values,
-  // half a second on the new — so the player sees roughly who gained what before it
-  // closes. Stored HP is current health, so the bigger max from the new points
-  // just leaves each hero below full — no healing, nothing to compensate.
-  const applyLevelUpToAll = useCallback(
-    (mode: LevelUpMode) => {
-      if (!levelUpCharacterId || levelUpRollingRef.current) {
-        return;
-      }
-      // Precompute every spread up front; the heroes are distinct, so committing
-      // them one by one doesn't change anyone else's point total.
-      const spreads: Record<string, StatBonus> = {};
-      const ids: string[] = [];
-      for (const id of [levelUpCharacterId, ...levelUpQueueRef.current]) {
-        const total = unspentPointsFor(id, expById[id] ?? 0, statBonusById[id] ?? ZERO_BONUS);
-        if (total <= 0) {
-          continue;
-        }
-        spreads[id] = allocateForMode(total, mode);
-        ids.push(id);
-      }
-      if (ids.length === 0) {
-        return;
-      }
-      // Block manual confirm / re-entry for the whole walkthrough.
-      levelUpRollingRef.current = true;
-      if (levelUpReactionTimerRef.current) {
-        window.clearTimeout(levelUpReactionTimerRef.current);
-        levelUpReactionTimerRef.current = null;
-      }
-      setLevelUpReaction(null);
-      const commit = (id: string, spread: StatBonus) => {
-        setStatBonusById((prev) => ({
-          ...prev,
-          [id]: addBonus(prev[id] ?? ZERO_BONUS, spread),
-        }));
-        // HP is stored as current health, so the larger max from the new points
-        // just leaves the hero below full — no need to wound them to compensate.
-      };
-      let i = 0;
-      const step = () => {
-        if (i >= ids.length) {
-          setLevelUpDraft(ZERO_BONUS);
-          setLevelUpQueue([]);
-          setLevelUpCharacterId(null);
-          levelUpRollingRef.current = false;
-          return;
-        }
-        const id = ids[i];
-        // Show the card with its old values, then flip the new spread in.
-        setLevelUpCharacterId(id);
-        setLevelUpDraft(ZERO_BONUS);
-        window.setTimeout(() => {
-          setLevelUpDraft(spreads[id]);
-          window.setTimeout(() => {
-            commit(id, spreads[id]);
-            i += 1;
-            step();
-          }, 500);
-        }, 500);
-      };
-      step();
-    },
-    [levelUpCharacterId, expById, statBonusById],
-  );
-
-  // The main split-button click: route to the single-hero roll or the team-wide
-  // spend, depending on the remembered mode.
-  const runLevelUpMode = useCallback(
-    (mode: LevelUpMode) => {
-      if (mode === "random") {
-        randomizeAndConfirmLevelUp();
-      } else {
-        applyLevelUpToAll(mode);
-      }
-    },
-    [randomizeAndConfirmLevelUp, applyLevelUpToAll],
-  );
-
-  // Picking from the chevron menu only swaps the active mode (and remembers it);
-  // the player still clicks the main button to actually spend the points.
-  const pickLevelUpMode = useCallback(
-    (mode: LevelUpMode) => {
-      setLevelUpMode(mode);
-    },
-    [setLevelUpMode],
   );
 
   // Hero creation: nudge one of Frodo's stats, clamped to [0, points left].
@@ -1437,7 +975,7 @@ export default function MiddleEarthMap() {
     setCreationBonus((prev) => {
       const spent = prev.strength + prev.defense + prev.intelligence + prev.luck;
       const nextValue = prev[stat] + delta;
-      if (nextValue < 0 || (delta > 0 && spent >= CREATION_POINTS)) {
+      if (nextValue < 0 || (delta > 0 && spent >= G.CREATION_POINTS)) {
         return prev;
       }
       return { ...prev, [stat]: nextValue };
@@ -1446,24 +984,24 @@ export default function MiddleEarthMap() {
 
   // Scatter all creation points randomly across the four stats.
   const randomizeCreation = useCallback(() => {
-    setCreationBonus(rollStatBonus(CREATION_POINTS));
+    setCreationBonus(G.rollStatBonus(G.CREATION_POINTS));
   }, []);
 
   const confirmCreation = useCallback(() => {
-    setStatBonusById((prev) => ({ ...prev, [RING_BEARER_ID]: creationBonus }));
+    setStatBonusById((prev) => ({ ...prev, [G.RING_BEARER_ID]: creationBonus }));
     setCreated(true);
   }, [creationBonus]);
 
   // Wipe the save and reload for a fresh quest (from the restart confirmation).
   const restartGame = useCallback(() => {
-    clearSave();
+    G.clearSave();
     window.location.reload();
   }, []);
 
   const startAutoPlay = useCallback(() => {
-    const rolled = rollStatBonus(CREATION_POINTS);
+    const rolled = G.rollStatBonus(G.CREATION_POINTS);
     setCreationBonus(rolled);
-    setStatBonusById((prev) => ({ ...prev, [RING_BEARER_ID]: rolled }));
+    setStatBonusById((prev) => ({ ...prev, [G.RING_BEARER_ID]: rolled }));
     setCreated(true);
     setAutoPlay(true);
     autoRouteIndexRef.current = 0;
@@ -1482,8 +1020,8 @@ export default function MiddleEarthMap() {
         pendingEndingRef.current = next;
       };
       const survivors = party.filter((id) => !dead.includes(id));
-      const livingBearerCandidates = survivors.filter((id) => !NON_BEARERS.has(id));
-      const slainRoaming = slainRoamingRecruitIds(dead);
+      const livingBearerCandidates = survivors.filter((id) => !G.NON_BEARERS.has(id));
+      const slainRoaming = G.slainRoamingRecruitIds(dead);
       if (slainRoaming.length > 0) {
         setSlainRoamingRecruits((prev) => {
           const next = new Set(prev);
@@ -1507,7 +1045,7 @@ export default function MiddleEarthMap() {
         // abroad. Only when no one anywhere can take it up is the quest over.
         // (In freeplay the Ring is gone — a fallen ex-bearer is just a death.)
         const squadHasBearer = squadsRef.current.some((s) =>
-          s.members.some((id) => !NON_BEARERS.has(id)),
+          s.members.some((id) => !G.NON_BEARERS.has(id)),
         );
         if (livingBearerCandidates.length > 0) {
           setBearerId("");
@@ -1525,7 +1063,7 @@ export default function MiddleEarthMap() {
           // No one anywhere can truly carry the Ring. If non-bearers still live,
           // one of them takes it to their own doom; otherwise all simply fell.
           const living = [...survivors, ...squadsRef.current.flatMap((s) => s.members)];
-          const next: Ending = living.length > 0 ? nonBearerEnding(living) : "battle";
+          const next: Ending = living.length > 0 ? G.nonBearerEnding(living) : "battle";
           endBattleAfterPause(next);
         }
       } else if (survivors.length === 0) {
@@ -1545,7 +1083,7 @@ export default function MiddleEarthMap() {
     if (!battle || battle.fleeUsed) {
       return;
     }
-    if (!rollEscape(party, statBonusById, battle.enemies.map((e) => e.luck))) {
+    if (!G.rollEscape(party, statBonusById, battle.enemies.map((e) => e.luck))) {
       setBattle((b) => (b ? { ...b, fleeUsed: true } : b));
       setEscapeFailed("battle");
       return;
@@ -1689,7 +1227,7 @@ export default function MiddleEarthMap() {
 
 
   const makeBearer = useCallback((id: string) => {
-    if (NON_BEARERS.has(id)) {
+    if (G.NON_BEARERS.has(id)) {
       return;
     }
     const previous = bearerIdRef.current;
@@ -1697,7 +1235,7 @@ export default function MiddleEarthMap() {
       // A playful soul handing the Ring to a grounded or lofty companion holds
       // their tongue — no "guard it well" lecture; the wiser one already knows.
       const playfulLecturingSerious =
-        temperamentOf(previous) === "playful" && temperamentOf(id) !== "playful";
+        G.temperamentOf(previous) === "playful" && G.temperamentOf(id) !== "playful";
       if (!playfulLecturingSerious) {
         speakRef.current(previous, "ringGive", { always: true });
       }
@@ -1721,8 +1259,8 @@ export default function MiddleEarthMap() {
   }, []);
 
   const acceptSamCatchUp = useCallback(() => {
-    const capacity = foodCapacityFor(transport);
-    const nextFood = Math.min(capacity, foodRef.current + SAM_CATCH_UP_FOOD_DAYS);
+    const capacity = G.foodCapacityFor(transport);
+    const nextFood = Math.min(capacity, foodRef.current + G.SAM_CATCH_UP_FOOD_DAYS);
     foodRef.current = nextFood;
     setFood(nextFood);
     recruitCharacter("sam");
@@ -1731,7 +1269,7 @@ export default function MiddleEarthMap() {
 
   // The Ring slips away with a companion (the bearer broke at 100%, or a betrayer
   // bested the party). He drops out and runs for Mount Doom; the party is left
-  // ringless with ROGUE_CHASE_DAYS to hunt him down.
+  // ringless with G.ROGUE_CHASE_DAYS to hunt him down.
   const triggerRingFlight = useCallback((fledId: string) => {
     setParty((prev) => prev.filter((id) => id !== fledId));
     setBearerId("");
@@ -1745,19 +1283,19 @@ export default function MiddleEarthMap() {
   // rogue. Winning reclaims the Ring; losing ends the tale with nothing.
   const startRogueBattle = useCallback(
     (rogueId: string) => {
-      const rogue = CHARACTERS.find((c) => c.id === rogueId);
+      const rogue = G.CHARACTERS.find((c) => c.id === rogueId);
       if (!rogue) {
         return;
       }
       battleAppliedRef.current = false;
-      let battleState = createRogueBattle(rogueId, rogue, {
+      let battleState = G.createRogueBattle(rogueId, rogue, {
         party,
         statBonusById,
         hpById,
         expById,
       });
       if (autoPlayRef.current) {
-        battleState = resolveBattleInstantly(battleState);
+        battleState = G.resolveBattleInstantly(battleState);
       }
       setBattle(battleState);
     },
@@ -1769,14 +1307,14 @@ export default function MiddleEarthMap() {
   const rollPresence = useCallback((locationId?: number) => {
     setRandomPresence(() => {
       const rolled: Record<string, boolean> = {};
-      for (const [id, chance] of Object.entries(RANDOM_PRESENCE)) {
+      for (const [id, chance] of Object.entries(G.RANDOM_PRESENCE)) {
         rolled[id] = Math.random() < chance;
       }
       return rolled;
     });
-    setEagleOffered(locationId === CARN_DUM_ID && Math.random() < EAGLE_PRESENCE_CHANCE);
+    setEagleOffered(locationId === G.CARN_DUM_ID && Math.random() < G.EAGLE_PRESENCE_CHANCE);
     setShipOffered(
-      locationId !== undefined && Math.random() < (SHIP_PRESENCE_CHANCE[locationId] ?? 0),
+      locationId !== undefined && Math.random() < (G.SHIP_PRESENCE_CHANCE[locationId] ?? 0),
     );
   }, []);
 
@@ -1787,7 +1325,7 @@ export default function MiddleEarthMap() {
 
     const nextDay = journeyDayRef.current + 1;
     journeyDayRef.current = nextDay;
-    journeyMilesRef.current += MILES_PER_DAY;
+    journeyMilesRef.current += G.MILES_PER_DAY;
     setJourneyDay(nextDay);
     rollPresence(visitedLocation?.id);
   }, [isMoving, rollPresence, visitedLocation]);
@@ -1802,29 +1340,29 @@ export default function MiddleEarthMap() {
     // doesn't matter which squad gathers it. Use the Ring-bearer's luck when
     // they travel with this squad (keeps the tuned yield), otherwise the best
     // forager in the active squad. Effective luck = base + bonuses + auras.
-    const bearer = CHARACTERS.find((character) => character.id === bearerId);
+    const bearer = G.CHARACTERS.find((character) => character.id === bearerId);
     const luck =
       bearer && party.includes(bearerId)
-        ? effectiveStats(bearer, addBonus(statBonusById[bearerId] ?? ZERO_BONUS, auraBonus(bearer, party)))
+        ? G.effectiveStats(bearer, G.addBonus(statBonusById[bearerId] ?? G.ZERO_BONUS, G.auraBonus(bearer, party)))
             .luck
         : party.reduce((best, id) => {
-            const c = CHARACTERS.find((character) => character.id === id);
+            const c = G.CHARACTERS.find((character) => character.id === id);
             if (!c) {
               return best;
             }
             return Math.max(
               best,
-              effectiveStats(c, addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(c, party))).luck,
+              G.effectiveStats(c, G.addBonus(statBonusById[id] ?? G.ZERO_BONUS, G.auraBonus(c, party))).luck,
             );
           }, 0);
-    const samBonus = party.includes("sam") ? SAM_FARM_BONUS : 0;
+    const samBonus = party.includes("sam") ? G.SAM_FARM_BONUS : 0;
     const gained =
       1 +
       samBonus +
       Math.floor(Math.random() * 3) +
       Math.floor(Math.random() * (Math.floor(luck / 3) + 1));
     const before = foodRef.current;
-    const cap = foodCapacityFor(transport);
+    const cap = G.foodCapacityFor(transport);
     const raw = before + gained;
     // Foraging spends a day, and that day eats a ration (2 if anyone's hurt and
     // there's spare to heal) — mirror that for the red "-N" so the numbers
@@ -1847,7 +1385,7 @@ export default function MiddleEarthMap() {
 
     const nextDay = journeyDayRef.current + 1;
     journeyDayRef.current = nextDay;
-    journeyMilesRef.current += MILES_PER_DAY;
+    journeyMilesRef.current += G.MILES_PER_DAY;
     setJourneyDay(nextDay);
   }, [isMoving, bearerId, party, transport, statBonusById]);
 
@@ -1858,7 +1396,7 @@ export default function MiddleEarthMap() {
         if (!current) {
           return current;
         }
-        const ids = CHARACTERS.filter((character) => party.includes(character.id)).map(
+        const ids = G.CHARACTERS.filter((character) => party.includes(character.id)).map(
           (character) => character.id,
         );
         const index = ids.indexOf(current);
@@ -1937,7 +1475,7 @@ export default function MiddleEarthMap() {
   const foundCharacterIds = useMemo(
     () =>
       new Set<string>([
-        ...DEFAULT_PARTY,
+        ...G.DEFAULT_PARTY,
         ...Object.keys(joinDayRef.current),
         ...party,
         ...metCharacterIds,
@@ -1949,9 +1487,9 @@ export default function MiddleEarthMap() {
       locationsVisited: visitedLocationIds.size,
       locationsTotal: locations.length,
       bossesDefeated: defeatedBosses.size,
-      bossesTotal: Object.keys(BOSSES_BY_LOCATION).length,
+      bossesTotal: Object.keys(G.BOSSES_BY_LOCATION).length,
       itemsFound: foundItems.length,
-      itemsTotal: ITEMS.length,
+      itemsTotal: G.ITEMS.length,
       enemiesKilled,
       deaths: Object.keys(deathCauseById).length,
       maxPartySize,
@@ -2084,7 +1622,7 @@ export default function MiddleEarthMap() {
   // Game over: drop the save so a reload starts a fresh quest.
   useEffect(() => {
     if (ending) {
-      clearSave();
+      G.clearSave();
     }
   }, [ending]);
 
@@ -2300,14 +1838,14 @@ export default function MiddleEarthMap() {
     if (!loc) {
       return;
     }
-    const itemId = EXPLORE_ITEM_BY_LOCATION[loc.id];
+    const itemId = G.EXPLORE_ITEM_BY_LOCATION[loc.id];
     // Nothing to search here (no special site, no hidden item) — do nothing, and
     // don't burn a day for it.
     if (
-      loc.id !== WEATHERTOP_ID &&
-      loc.id !== ERECH_ID &&
-      loc.id !== OSGILIATH_ID &&
-      loc.id !== HELMS_DEEP_ID &&
+      loc.id !== G.WEATHERTOP_ID &&
+      loc.id !== G.ERECH_ID &&
+      loc.id !== G.OSGILIATH_ID &&
+      loc.id !== G.HELMS_DEEP_ID &&
       !itemId
     ) {
       return;
@@ -2321,9 +1859,9 @@ export default function MiddleEarthMap() {
     // found before that day — and it's pointless if you've already crossed paths
     // with Gandalf (met him anywhere), since his "I went east" mark tells you
     // nothing new. (Reachable only once the Nazgûl here is beaten.)
-    if (loc.id === WEATHERTOP_ID) {
+    if (loc.id === G.WEATHERTOP_ID) {
       const onSite = nextDay - 1; // the day we searched, before the day's cost
-      const runeReady = onSite >= dateToDayOffset(3, 10, 3018);
+      const runeReady = onSite >= G.dateToDayOffset(3, 10, 3018);
       setExploreResult(
         runeReady && !metCharacterIds.has("gandalf")
           ? { found: true, message: "location.weathertopRune" }
@@ -2332,7 +1870,7 @@ export default function MiddleEarthMap() {
       return;
     }
     // Erech: only Aragorn, heir of Isildur, can rouse the Dead.
-    if (loc.id === ERECH_ID) {
+    if (loc.id === G.ERECH_ID) {
       if (party.includes("aragorn") && !deadSummoned) {
         setDeadSummoned(true);
         chronicleRef.current("deadSummoned");
@@ -2349,17 +1887,17 @@ export default function MiddleEarthMap() {
     // normal find (÷12 vs ÷10). It yields party-size pieces split roughly evenly
     // between swords (+3 strength) and hauberks (+3 defense), the odd one going
     // either way.
-    if (loc.id === OSGILIATH_ID) {
-      const cacheLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+    if (loc.id === G.OSGILIATH_ID) {
+      const cacheLuck = party.length ? G.partyLuck(party, statBonusById) / party.length : 0;
       if (osgiliathCacheFound || Math.random() >= cacheLuck / 12) {
         setExploreResult({ found: false });
         return;
       }
-      const total = Math.min(party.length, GONDOR_CACHE_MAX * 2);
+      const total = Math.min(party.length, G.GONDOR_CACHE_MAX * 2);
       const rawSwords = Math.random() < 0.5 ? Math.ceil(total / 2) : Math.floor(total / 2);
-      const swords = Math.min(rawSwords, GONDOR_CACHE_MAX);
-      const armor = Math.min(total - rawSwords, GONDOR_CACHE_MAX);
-      const cacheIds = [...GONDOR_SWORD_IDS.slice(0, swords), ...GONDOR_ARMOR_IDS.slice(0, armor)];
+      const swords = Math.min(rawSwords, G.GONDOR_CACHE_MAX);
+      const armor = Math.min(total - rawSwords, G.GONDOR_CACHE_MAX);
+      const cacheIds = [...G.GONDOR_SWORD_IDS.slice(0, swords), ...G.GONDOR_ARMOR_IDS.slice(0, armor)];
       setFoundItems((prev) => [...prev, ...cacheIds.filter((id) => !prev.includes(id))]);
       setOsgiliathCacheFound(true);
       chronicleRef.current("foundCache", { count: cacheIds.length });
@@ -2369,10 +1907,10 @@ export default function MiddleEarthMap() {
     // Helm's Deep: only Éomer knows the Hornburg armoury. With him along he leads
     // the party to it and they kit out (spear/sword +3 str, shield/mail +3 def);
     // without him the search turns up nothing.
-    if (loc.id === HELMS_DEEP_ID) {
-      const already = ROHAN_ARMORY_IDS.every((id) => foundItems.includes(id));
+    if (loc.id === G.HELMS_DEEP_ID) {
+      const already = G.ROHAN_ARMORY_IDS.every((id) => foundItems.includes(id));
       if (party.includes("eomer") && !already) {
-        const gained = ROHAN_ARMORY_IDS.filter((id) => !foundItems.includes(id));
+        const gained = G.ROHAN_ARMORY_IDS.filter((id) => !foundItems.includes(id));
         setFoundItems((prev) => [...prev, ...gained.filter((id) => !prev.includes(id))]);
         chronicleRef.current("foundArmory", { count: gained.length });
         // Show the kit as a gift list (icons + names + effects), like Galadriel's.
@@ -2382,11 +1920,11 @@ export default function MiddleEarthMap() {
       }
       return;
     }
-    const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+    const avgLuck = party.length ? G.partyLuck(party, statBonusById) / party.length : 0;
     const found = !foundItems.includes(itemId) && Math.random() < avgLuck / 10;
     if (found) {
       setFoundItems((prev) => [...prev, itemId]);
-      chronicleRef.current("found", { item: t(`item.${itemFamilyId(itemId)}.name`) });
+      chronicleRef.current("found", { item: t(`item.${G.itemFamilyId(itemId)}.name`) });
       setExploreResult({ found: true, itemId });
     } else {
       setExploreResult({ found: false });
@@ -2397,7 +1935,7 @@ export default function MiddleEarthMap() {
   // requirement is met — Bilbo needs Frodo along), else a random greeting.
   const talkToCharacter = useCallback(
     (charId: string) => {
-      const gifts = GIFTS_BY_CHARACTER[charId] ?? [];
+      const gifts = G.GIFTS_BY_CHARACTER[charId] ?? [];
       const newItems = gifts
         .filter(
           (g) =>
@@ -2405,7 +1943,7 @@ export default function MiddleEarthMap() {
             !foundItems.includes(g.id),
         )
         .map((g) => g.id);
-      const givesCloaks = CLOAK_GIVERS.has(charId) && !hasCloaks;
+      const givesCloaks = G.CLOAK_GIVERS.has(charId) && !hasCloaks;
       if (newItems.length > 0 || givesCloaks) {
         if (newItems.length > 0) {
           setFoundItems((prev) => [...prev, ...newItems]);
@@ -2415,7 +1953,7 @@ export default function MiddleEarthMap() {
         }
         const giver = t(`char.${charId}`);
         for (const itemId of newItems) {
-          chronicleRef.current("gift", { name: giver, item: t(`item.${itemFamilyId(itemId)}.name`) });
+          chronicleRef.current("gift", { name: giver, item: t(`item.${G.itemFamilyId(itemId)}.name`) });
         }
         if (givesCloaks) {
           chronicleRef.current("giftCloaks", { name: giver });
@@ -2423,9 +1961,9 @@ export default function MiddleEarthMap() {
         setTalkResult({ charId, itemIds: newItems, greeting: null, cloaks: givesCloaks });
       } else {
         // Tone of the hello depends on who's speaking.
-        const tone = HOBBIT_IDS.has(charId)
+        const tone = G.HOBBIT_IDS.has(charId)
           ? "hobbit"
-          : LOFTY_TALKERS.has(charId)
+          : G.LOFTY_TALKERS.has(charId)
             ? "lofty"
             : "serious";
         const counts = { hobbit: 4, serious: 4, lofty: 3 };
@@ -2444,12 +1982,12 @@ export default function MiddleEarthMap() {
   // Whether a companion still has something to hand over (items or cloaks).
   const hasGifts = useCallback(
     (charId: string) => {
-      const gifts = GIFTS_BY_CHARACTER[charId] ?? [];
+      const gifts = G.GIFTS_BY_CHARACTER[charId] ?? [];
       const pendingItem = gifts.some(
         (g) =>
           (!g.requires || g.requires.every((r) => party.includes(r))) && !foundItems.includes(g.id),
       );
-      const pendingCloaks = CLOAK_GIVERS.has(charId) && !hasCloaks;
+      const pendingCloaks = G.CLOAK_GIVERS.has(charId) && !hasCloaks;
       return pendingItem || pendingCloaks;
     },
     [party, foundItems, hasCloaks],
@@ -2474,7 +2012,7 @@ export default function MiddleEarthMap() {
     });
     if (itemId) {
       chronicleRef.current("equip", {
-        item: tRef.current(`item.${itemFamilyId(itemId)}.name`),
+        item: tRef.current(`item.${G.itemFamilyId(itemId)}.name`),
         name: tRef.current(`char.${charId}`),
       });
     }
@@ -2490,21 +2028,21 @@ export default function MiddleEarthMap() {
 
     if (levelUpCharacterId || levelUpQueue.length > 0) {
       const charId = levelUpCharacterId ?? levelUpQueue[0];
-      const total = unspentPointsFor(
+      const total = G.unspentPointsFor(
         charId,
         expById[charId] ?? 0,
-        statBonusById[charId] ?? ZERO_BONUS,
+        statBonusById[charId] ?? G.ZERO_BONUS,
       );
       if (total > 0) {
-        const allocated = autoAssignLevelUpPoints(charId, total);
+        const allocated = G.autoAssignLevelUpPoints(charId, total);
         setStatBonusById((prev) => ({
           ...prev,
-          [charId]: addBonus(prev[charId] ?? ZERO_BONUS, allocated),
+          [charId]: G.addBonus(prev[charId] ?? G.ZERO_BONUS, allocated),
         }));
       }
       if (levelUpCharacterId) {
         setLevelUpCharacterId(null);
-        setLevelUpDraft(ZERO_BONUS);
+        setLevelUpDraft(G.ZERO_BONUS);
       } else {
         setLevelUpQueue((queue) => queue.slice(1));
       }
@@ -2513,22 +2051,22 @@ export default function MiddleEarthMap() {
 
     if (reclaimedFrom) {
       const candidates = party
-        .filter((id) => !NON_BEARERS.has(id))
+        .filter((id) => !G.NON_BEARERS.has(id))
         .map((id) => {
-          const character = CHARACTERS.find((entry) => entry.id === id);
+          const character = G.CHARACTERS.find((entry) => entry.id === id);
           if (!character) {
             return null;
           }
-          const stats = computeCharacterStats(
+          const stats = G.computeCharacterStats(
             character,
             ringDaysById[id] ?? 0,
             bearerId,
             hpById[id],
-            addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, party)),
+            G.addBonus(statBonusById[id] ?? G.ZERO_BONUS, G.auraBonus(character, party)),
           );
           return { id, stats };
         })
-        .filter((entry): entry is { id: string; stats: ReturnType<typeof computeCharacterStats> } => !!entry)
+        .filter((entry): entry is { id: string; stats: ReturnType<typeof G.computeCharacterStats> } => !!entry)
         .sort((a, b) => {
           if (a.stats.corruption !== b.stats.corruption) {
             return a.stats.corruption - b.stats.corruption;
@@ -2562,8 +2100,8 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    const capacity = foodCapacityFor(transport);
-    const stopThreshold = autoFarmStopThreshold(capacity);
+    const capacity = G.foodCapacityFor(transport);
+    const stopThreshold = G.autoFarmStopThreshold(capacity);
 
     if (!visitedLocation && food <= stopThreshold && (isMoving || target)) {
       setTarget(null);
@@ -2576,7 +2114,7 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    if (!visitedLocation && !isMoving && !target && autoPlayShouldFarm(food, capacity)) {
+    if (!visitedLocation && !isMoving && !target && G.autoPlayShouldFarm(food, capacity)) {
       farmFood();
       return;
     }
@@ -2598,21 +2136,21 @@ export default function MiddleEarthMap() {
         setBattle({ ...battle, ringOn: true });
         return;
       }
-      setBattle(resolveBattleInstantly(battle));
+      setBattle(G.resolveBattleInstantly(battle));
       return;
     }
 
     if (encounter) {
       const lockedBoss =
         visitedLocation &&
-        (visitedLocation.id === MORIA_GATE_ID || visitedLocation.id === MINAS_MORGUL_ID)
-          ? BOSSES_BY_LOCATION[visitedLocation.id]
+        (visitedLocation.id === G.MORIA_GATE_ID || visitedLocation.id === G.MINAS_MORGUL_ID)
+          ? G.BOSSES_BY_LOCATION[visitedLocation.id]
           : null;
       if (lockedBoss && !defeatedBosses.has(lockedBoss.name)) {
         startBattle();
         return;
       }
-      if (autoPlayShouldFleeEncounter(encounter, party, statBonusById, hpById)) {
+      if (G.autoPlayShouldFleeEncounter(encounter, party, statBonusById, hpById)) {
         setEncounter(null);
       } else {
         startBattle();
@@ -2620,7 +2158,7 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    if (visitedLocation?.id === ORODRUIN_ID && bearerId && rogueBearerId === null) {
+    if (visitedLocation?.id === G.ORODRUIN_ID && bearerId && rogueBearerId === null) {
       // Auto-play always tries to destroy it; the Ring's hold may still win out.
       destroyRing();
       return;
@@ -2629,8 +2167,8 @@ export default function MiddleEarthMap() {
     if (visitedLocation) {
       const loc = visitedLocation;
       const lockedBoss =
-        loc.id === MORIA_GATE_ID || loc.id === MINAS_MORGUL_ID
-          ? BOSSES_BY_LOCATION[loc.id]
+        loc.id === G.MORIA_GATE_ID || loc.id === G.MINAS_MORGUL_ID
+          ? G.BOSSES_BY_LOCATION[loc.id]
           : null;
       if (lockedBoss && !defeatedBosses.has(lockedBoss.name)) {
         const partyHurt = party.some((id) => hpById[id] !== undefined);
@@ -2639,29 +2177,29 @@ export default function MiddleEarthMap() {
           return;
         }
         const bossPack =
-          loc.id === MINAS_MORGUL_ID
-            ? [lockedBoss, ...Array.from({ length: dolGuldurNazgulSlain ? 5 : 8 }, () => NAZGUL_ENEMY)]
+          loc.id === G.MINAS_MORGUL_ID
+            ? [lockedBoss, ...Array.from({ length: dolGuldurNazgulSlain ? 5 : 8 }, () => G.NAZGUL_ENEMY)]
             : [lockedBoss];
         setEncounter({
           monster: lockedBoss,
           dangerous: true,
           solo: bossPack.length === 1,
           pack: bossPack,
-          wraithsStand: loc.id === MINAS_MORGUL_ID,
+          wraithsStand: loc.id === G.MINAS_MORGUL_ID,
         });
         return;
       }
 
-      const nextRecruit = autoPlayNextStoryRecruit(loc.id, journeyDay, party, banishedTraitors);
+      const nextRecruit = G.autoPlayNextStoryRecruit(loc.id, journeyDay, party, banishedTraitors);
       if (nextRecruit) {
         attemptRecruit(nextRecruit);
         return;
       }
 
-      const giftGiver = CHARACTERS.find(
+      const giftGiver = G.CHARACTERS.find(
         (character) =>
-          isCharacterRecruitableHere(character.id, loc.id, journeyDay) &&
-          (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
+          G.isCharacterRecruitableHere(character.id, loc.id, journeyDay) &&
+          (!(character.id in G.RANDOM_PRESENCE) || randomPresence[character.id]) &&
           !banishedTraitors.has(character.id) &&
           hasGifts(character.id),
       );
@@ -2670,30 +2208,30 @@ export default function MiddleEarthMap() {
         return;
       }
 
-      if (FOOD_SUPPLY_LOCATION_IDS.has(loc.id) && food < Math.max(5, Math.floor(capacity * 0.55))) {
+      if (G.FOOD_SUPPLY_LOCATION_IDS.has(loc.id) && food < Math.max(5, Math.floor(capacity * 0.55))) {
         setFood(capacity);
         foodRef.current = capacity;
         return;
       }
 
-      if (!isMoving && autoPlayShouldFarm(food, capacity)) {
+      if (!isMoving && G.autoPlayShouldFarm(food, capacity)) {
         farmFood();
         return;
       }
 
-      if (autoPlayShouldWaitAtLocation(loc.id, journeyDay, party)) {
+      if (G.autoPlayShouldWaitAtLocation(loc.id, journeyDay, party)) {
         if (!isMoving && food > 0) {
           waitOneDay();
         }
         return;
       }
 
-      if (loc.id === LOTHLORIEN_ID && !hasCloaks) {
+      if (loc.id === G.LOTHLORIEN_ID && !hasCloaks) {
         setHasCloaks(true);
         return;
       }
 
-      const offered = TRANSPORT_BY_LOCATION[loc.id];
+      const offered = G.TRANSPORT_BY_LOCATION[loc.id];
       if (
         offered &&
         transport !== offered &&
@@ -2708,10 +2246,10 @@ export default function MiddleEarthMap() {
       setTargetLocation(null);
 
       const routeIdx = autoRouteIndexRef.current;
-      if (routeIdx < AUTO_ROUTE.length && AUTO_ROUTE[routeIdx] === leftId) {
+      if (routeIdx < G.AUTO_ROUTE.length && G.AUTO_ROUTE[routeIdx] === leftId) {
         autoRouteIndexRef.current = routeIdx + 1;
       }
-      const nextId = AUTO_ROUTE[autoRouteIndexRef.current];
+      const nextId = G.AUTO_ROUTE[autoRouteIndexRef.current];
       if (nextId !== undefined) {
         const next = locations.find((l) => l.id === nextId);
         if (next) {
@@ -2725,12 +2263,12 @@ export default function MiddleEarthMap() {
       return;
     }
 
-    if (autoPlayShouldFarm(food, capacity)) {
+    if (G.autoPlayShouldFarm(food, capacity)) {
       farmFood();
       return;
     }
 
-    const nextId = AUTO_ROUTE[autoRouteIndexRef.current];
+    const nextId = G.AUTO_ROUTE[autoRouteIndexRef.current];
     if (nextId !== undefined) {
       const next = locations.find((l) => l.id === nextId);
       if (next) {
@@ -2829,9 +2367,9 @@ export default function MiddleEarthMap() {
     // to the gate and clear its guardian before the eastward pass opens; until
     // then the cell is impassable to anyone on the ground (Eagles still fly over).
     const blockedGateCells = new Set<string>();
-    for (const id of [MORIA_GATE_ID, MINAS_MORGUL_ID]) {
+    for (const id of [G.MORIA_GATE_ID, G.MINAS_MORGUL_ID]) {
       const gate = locations.find((location) => location.id === id);
-      const boss = gate ? BOSSES_BY_LOCATION[id] : null;
+      const boss = gate ? G.BOSSES_BY_LOCATION[id] : null;
       if (!gate || !boss || defeatedBosses.has(boss.name)) {
         continue;
       }
@@ -2844,8 +2382,8 @@ export default function MiddleEarthMap() {
     }
 
     // Cells a boarded ship may step onto (losing the ship): every harbour, plus
-    // any coastal city (see computeLandfallCells).
-    const landfallCells = computeLandfallCells(locations, getTerrainAtPoint, 10);
+    // any coastal city (see G.computeLandfallCells).
+    const landfallCells = G.computeLandfallCells(locations, getTerrainAtPoint, 10);
 
     // Commit the imperatively-driven figure/camera back into React state. Called
     // at every stop so the rest of the app (figure render, save, camera) picks up
@@ -2876,7 +2414,7 @@ export default function MiddleEarthMap() {
       const here = playerRef.current;
       if (here) {
         const near = squadsRef.current.filter(
-          (s) => Math.hypot(s.point.x - here.x, s.point.y - here.y) <= MEMBER_PICKUP_RANGE,
+          (s) => Math.hypot(s.point.x - here.x, s.point.y - here.y) <= G.MEMBER_PICKUP_RANGE,
         );
         if (near.length > 0) {
           const nearIds = new Set(near.map((s) => s.id));
@@ -2910,7 +2448,7 @@ export default function MiddleEarthMap() {
       if (routeRadius <= 0.5) {
         playerRef.current = activeTarget;
         setPlayer(activeTarget);
-        setHeroPath((path) => appendPathPoint(path, activeTarget, trailCapRef.current));
+        setHeroPath((path) => G.appendPathPoint(path, activeTarget, trailCapRef.current));
         finishTravel(arrivalLocation);
         return;
       }
@@ -2918,18 +2456,18 @@ export default function MiddleEarthMap() {
       const cos = dx / routeRadius;
       const sin = dy / routeRadius;
       const members = partyRef.current;
-      const activeTransport = transportRef.current ? TRANSPORTS[transportRef.current] : null;
+      const activeTransport = transportRef.current ? G.TRANSPORTS[transportRef.current] : null;
       // Eomer speeds the march; Bombadil dawdles (1.5× longer); Cirdan lets the
       // party sail; Gollum ignores rough-terrain penalties; items may hasten too.
       const itemSpeedMult = members.reduce((m, id) => {
-        const it = equippedItemsRef.current[id] ? ITEM_BY_ID[equippedItemsRef.current[id]] : undefined;
+        const it = equippedItemsRef.current[id] ? G.ITEM_BY_ID[equippedItemsRef.current[id]] : undefined;
         return it?.speed ? m * it.speed : m;
       }, 1);
       const transportSpeed =
         ((activeTransport ? activeTransport.speed : 1) *
-          (members.includes("eomer") ? EOMER_SPEED_MULTIPLIER : 1) *
+          (members.includes("eomer") ? G.EOMER_SPEED_MULTIPLIER : 1) *
           itemSpeedMult) /
-        (members.includes("bombadil") ? BOMBADIL_SLOW_FACTOR : 1);
+        (members.includes("bombadil") ? G.BOMBADIL_SLOW_FACTOR : 1);
       const canSail = activeTransport ? activeTransport.sea : false;
       const currentTerrain = getTerrainAtPoint(current);
       // Gollum ignores rough ground; a ship wipes the water penalty; eagles fly
@@ -2940,9 +2478,9 @@ export default function MiddleEarthMap() {
           ? 1
           : currentTerrain.cost;
       // Círdan the Shipwright doubles the party's pace while at sea (aboard a ship).
-      const cirdanSea = onWater && canSail && members.includes("cirdan") ? CIRDAN_SEA_SPEED : 1;
+      const cirdanSea = onWater && canSail && members.includes("cirdan") ? G.CIRDAN_SEA_SPEED : 1;
       const visibleSpeed =
-        (SPEED_PX_PER_SECOND * animationSpeed * transportSpeed * cirdanSea) / terrainCost;
+        (G.SPEED_PX_PER_SECOND * animationSpeed * transportSpeed * cirdanSea) / terrainCost;
       const travel = Math.min(routeRadius, visibleSpeed * elapsedSeconds);
 
       // A boarded ship is a one-way passage: it may only step ashore onto a
@@ -2971,13 +2509,13 @@ export default function MiddleEarthMap() {
         }
         // Mountains are passable now (just slow); wide water still blocks: you may
         // wade back through cells already crossed, but never enter more than
-        // MAX_WATER_CROSSING_CELLS fresh ones before reaching land again.
+        // G.MAX_WATER_CROSSING_CELLS fresh ones before reaching land again.
         if (terrain.name === "water" && !canSail) {
           const cell = terrain.cellKey;
           if (
             cell !== null &&
             !waterRunRef.current.has(cell) &&
-            waterRunRef.current.size >= MAX_WATER_CROSSING_CELLS
+            waterRunRef.current.size >= G.MAX_WATER_CROSSING_CELLS
           ) {
             return false;
           }
@@ -3004,7 +2542,7 @@ export default function MiddleEarthMap() {
       // of dead-stopping. Smaller deflections (closer to the goal) win.
       function resolveMovement(from: Point, distance: number, dirX: number, dirY: number): Point | null {
         const baseAngle = Math.atan2(dirY, dirX);
-        for (const deg of SLIDE_DEFLECTIONS) {
+        for (const deg of G.SLIDE_DEFLECTIONS) {
           const angle = baseAngle + (deg * Math.PI) / 180;
           const point = {
             x: from.x + Math.cos(angle) * distance,
@@ -3033,16 +2571,16 @@ export default function MiddleEarthMap() {
           steer.stallMs += elapsedSeconds * 1000;
         }
 
-        if (steer.stallMs >= AUTO_STALL_MS) {
+        if (steer.stallMs >= G.AUTO_STALL_MS) {
           // Widen the turn each attempt; once past ±180° flip to the other side.
           steer.turnIndex += 1;
-          if (steer.turnIndex > AUTO_MAX_TURN_STEPS) {
+          if (steer.turnIndex > G.AUTO_MAX_TURN_STEPS) {
             steer.turnIndex = 1;
             steer.turnSign = steer.turnSign === 1 ? -1 : 1;
           }
           const goalAngle = Math.atan2(dy, dx);
           const angle =
-            goalAngle + steer.turnSign * steer.turnIndex * ((AUTO_TURN_DEG * Math.PI) / 180);
+            goalAngle + steer.turnSign * steer.turnIndex * ((G.AUTO_TURN_DEG * Math.PI) / 180);
           moveDirX = Math.cos(angle);
           moveDirY = Math.sin(angle);
           steer.stallMs = 0;
@@ -3051,8 +2589,8 @@ export default function MiddleEarthMap() {
 
       let nextPlayer = startPos;
       let remainingTravel = travel;
-      for (let substep = 0; substep < MOVE_SUBSTEPS; substep += 1) {
-        const slice = remainingTravel / (MOVE_SUBSTEPS - substep);
+      for (let substep = 0; substep < G.MOVE_SUBSTEPS; substep += 1) {
+        const slice = remainingTravel / (G.MOVE_SUBSTEPS - substep);
         const resolved = resolveMovement(nextPlayer, slice, moveDirX, moveDirY);
         if (!resolved) {
           break;
@@ -3118,7 +2656,7 @@ export default function MiddleEarthMap() {
       }
 
       const nextJourneyMiles = journeyMilesRef.current + actualTravel * terrainCost;
-      const nextJourneyDay = Math.floor(nextJourneyMiles / MILES_PER_DAY);
+      const nextJourneyDay = Math.floor(nextJourneyMiles / G.MILES_PER_DAY);
 
       journeyMilesRef.current = nextJourneyMiles;
       playerRef.current = nextPlayer;
@@ -3132,20 +2670,20 @@ export default function MiddleEarthMap() {
       }
       // Only churn the trail's state when it's actually being drawn.
       if (showHeroPathRef.current) {
-        setHeroPath((path) => appendPathPoint(path, nextPlayer, trailCapRef.current));
+        setHeroPath((path) => G.appendPathPoint(path, nextPlayer, trailCapRef.current));
       }
 
       // Pan the map only once the figure crosses the margin band near an edge,
       // but never while the user is dragging — otherwise both fight over offset.
       const camOffset = offsetRef.current;
       if (camOffset && !dragRef.current.active && !followDisabledRef.current) {
-        const nextOffset = followOffset(
+        const nextOffset = G.followOffset(
           nextPlayer,
           camOffset,
           zoomRef.current,
           viewRef.current,
           mapSize,
-          FOLLOW_MARGIN_RATIO,
+          G.FOLLOW_MARGIN_RATIO,
         );
         if (nextOffset) {
           offsetRef.current = nextOffset;
@@ -3202,44 +2740,44 @@ export default function MiddleEarthMap() {
     () => (showHeroPath ? heroPath.map((point) => mapToLayer(point)) : []),
     [showHeroPath, heroPath, mapToLayer],
   );
-  const journeyDate = useMemo(() => getJourneyDate(journeyDay, months), [journeyDay, months]);
+  const journeyDate = useMemo(() => G.getJourneyDate(journeyDay, months), [journeyDay, months]);
 
-  const bonusFor = (id: string): StatBonus => statBonusById[id] ?? ZERO_BONUS;
+  const bonusFor = (id: string): StatBonus => statBonusById[id] ?? G.ZERO_BONUS;
   // Flat (always-on) stat bonuses from a carried item.
   const itemBonusFor = (id: string): StatBonus =>
-    itemStatBonus(equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined);
+    G.itemStatBonus(equippedItems[id] ? G.ITEM_BY_ID[equippedItems[id]] : undefined);
   // Allocated level-up points, party auras (Bombadil/Elrond/Galadriel), and items.
   const totalBonusFor = (character: Character): StatBonus =>
-    addBonus(addBonus(bonusFor(character.id), auraBonus(character, party)), itemBonusFor(character.id));
+    G.addBonus(G.addBonus(bonusFor(character.id), G.auraBonus(character, party)), itemBonusFor(character.id));
   const iconFor = (character: { id: string; icon: string }): string =>
-    emote && emote.id === character.id ? iconVariant(character.icon, emote.kind) : character.icon;
+    emote && emote.id === character.id ? G.iconVariant(character.icon, emote.kind) : character.icon;
   const partyCharacters = useMemo(
-    () => CHARACTERS.filter((character) => party.includes(character.id)),
+    () => G.CHARACTERS.filter((character) => party.includes(character.id)),
     [party],
   );
   const anyHurt = partyCharacters.some((character) => hpById[character.id] !== undefined);
-  const foodCapacity = foodCapacityFor(transport);
+  const foodCapacity = G.foodCapacityFor(transport);
   // Where food can be restocked, and up to how much: the great towns fill the
   // full carried capacity; any harbour stocks only a foot-traveller's ration.
   const canRestockHere =
     !!visitedLocation &&
-    (FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id) || HARBOR_IDS.has(visitedLocation.id));
+    (G.FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id) || G.HARBOR_IDS.has(visitedLocation.id));
   const supplyCap =
-    visitedLocation && FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id)
+    visitedLocation && G.FOOD_SUPPLY_LOCATION_IDS.has(visitedLocation.id)
       ? foodCapacity
-      : FOOD_DAYS_BASE;
+      : G.FOOD_DAYS_BASE;
   // Saruman at Isengard is an ally only if the bearer is duller than him and no
   // Gandalf is along; otherwise he's a boss. Once fought, he can't be recruited.
-  const sarumanBossName = BOSSES_BY_LOCATION[ISENGARD_ID].name;
+  const sarumanBossName = G.BOSSES_BY_LOCATION[G.ISENGARD_ID].name;
   // Saruman has left Isengard one way or another (slain there, or spared).
   const sarumanGone = defeatedBosses.has(sarumanBossName) || sarumanSpared;
   // After he's spared, he roams the NW for two months, then comes to the Shire.
   // He doesn't camp at once: for a grace week Hobbiton stays normal, then the
   // Scouring proper begins (scoured ruin + a fight to the death).
   const sarumanDaysOut = sarumanSpared ? journeyDay - sarumanSparedDay : 0;
-  const sarumanRoams = sarumanSpared && sarumanDaysOut < SARUMAN_SCOUR_DAYS;
+  const sarumanRoams = sarumanSpared && sarumanDaysOut < G.SARUMAN_SCOUR_DAYS;
   const sarumanScouring =
-    sarumanSpared && sarumanDaysOut >= SARUMAN_SCOUR_DAYS + SARUMAN_SCOUR_GRACE_DAYS;
+    sarumanSpared && sarumanDaysOut >= G.SARUMAN_SCOUR_DAYS + G.SARUMAN_SCOUR_GRACE_DAYS;
   const sarumanFriendly = (() => {
     // Once Wormtongue has slunk to Isengard, Saruman is beyond parley.
     if (
@@ -3250,20 +2788,20 @@ export default function MiddleEarthMap() {
     ) {
       return false;
     }
-    const bearer = CHARACTERS.find((c) => c.id === bearerId);
-    const saruman = CHARACTERS.find((c) => c.id === "saruman");
+    const bearer = G.CHARACTERS.find((c) => c.id === bearerId);
+    const saruman = G.CHARACTERS.find((c) => c.id === "saruman");
     if (!bearer || !saruman) {
       return false;
     }
-    return effectiveStats(bearer, totalBonusFor(bearer)).intelligence < saruman.intelligence;
+    return G.effectiveStats(bearer, totalBonusFor(bearer)).intelligence < saruman.intelligence;
   })();
   // The Corsair captain parleys rather than fights for a company clever enough on
   // the whole — average intelligence above 8. Talk to him then for safe passage.
   const corsairCaptainFriendly =
     party.length > 0 &&
     party.reduce((sum, id) => {
-      const c = CHARACTERS.find((ch) => ch.id === id);
-      return sum + (c ? effectiveStats(c, totalBonusFor(c)).intelligence : 0);
+      const c = G.CHARACTERS.find((ch) => ch.id === id);
+      return sum + (c ? G.effectiveStats(c, totalBonusFor(c)).intelligence : 0);
     }, 0) /
       party.length >
       8;
@@ -3284,17 +2822,17 @@ export default function MiddleEarthMap() {
   // Entering Minas Tirith after Denethor's end: tell the player, once, that the
   // Steward chose the fire.
   useEffect(() => {
-    if (visitedLocation?.id === MINAS_TIRITH_ID && denethorPerished && !denethorMourned) {
+    if (visitedLocation?.id === G.MINAS_TIRITH_ID && denethorPerished && !denethorMourned) {
       setDenethorMourned(true);
       chronicleRef.current("denethorPyre");
       setExploreResult({ found: false, message: "denethor.pyre" });
     }
   }, [visitedLocation, denethorPerished, denethorMourned]);
   const recruitsBase = visitedLocation
-    ? CHARACTERS.filter(
+    ? G.CHARACTERS.filter(
         (character) =>
-          isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
-          (!(character.id in RANDOM_PRESENCE) || randomPresence[character.id]) &&
+          G.isCharacterRecruitableHere(character.id, visitedLocation.id, journeyDay) &&
+          (!(character.id in G.RANDOM_PRESENCE) || randomPresence[character.id]) &&
           !banishedTraitors.has(character.id) &&
           // Denethor gives himself to the pyre if never taken from Minas Tirith in
           // time — after his last day he's no longer there to recruit.
@@ -3317,38 +2855,38 @@ export default function MiddleEarthMap() {
   // Treebeard, brought here and left to rule fallen Isengard, is found there on
   // every visit — but he won't march on (recruiting only earns his "I stay").
   const recruitsHere =
-    visitedLocation?.id === ISENGARD_ID &&
+    visitedLocation?.id === G.ISENGARD_ID &&
     treebeardAtIsengard &&
     !party.includes("treebeard") &&
     !recruitsBase.some((c) => c.id === "treebeard")
-      ? [...recruitsBase, CHARACTERS.find((c) => c.id === "treebeard")!]
+      ? [...recruitsBase, G.CHARACTERS.find((c) => c.id === "treebeard")!]
       : recruitsBase;
   // The boss to offer a fight with at the current location (null if none, slain,
   // or Saruman is currently a friend).
   // The Witch-king cast down at Minas Morgul breaks the wraiths: they stop
   // roaming and any unfought riding (e.g. still lurking at Weathertop) disperses.
-  const wraithsBroken = defeatedBosses.has(BOSSES_BY_LOCATION[MINAS_MORGUL_ID].name);
+  const wraithsBroken = defeatedBosses.has(G.BOSSES_BY_LOCATION[G.MINAS_MORGUL_ID].name);
   // The Ringwraiths stop roaming once leaderless (Witch-king thrown down) or once
   // the Ring they hunt is unmade.
   const nazgulGone = wraithsBroken || ringDestroyed;
   // Dol Guldur posts three plain wraiths over its orc garrison — but only until
   // the Nine gather in Mordor: once Minas Morgul has been laid eyes on, the
   // wraiths are gone and the captain holds it with orcs alone.
-  const dolGuldurHasWraiths = !visitedLocationIds.has(MINAS_MORGUL_ID);
+  const dolGuldurHasWraiths = !visitedLocationIds.has(G.MINAS_MORGUL_ID);
   // Dol Guldur is led by a wraith while the Nine are abroad, else by the orc
   // captain — and is cleared once either has fallen.
-  const dolGuldurBoss = dolGuldurHasWraiths ? DOL_GULDUR_WRAITH : DOL_GULDUR_CAPTAIN;
+  const dolGuldurBoss = dolGuldurHasWraiths ? G.DOL_GULDUR_WRAITH : G.DOL_GULDUR_CAPTAIN;
   const locationBoss = (() => {
     if (!visitedLocation) {
       return null;
     }
-    if (visitedLocation.id === ORODRUIN_ID) {
+    if (visitedLocation.id === G.ORODRUIN_ID) {
       // A fled bearer makes for Mount Doom — wait for him here and reclaim the
       // Ring (this also covers Gollum if he's the one who bolted). Gollum no
       // longer bars the brink otherwise; he springs out only as the bearer dons
       // the Ring (see wearRingAtDoom).
       if (rogueBearerId) {
-        const rogue = CHARACTERS.find((c) => c.id === rogueBearerId);
+        const rogue = G.CHARACTERS.find((c) => c.id === rogueBearerId);
         if (rogue) {
           return {
             name: rogue.name,
@@ -3363,24 +2901,24 @@ export default function MiddleEarthMap() {
       }
       return null;
     }
-    if (visitedLocation.id === DOL_GULDUR_ID) {
-      if (defeatedBosses.has(DOL_GULDUR_WRAITH.name) || defeatedBosses.has(DOL_GULDUR_CAPTAIN.name)) {
+    if (visitedLocation.id === G.DOL_GULDUR_ID) {
+      if (defeatedBosses.has(G.DOL_GULDUR_WRAITH.name) || defeatedBosses.has(G.DOL_GULDUR_CAPTAIN.name)) {
         return null;
       }
       return dolGuldurBoss;
     }
     // The Scouring: a spared Saruman holds Hobbiton two months on — fought to the
     // death (with Gríma if still alive). No parley this time.
-    if (visitedLocation.id === HOBBITON_ID && sarumanScouring) {
-      return SARUMAN_ENEMY;
+    if (visitedLocation.id === G.HOBBITON_ID && sarumanScouring) {
+      return G.SARUMAN_ENEMY;
     }
     // Isengard: Saruman holds it (unless beaten, parleyed friendly, spared, or
     // fled with the Ring). With him gone, a Gríma who slunk here still skulks the
     // ruins until slain — so the player who chased him here actually finds him.
-    if (visitedLocation.id === ISENGARD_ID) {
-      const saruman = BOSSES_BY_LOCATION[ISENGARD_ID];
+    if (visitedLocation.id === G.ISENGARD_ID) {
+      const saruman = G.BOSSES_BY_LOCATION[G.ISENGARD_ID];
       const sarumanFled =
-        !!rogueBearerId && CHARACTERS.find((c) => c.id === rogueBearerId)?.icon === saruman.icon;
+        !!rogueBearerId && G.CHARACTERS.find((c) => c.id === rogueBearerId)?.icon === saruman.icon;
       const sarumanHere =
         !defeatedBosses.has(saruman.name) && !sarumanFriendly && !sarumanFled && !sarumanSpared;
       if (sarumanHere) {
@@ -3392,28 +2930,28 @@ export default function MiddleEarthMap() {
         return null;
       }
       if (grimaFled && !grimaSlain) {
-        return GRIMA_ENEMY;
+        return G.GRIMA_ENEMY;
       }
       return null;
     }
-    const boss = BOSSES_BY_LOCATION[visitedLocation.id];
+    const boss = G.BOSSES_BY_LOCATION[visitedLocation.id];
     if (!boss || defeatedBosses.has(boss.name)) {
       return null;
     }
     // A boss who fled with the Ring no longer holds his seat — he's hunted in the
     // wild instead. Matched by portrait to his companion self.
     if (rogueBearerId) {
-      const rogue = CHARACTERS.find((c) => c.id === rogueBearerId);
+      const rogue = G.CHARACTERS.find((c) => c.id === rogueBearerId);
       if (rogue && rogue.icon === boss.icon) {
         return null;
       }
     }
     // A friendly Corsair captain is parleyed with, not fought.
-    if (visitedLocation.id === CORSAIRS_CITY_ID && corsairCaptainFriendly) {
+    if (visitedLocation.id === G.CORSAIRS_CITY_ID && corsairCaptainFriendly) {
       return null;
     }
     // Weathertop's riding melts away once their lord is undone.
-    if (visitedLocation.id === WEATHERTOP_ID && wraithsBroken) {
+    if (visitedLocation.id === G.WEATHERTOP_ID && wraithsBroken) {
       return null;
     }
     return boss;
@@ -3421,9 +2959,9 @@ export default function MiddleEarthMap() {
   // Hobbiton's art shows the scoured ruin (34_hobbiton2) whenever Saruman holds it
   // — while the Scouring is on (he sits there spoiling it) and after (the wreck
   // he leaves behind, tracked by hobbitonScoured).
-  const locationArtSrc = visitedLocation ? locationImage(visitedLocation.id, seasonAt(journeyDay)) : null;
+  const locationArtSrc = visitedLocation ? G.locationImage(visitedLocation.id, G.seasonAt(journeyDay)) : null;
   const scouredArtSrc =
-    visitedLocation?.id === HOBBITON_ID && (sarumanScouring || hobbitonScoured) && locationArtSrc
+    visitedLocation?.id === G.HOBBITON_ID && (sarumanScouring || hobbitonScoured) && locationArtSrc
       ? locationArtSrc.replace("10_hobbiton.jpg", "34_hobbiton2.jpg")
       : locationArtSrc;
   // The mount/ship offered here (null if none, or a ship while Círdan sails free).
@@ -3431,7 +2969,7 @@ export default function MiddleEarthMap() {
     if (!visitedLocation) {
       return null;
     }
-    const offered = TRANSPORT_BY_LOCATION[visitedLocation.id];
+    const offered = G.TRANSPORT_BY_LOCATION[visitedLocation.id];
     if (!offered) {
       return null;
     }
@@ -3463,7 +3001,7 @@ export default function MiddleEarthMap() {
       ...(encounter ? [encounter.monster, ...encounter.pack].map((monster) => monster.icon) : []),
     ];
     for (const icon of foes) {
-      const match = icon ? CHARACTERS.find((character) => character.icon === icon) : undefined;
+      const match = icon ? G.CHARACTERS.find((character) => character.icon === icon) : undefined;
       if (match) {
         seen.push(match.id);
       }
@@ -3524,7 +3062,7 @@ export default function MiddleEarthMap() {
       // if it's sea, else scan its neighbours outward for the nearest water.
       const cell = 10;
       const candidates: { x: number; y: number }[] = [];
-      const pref = SHIP_BOARD_OFFSET[harborId];
+      const pref = G.SHIP_BOARD_OFFSET[harborId];
       if (pref) {
         candidates.push(pref);
       }
@@ -3584,10 +3122,10 @@ export default function MiddleEarthMap() {
     [locations, mapToLayer, locName, handleMarkerClick, visitedLocationIds],
   );
   const openCharacter = openCharacterId
-    ? (CHARACTERS.find((character) => character.id === openCharacterId) ?? null)
+    ? (G.CHARACTERS.find((character) => character.id === openCharacterId) ?? null)
     : null;
   const openStats = openCharacter
-    ? computeCharacterStats(
+    ? G.computeCharacterStats(
         openCharacter,
         ringDaysById[openCharacter.id] ?? 0,
         bearerId,
@@ -3596,13 +3134,13 @@ export default function MiddleEarthMap() {
       )
     : null;
   const openExp = openCharacter ? (expById[openCharacter.id] ?? 0) : 0;
-  const openLevel = levelForExp(openExp);
+  const openLevel = G.levelForExp(openExp);
   // One roster row (portrait + level + full stats) for the party table panel.
   const toSummaryRow = (character: Character): PartySummaryRow => ({
     id: character.id,
     icon: iconFor(character),
-    level: levelForExp(expById[character.id] ?? 0).level,
-    stats: computeCharacterStats(
+    level: G.levelForExp(expById[character.id] ?? 0).level,
+    stats: G.computeCharacterStats(
       character,
       ringDaysById[character.id] ?? 0,
       bearerId,
@@ -3624,25 +3162,25 @@ export default function MiddleEarthMap() {
     ? partyCharacters.map(toSummaryRow)
     : [];
   const bearerCandidateRows: PartySummaryRow[] = bearerChooserOpen
-    ? partyCharacters.filter((character) => !NON_BEARERS.has(character.id)).map(toSummaryRow)
+    ? partyCharacters.filter((character) => !G.NON_BEARERS.has(character.id)).map(toSummaryRow)
     : [];
   // Frodo's creation points are baked into his bonus; don't count them as
   // level-up spending.
-  const creationHero = CHARACTERS.find((character) => character.id === RING_BEARER_ID)!;
+  const creationHero = G.CHARACTERS.find((character) => character.id === G.RING_BEARER_ID)!;
   const creationSpent =
     creationBonus.strength + creationBonus.defense + creationBonus.intelligence + creationBonus.luck;
   const levelUpHero = levelUpCharacterId
-    ? (CHARACTERS.find((character) => character.id === levelUpCharacterId) ?? null)
+    ? (G.CHARACTERS.find((character) => character.id === levelUpCharacterId) ?? null)
     : null;
   const levelUpExistingBonus = levelUpCharacterId
-    ? (statBonusById[levelUpCharacterId] ?? ZERO_BONUS)
-    : ZERO_BONUS;
+    ? (statBonusById[levelUpCharacterId] ?? G.ZERO_BONUS)
+    : G.ZERO_BONUS;
   const levelUpTotalPoints = levelUpCharacterId
-    ? unspentPointsFor(levelUpCharacterId, expById[levelUpCharacterId] ?? 0, levelUpExistingBonus)
+    ? G.unspentPointsFor(levelUpCharacterId, expById[levelUpCharacterId] ?? 0, levelUpExistingBonus)
     : 0;
-  const levelUpDraftSpent = bonusPoints(levelUpDraft);
-  const levelUpLevel = levelForExp(levelUpCharacterId ? (expById[levelUpCharacterId] ?? 0) : 0);
-  const ringBearer = CHARACTERS.find((character) => character.id === bearerId);
+  const levelUpDraftSpent = G.bonusPoints(levelUpDraft);
+  const levelUpLevel = G.levelForExp(levelUpCharacterId ? (expById[levelUpCharacterId] ?? 0) : 0);
+  const ringBearer = G.CHARACTERS.find((character) => character.id === bearerId);
   // The Ring only counts for the squad actually carrying the bearer — a splinter
   // group off on its own can't destroy it at Mount Doom.
   // Once cast into the fire the party no longer carries the Ring: the Doom prompt
@@ -3652,12 +3190,12 @@ export default function MiddleEarthMap() {
   // The figure on the map is the bearer (when travelling with the active squad),
   // or — for a splinter / while the Ring is fled — the group's lead, i.e. the
   // first member in party order (for a splinter, whoever was left first). Using
-  // party order (not CHARACTERS order) keeps the active figure and the parked
+  // party order (not G.CHARACTERS order) keeps the active figure and the parked
   // squad marker, which both key off the lead, showing the same hero.
   const figureCharacter =
     ringBearer && party.includes(ringBearer.id)
       ? ringBearer
-      : CHARACTERS.find((c) => c.id === party[0]);
+      : G.CHARACTERS.find((c) => c.id === party[0]);
   useEffect(() => {
     const currentIcons = new Set<string>();
     const addCharacter = (character: Character | null | undefined) => {
@@ -3672,18 +3210,18 @@ export default function MiddleEarthMap() {
       addCharacter(character);
     }
     for (const id of parkedMembers) {
-      addCharacter(CHARACTERS.find((character) => character.id === id));
+      addCharacter(G.CHARACTERS.find((character) => character.id === id));
     }
     addCharacter(openCharacter);
     addCharacter(creationHero);
     addCharacter(levelUpHero);
     addCharacter(ringBearer);
     addCharacter(figureCharacter);
-    addCharacter(recruitOffer ? CHARACTERS.find((character) => character.id === recruitOffer) : null);
-    addCharacter(rogueFledNotice ? CHARACTERS.find((character) => character.id === rogueFledNotice) : null);
-    addCharacter(reclaimedFrom ? CHARACTERS.find((character) => character.id === reclaimedFrom) : null);
+    addCharacter(recruitOffer ? G.CHARACTERS.find((character) => character.id === recruitOffer) : null);
+    addCharacter(rogueFledNotice ? G.CHARACTERS.find((character) => character.id === rogueFledNotice) : null);
+    addCharacter(reclaimedFrom ? G.CHARACTERS.find((character) => character.id === reclaimedFrom) : null);
 
-    const characterIcons = new Set(CHARACTERS.map((character) => character.icon));
+    const characterIcons = new Set(G.CHARACTERS.map((character) => character.icon));
     for (const combatant of [...(battle?.allies ?? []), ...(battle?.enemies ?? [])]) {
       if (combatant.icon && characterIcons.has(combatant.icon)) {
         currentIcons.add(combatant.icon);
@@ -3691,10 +3229,10 @@ export default function MiddleEarthMap() {
     }
 
     for (const icon of currentIcons) {
-      preloadImage(iconVariant(icon, "joy"));
-      preloadImage(iconVariant(icon, "refuse"));
-      preloadImage(iconVariant(icon, "pain"));
-      preloadImage(iconVariant(icon, "dark"));
+      G.preloadImage(G.iconVariant(icon, "joy"));
+      G.preloadImage(G.iconVariant(icon, "refuse"));
+      G.preloadImage(G.iconVariant(icon, "pain"));
+      G.preloadImage(G.iconVariant(icon, "dark"));
     }
   }, [
     battle,
@@ -3719,14 +3257,14 @@ export default function MiddleEarthMap() {
       return undefined;
     }
     const run = () => {
-      for (const character of CHARACTERS) {
-        preloadImage(character.icon);
+      for (const character of G.CHARACTERS) {
+        G.preloadImage(character.icon);
       }
-      for (const monster of MONSTERS) {
-        preloadImage(monster.icon);
+      for (const monster of G.MONSTERS) {
+        G.preloadImage(monster.icon);
       }
-      for (const item of ITEMS) {
-        preloadImage(item.icon);
+      for (const item of G.ITEMS) {
+        G.preloadImage(item.icon);
       }
     };
     const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number })
@@ -3747,14 +3285,14 @@ export default function MiddleEarthMap() {
     if (!targetLocation) {
       return;
     }
-    const src = locationImage(targetLocation.id, seasonAt(journeyDayRef.current));
+    const src = G.locationImage(targetLocation.id, G.seasonAt(journeyDayRef.current));
     if (src) {
-      void preloadLocationImage(src);
+      void G.preloadLocationImage(src);
     }
   }, [targetLocation]);
 
   const bearerCorruption = ringBearer
-    ? computeCharacterStats(
+    ? G.computeCharacterStats(
         ringBearer,
         ringDaysById[ringBearer.id] ?? 0,
         bearerId,
@@ -3814,15 +3352,15 @@ export default function MiddleEarthMap() {
   // Pick a line for this speaker+event: a character-specific set wins (Gollum,
   // Treebeard…), else the feminine variant, else the temperament's set.
   const pickReaction = (charId: string, event: ReactionEvent): { text: string; mood: ReactionMood } | null => {
-    const temp = temperamentOf(charId);
+    const temp = G.temperamentOf(charId);
     const lines =
       reactionLines(`reaction.${charId}.${event}`) ??
-      (FEMALE_IDS.has(charId) ? reactionLines(`reaction.${temp}.${event}_f`) : null) ??
+      (G.FEMALE_IDS.has(charId) ? reactionLines(`reaction.${temp}.${event}_f`) : null) ??
       reactionLines(`reaction.${temp}.${event}`);
     if (!lines) {
       return null;
     }
-    return { text: lines[Math.floor(Math.random() * lines.length)], mood: reactionMood(charId, event) };
+    return { text: lines[Math.floor(Math.random() * lines.length)], mood: G.reactionMood(charId, event) };
   };
   pickReactionRef.current = pickReaction;
   speakRef.current = (charId, event, opts) => {
@@ -3832,16 +3370,16 @@ export default function MiddleEarthMap() {
       return;
     }
     // Flavour rate: "always" lines are certain at the "often" setting; everything
-    // else uses REACTION_CHANCE. The mode multiplier halves it ("rare") or zeroes
+    // else uses G.REACTION_CHANCE. The mode multiplier halves it ("rare") or zeroes
     // it ("never").
-    const prob = (opts?.always ? 1 : REACTION_CHANCE) * reactionMultRef.current;
+    const prob = (opts?.always ? 1 : G.REACTION_CHANCE) * reactionMultRef.current;
     if (Math.random() >= prob) {
       return;
     }
     const picked = pickReaction(charId, event);
     if (picked) {
       // A "we need supplies" line is dropped if you restock before it surfaces.
-      const valid = event === "food" ? () => foodRef.current <= REACTION_FOOD_LOW_DAYS : undefined;
+      const valid = event === "food" ? () => foodRef.current <= G.REACTION_FOOD_LOW_DAYS : undefined;
       enqueueReaction(charId, picked.text, picked.mood, valid);
     }
   };
@@ -3860,7 +3398,7 @@ export default function MiddleEarthMap() {
     }
     panelSeqRef.current += 1;
     setPanelReaction({ charId, text: picked.text, key: panelSeqRef.current });
-    panelReactionTimerRef.current = window.setTimeout(() => setPanelReaction(null), REACTION_SHOW_MS);
+    panelReactionTimerRef.current = window.setTimeout(() => setPanelReaction(null), G.REACTION_SHOW_MS);
   };
   // A living companion mourns the fallen by name, with the right gender form
   // ("бедный/бедная …"). Always spoken (a death is no small thing).
@@ -3868,9 +3406,9 @@ export default function MiddleEarthMap() {
     if (Math.random() >= reactionMultRef.current) {
       return;
     }
-    const temp = temperamentOf(speakerId);
+    const temp = G.temperamentOf(speakerId);
     const lines =
-      (FEMALE_IDS.has(deadId) ? reactionLines(`reaction.${temp}.mourn_f`) : null) ??
+      (G.FEMALE_IDS.has(deadId) ? reactionLines(`reaction.${temp}.mourn_f`) : null) ??
       reactionLines(`reaction.${temp}.mourn`);
     if (!lines) {
       return;
@@ -3892,14 +3430,14 @@ export default function MiddleEarthMap() {
         speakRef.current(ids[Math.floor(Math.random() * ids.length)], "idle", { always: true });
       }
       setIdleTick((n) => n + 1);
-    }, REACTION_IDLE_MS);
+    }, G.REACTION_IDLE_MS);
     return () => window.clearTimeout(id);
   }, [reactionsPaused, journeyDay, player, idleTick]);
 
   // Grumble once when food first runs low.
   const prevFoodLowRef = useRef(false);
   useEffect(() => {
-    const low = food <= REACTION_FOOD_LOW_DAYS;
+    const low = food <= G.REACTION_FOOD_LOW_DAYS;
     if (low && !prevFoodLowRef.current) {
       const ids = partyRef.current;
       if (ids.length > 0) {
@@ -3914,9 +3452,9 @@ export default function MiddleEarthMap() {
   useEffect(() => {
     const prev = prevCorruptionRef.current;
     if (bearerId) {
-      if (prev < REACTION_CORRUPTION_1 && bearerCorruption >= REACTION_CORRUPTION_1) {
+      if (prev < G.REACTION_CORRUPTION_1 && bearerCorruption >= G.REACTION_CORRUPTION_1) {
         speakRef.current(bearerId, "bearer60", { always: true });
-      } else if (prev < REACTION_CORRUPTION_2 && bearerCorruption >= REACTION_CORRUPTION_2) {
+      } else if (prev < G.REACTION_CORRUPTION_2 && bearerCorruption >= G.REACTION_CORRUPTION_2) {
         speakRef.current(bearerId, "bearer80", { always: true });
       }
     }
@@ -4001,7 +3539,7 @@ export default function MiddleEarthMap() {
     // "Sea" remarks only on the open sea — at least 7 of the 8 surrounding cells
     // are water too, so a shore or a river (more land around) never triggers
     // them. Only under sail.
-    if (terrain === "water" && transport === "ship" && isOpenSea(here, 10, getTerrainAtPoint)) {
+    if (terrain === "water" && transport === "ship" && G.isOpenSea(here, 10, getTerrainAtPoint)) {
       speakRandom("sea");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4012,9 +3550,9 @@ export default function MiddleEarthMap() {
   const hurtSpokenRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const character of partyCharacters) {
-      const stats = effectiveStats(character, totalBonusFor(character));
-      const maxHp = maxHpFromStats(stats.strength, stats.defense);
-      const hp = currentHp(maxHp, hpById[character.id]);
+      const stats = G.effectiveStats(character, totalBonusFor(character));
+      const maxHp = G.maxHpFromStats(stats.strength, stats.defense);
+      const hp = G.currentHp(maxHp, hpById[character.id]);
       const low = maxHp > 0 && hp > 0 && hp / maxHp < 0.33;
       if (low && !hurtSpokenRef.current.has(character.id)) {
         hurtSpokenRef.current.add(character.id);
@@ -4088,7 +3626,7 @@ export default function MiddleEarthMap() {
     // command of one rather than ending — only an empty roster is game over.
     // Prefer a squad that can carry the Ring (so a pending reclaim can offer it).
     if (squads.length > 0) {
-      const squad = squads.find((s) => s.members.some((id) => !NON_BEARERS.has(id))) ?? squads[0];
+      const squad = squads.find((s) => s.members.some((id) => !G.NON_BEARERS.has(id))) ?? squads[0];
       focusSquad(squad.id);
       return;
     }
@@ -4108,10 +3646,10 @@ export default function MiddleEarthMap() {
     if (!reclaimedFrom || ending || battle || party.length === 0) {
       return;
     }
-    if (party.some((id) => !NON_BEARERS.has(id))) {
+    if (party.some((id) => !G.NON_BEARERS.has(id))) {
       return; // someone here can take it — the chooser handles it
     }
-    const squad = squads.find((s) => s.members.some((id) => !NON_BEARERS.has(id)));
+    const squad = squads.find((s) => s.members.some((id) => !G.NON_BEARERS.has(id)));
     if (squad) {
       focusSquad(squad.id);
     }
@@ -4130,13 +3668,13 @@ export default function MiddleEarthMap() {
       if (id === bearerId) {
         return false;
       }
-      const character = CHARACTERS.find((c) => c.id === id);
-      return character ? recruitRefusalKey(id, party.filter((p) => p !== id)) !== null : false;
+      const character = G.CHARACTERS.find((c) => c.id === id);
+      return character ? G.recruitRefusalKey(id, party.filter((p) => p !== id)) !== null : false;
     });
     if (!evictee) {
       return;
     }
-    const key = recruitRefusalKey(evictee, party.filter((p) => p !== evictee));
+    const key = G.recruitRefusalKey(evictee, party.filter((p) => p !== evictee));
     setParty((prev) => prev.filter((id) => id !== evictee));
     showRecruitRefusal(
       t("refuse.evicted", { name: charName(evictee), line: key ? t(key) : "" }).trim(),
@@ -4180,7 +3718,7 @@ export default function MiddleEarthMap() {
 
     // Betrayal lost: traitor takes the Ring — unless they cannot be its bearer.
     if (battle.outcome === "lose" && battle.betrayalBy) {
-      if (NON_BEARERS.has(battle.betrayalBy)) {
+      if (G.NON_BEARERS.has(battle.betrayalBy)) {
         const nextHp = { ...hpRef.current };
         for (const ally of battle.allies) {
           if (ally.hp >= ally.maxHp) {
@@ -4277,7 +3815,7 @@ export default function MiddleEarthMap() {
       const xpGain = (ally: Combatant) =>
         Math.round(
           battle.exp *
-            (1 + XP_BONUS_PER_INT * Math.max(0, ally.intelligence - XP_INT_FLOOR)) *
+            (1 + G.XP_BONUS_PER_INT * Math.max(0, ally.intelligence - G.XP_INT_FLOOR)) *
             whiteBonus,
         );
       const toLevel: string[] = [];
@@ -4287,8 +3825,8 @@ export default function MiddleEarthMap() {
         }
         const oldExp = expById[ally.key] ?? 0;
         const newExp = oldExp + xpGain(ally);
-        const bonus = statBonusById[ally.key] ?? ZERO_BONUS;
-        if (unspentPointsFor(ally.key, newExp, bonus) > unspentPointsFor(ally.key, oldExp, bonus)) {
+        const bonus = statBonusById[ally.key] ?? G.ZERO_BONUS;
+        if (G.unspentPointsFor(ally.key, newExp, bonus) > G.unspentPointsFor(ally.key, oldExp, bonus)) {
           toLevel.push(ally.key);
         }
       }
@@ -4361,35 +3899,35 @@ export default function MiddleEarthMap() {
       const foe = battle.enemies[0];
       const activeBoss = !visitedLocation
         ? null
-        : visitedLocation.id === DOL_GULDUR_ID
+        : visitedLocation.id === G.DOL_GULDUR_ID
           ? // Whichever Dol Guldur boss led this fight — wraith or orc captain.
-            visitedLocationIds.has(MINAS_MORGUL_ID)
-            ? DOL_GULDUR_CAPTAIN
-            : DOL_GULDUR_WRAITH
-          : BOSSES_BY_LOCATION[visitedLocation.id];
-      if (foe && activeBoss && foe.name === activeBoss.name && BOSS_NAMES.has(foe.name)) {
+            visitedLocationIds.has(G.MINAS_MORGUL_ID)
+            ? G.DOL_GULDUR_CAPTAIN
+            : G.DOL_GULDUR_WRAITH
+          : G.BOSSES_BY_LOCATION[visitedLocation.id];
+      if (foe && activeBoss && foe.name === activeBoss.name && G.BOSS_NAMES.has(foe.name)) {
         setDefeatedBosses((prev) => new Set(prev).add(foe.name));
         chronicleRef.current("bossSlain", { foe: foe.name });
         // Clearing Dol Guldur while its wraiths were still posted there means the
         // three were slain — Minas Morgul will muster six of the Nine, not nine.
-        if (visitedLocation?.id === DOL_GULDUR_ID && !visitedLocationIds.has(MINAS_MORGUL_ID)) {
+        if (visitedLocation?.id === G.DOL_GULDUR_ID && !visitedLocationIds.has(G.MINAS_MORGUL_ID)) {
           setDolGuldurNazgulSlain(true);
         }
       }
       // Wormtongue felled (at Isengard alongside Saruman, or cornered in the
       // wild) is gone for good — he won't haunt the roads again.
-      if (battle.enemies.some((enemy) => enemy.icon === GRIMA_ENEMY.icon)) {
+      if (battle.enemies.some((enemy) => enemy.icon === G.GRIMA_ENEMY.icon)) {
         setGrimaSlain(true);
       }
       // A spared Saruman run down (in the NW, or at the Scouring) is dead at last.
-      if (battle.enemies.some((enemy) => enemy.icon === SARUMAN_ENEMY.icon)) {
+      if (battle.enemies.some((enemy) => enemy.icon === G.SARUMAN_ENEMY.icon)) {
         setSarumanSpared(false);
-        setDefeatedBosses((prev) => new Set(prev).add(SARUMAN_NAME));
-        chronicleRef.current("bossSlain", { foe: SARUMAN_NAME });
+        setDefeatedBosses((prev) => new Set(prev).add(G.SARUMAN_NAME));
+        chronicleRef.current("bossSlain", { foe: G.SARUMAN_NAME });
       }
       // Gollum slain at the Crack of Doom (a fight to the death, not a recruit
       // capture) — he won't lurk there again.
-      if (!battle.recruitId && battle.enemies.some((enemy) => enemy.icon === GOLLUM_ENEMY.icon)) {
+      if (!battle.recruitId && battle.enemies.some((enemy) => enemy.icon === G.GOLLUM_ENEMY.icon)) {
         setSlainRoamingRecruits((prev) => new Set(prev).add("gollum"));
       }
     }
@@ -4425,7 +3963,7 @@ export default function MiddleEarthMap() {
     }
     const [next, ...rest] = levelUpQueue;
     setLevelUpCharacterId(next);
-    setLevelUpDraft(ZERO_BONUS);
+    setLevelUpDraft(G.ZERO_BONUS);
     setLevelUpQueue(rest);
   }, [ending, battle, levelUpCharacterId, levelUpQueue]);
 
@@ -4446,7 +3984,7 @@ export default function MiddleEarthMap() {
   // flag commits his flight on dismissal.
   useEffect(() => {
     if (
-      visitedLocation?.id === EDORAS_ID &&
+      visitedLocation?.id === G.EDORAS_ID &&
       party.includes("gandalf") &&
       !grimaFled &&
       !grimaFleePending
@@ -4461,7 +3999,7 @@ export default function MiddleEarthMap() {
   // Ring is unmade (freeplay) there is nothing left to claim — the tower is just
   // an empty ruin, so no ending fires.
   useEffect(() => {
-    if (visitedLocation?.id === BARAD_DUR_ID && !ringDestroyed) {
+    if (visitedLocation?.id === G.BARAD_DUR_ID && !ringDestroyed) {
       setEnding((prev) => prev ?? "sauron");
     }
   }, [visitedLocation, ringDestroyed]);
@@ -4471,7 +4009,7 @@ export default function MiddleEarthMap() {
   // case settles him — an unmet/declined Treebeard keeps roaming Fangorn.
   useEffect(() => {
     if (
-      visitedLocation?.id === ISENGARD_ID &&
+      visitedLocation?.id === G.ISENGARD_ID &&
       isengardFallen &&
       !treebeardAtIsengard &&
       party.includes("treebeard")
@@ -4485,7 +4023,7 @@ export default function MiddleEarthMap() {
   // Arriving at the ruins of Tharbad: Gandalf, then Boromir (whoever is along)
   // each say their piece. With neither present the place is just empty.
   useEffect(() => {
-    if (visitedLocation?.id !== THARBAD_ID) {
+    if (visitedLocation?.id !== G.THARBAD_ID) {
       tharbadGreetedRef.current = false;
       return;
     }
@@ -4523,44 +4061,44 @@ export default function MiddleEarthMap() {
       ? party
       : (squads.find((s) => s.members.includes(bearerId))?.members ?? party);
     const heal = survivors.includes("gandalf")
-      ? Math.round(HEAL_PER_DAY * GANDALF_HEAL_MULTIPLIER)
-      : HEAL_PER_DAY;
+      ? Math.round(G.HEAL_PER_DAY * G.GANDALF_HEAL_MULTIPLIER)
+      : G.HEAL_PER_DAY;
     // Per-day encounter chance for any group: cloaks + Aragorn + stealth gear,
     // and the group's overall cleverness (average intelligence) — a sharper band
     // travels more warily. Used for the active party and each idle squad alike.
     const chanceFor = (ids: string[]) => {
       let chance = hasCloaks
-        ? ENCOUNTER_CHANCE_PER_DAY * CLOAKS_ENCOUNTER_MULTIPLIER
-        : ENCOUNTER_CHANCE_PER_DAY;
+        ? G.ENCOUNTER_CHANCE_PER_DAY * G.CLOAKS_ENCOUNTER_MULTIPLIER
+        : G.ENCOUNTER_CHANCE_PER_DAY;
       if (ids.includes("aragorn")) {
-        chance *= ARAGORN_ENCOUNTER_MULTIPLIER;
+        chance *= G.ARAGORN_ENCOUNTER_MULTIPLIER;
       }
       chance *= ids.reduce((m, id) => {
-        const it = equippedItems[id] ? ITEM_BY_ID[equippedItems[id]] : undefined;
+        const it = equippedItems[id] ? G.ITEM_BY_ID[equippedItems[id]] : undefined;
         return it?.stealth ? m * it.stealth : m;
       }, 1);
       if (ids.length > 0) {
         const avgInt =
           ids.reduce((sum, id) => {
-            const c = CHARACTERS.find((ch) => ch.id === id);
+            const c = G.CHARACTERS.find((ch) => ch.id === id);
             return (
               sum +
               (c
-                ? effectiveStats(c, addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(c, ids)))
+                ? G.effectiveStats(c, G.addBonus(statBonusById[id] ?? G.ZERO_BONUS, G.auraBonus(c, ids)))
                     .intelligence
                 : 0)
             );
           }, 0) / ids.length;
         chance *= Math.max(
-          PARTY_INT_STEALTH_FLOOR,
-          1 - Math.max(0, avgInt - PARTY_INT_STEALTH_BASELINE) * PARTY_INT_STEALTH_PER_POINT,
+          G.PARTY_INT_STEALTH_FLOOR,
+          1 - Math.max(0, avgInt - G.PARTY_INT_STEALTH_BASELINE) * G.PARTY_INT_STEALTH_PER_POINT,
         );
         // Fewer feet draw fewer eyes; a big host is far easier to spot (and
         // largely cancels its own cloaks). Mild for small bands, steep for crowds.
-        chance *= clamp(
-          1 + (ids.length - PARTY_STEALTH_NEUTRAL_SIZE) * PARTY_STEALTH_PER_MEMBER,
-          PARTY_STEALTH_FLOOR,
-          PARTY_STEALTH_CEIL,
+        chance *= G.clamp(
+          1 + (ids.length - G.PARTY_STEALTH_NEUTRAL_SIZE) * G.PARTY_STEALTH_PER_MEMBER,
+          G.PARTY_STEALTH_FLOOR,
+          G.PARTY_STEALTH_CEIL,
         );
       }
       return chance;
@@ -4586,15 +4124,15 @@ export default function MiddleEarthMap() {
     // Live max HP for a survivor, from their group's auras (matching how the rest
     // of upkeep reads stats). Items are intentionally left out here, as before.
     const maxHpOf = (id: string): number => {
-      const character = CHARACTERS.find((c) => c.id === id);
+      const character = G.CHARACTERS.find((c) => c.id === id);
       if (!character) {
         return 0;
       }
-      const es = effectiveStats(
+      const es = G.effectiveStats(
         character,
-        addBonus(statBonusById[id] ?? ZERO_BONUS, auraBonus(character, groupOf(id))),
+        G.addBonus(statBonusById[id] ?? G.ZERO_BONUS, G.auraBonus(character, groupOf(id))),
       );
-      return maxHpFromStats(es.strength, es.defense);
+      return G.maxHpFromStats(es.strength, es.defense);
     };
     for (let day = processedDayRef.current; day < journeyDay; day += 1) {
       // A tracked entry means below full; a missing one means full health.
@@ -4622,11 +4160,11 @@ export default function MiddleEarthMap() {
           if (id === "king_dead") {
             continue;
           }
-          const character = CHARACTERS.find((c) => c.id === id);
+          const character = G.CHARACTERS.find((c) => c.id === id);
           if (character) {
             const maxHp = maxHpOf(id);
             const prev = nextHp[id] ?? maxHp;
-            const now = prev - Math.round(maxHp * HUNGER_DAMAGE_FRACTION);
+            const now = prev - Math.round(maxHp * G.HUNGER_DAMAGE_FRACTION);
             nextHp[id] = now;
             if (now <= 0 && prev > 0) {
               hungerDead.push(id);
@@ -4654,14 +4192,14 @@ export default function MiddleEarthMap() {
       }
       if (ringless) {
         // No Ring to covet and no wild foes to bother with — just hunt the rogue.
-        // The Ring hides him for weeks; only after ROGUE_MIN_CHASE_DAYS does a
+        // The Ring hides him for weeks; only after G.ROGUE_MIN_CHASE_DAYS does a
         // daily roll have any chance to corner him.
         const daysSinceFled = rogueSinceDay !== null ? day - rogueSinceDay : 0;
         if (
-          daysSinceFled >= ROGUE_MIN_CHASE_DAYS &&
+          daysSinceFled >= G.ROGUE_MIN_CHASE_DAYS &&
           !onEagles &&
           !visitedLocation &&
-          Math.random() < ROGUE_ENCOUNTER_CHANCE
+          Math.random() < G.ROGUE_ENCOUNTER_CHANCE
         ) {
           rogueEncounter = true;
         }
@@ -4671,8 +4209,8 @@ export default function MiddleEarthMap() {
         const traitors = bearerGroup.filter(
           (id) =>
             id !== bearerId &&
-            TRAITORS.has(id) &&
-            day + 1 - (joinDayRef.current[id] ?? day + 1) >= BETRAYAL_GRACE_DAYS,
+            G.TRAITORS.has(id) &&
+            day + 1 - (joinDayRef.current[id] ?? day + 1) >= G.BETRAYAL_GRACE_DAYS,
         );
         // No one turns traitor over a Ring that's already in the fire.
         if (
@@ -4680,7 +4218,7 @@ export default function MiddleEarthMap() {
           !onEagles &&
           !pendingTraitor &&
           traitors.length > 0 &&
-          Math.random() < BETRAYAL_CHANCE
+          Math.random() < G.BETRAYAL_CHANCE
         ) {
           pendingTraitor = traitors[Math.floor(Math.random() * traitors.length)];
         }
@@ -4690,13 +4228,13 @@ export default function MiddleEarthMap() {
         // Corsair raids only out at sea (under sail — not while fording a river),
         // sharply likelier the further south, all but absent at Grey Havens' latitude.
         if (!visitedLocation && atSea && !corsairPeace) {
-          const south = clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
-          if (Math.random() < CORSAIR_SEA_MAX * Math.pow(south, CORSAIR_SEA_POWER)) {
+          const south = G.clamp((playerRef.current?.y ?? 0) / mapSize.height, 0, 1);
+          if (Math.random() < G.CORSAIR_SEA_MAX * Math.pow(south, G.CORSAIR_SEA_POWER)) {
             corsairEncounter = true;
           }
         }
       }
-      if (!atSea && members.includes("bombadil") && Math.random() < BOMBADIL_LEAVE_CHANCE) {
+      if (!atSea && members.includes("bombadil") && Math.random() < G.BOMBADIL_LEAVE_CHANCE) {
         bombadilLeaves = true;
       }
       // Idle splinter squads can be ambushed where they wait (at most one battle
@@ -4725,7 +4263,7 @@ export default function MiddleEarthMap() {
     setFood(nextFood);
     setHpById(nextHp);
     if (hungerDead.length > 0) {
-      const starvedRoaming = slainRoamingRecruitIds(hungerDead);
+      const starvedRoaming = G.slainRoamingRecruitIds(hungerDead);
       if (starvedRoaming.length > 0) {
         setSlainRoamingRecruits((prev) => {
           const next = new Set(prev);
@@ -4754,7 +4292,7 @@ export default function MiddleEarthMap() {
       );
 
       const remaining = survivors.filter((id) => !hungerDead.includes(id));
-      const ableBearer = remaining.some((id) => !NON_BEARERS.has(id));
+      const ableBearer = remaining.some((id) => !G.NON_BEARERS.has(id));
       if (hungerDead.includes(bearerId)) {
         if (ableBearer) {
           // The bearer starved, but an able companion can take up the Ring — pass
@@ -4764,7 +4302,7 @@ export default function MiddleEarthMap() {
           setReclaimedFrom(bearerId);
         } else if (remaining.length > 0) {
           // Only non-bearers left — one takes the Ring to their own doom.
-          setEnding((prev) => prev ?? nonBearerEnding(remaining));
+          setEnding((prev) => prev ?? G.nonBearerEnding(remaining));
         } else {
           setEnding((prev) => prev ?? "starved");
         }
@@ -4785,7 +4323,7 @@ export default function MiddleEarthMap() {
     // the sea. If their time is up while you're above open water, they carry on
     // and their leave is put off (the clock re-rolls), so they only set you down
     // once you're over walkable land.
-    if (transport === "eagle" && eagleSince !== null && journeyDay - eagleSince >= EAGLE_STAY_DAYS) {
+    if (transport === "eagle" && eagleSince !== null && journeyDay - eagleSince >= G.EAGLE_STAY_DAYS) {
       if (onWater) {
         setEagleSince(journeyDay);
       } else {
@@ -4802,13 +4340,13 @@ export default function MiddleEarthMap() {
       if (
         rogueBearerId &&
         rogueSinceDay !== null &&
-        visitedLocation?.id === ORODRUIN_ID &&
-        daysSinceFled >= ROGUE_MIN_CHASE_DAYS
+        visitedLocation?.id === G.ORODRUIN_ID &&
+        daysSinceFled >= G.ROGUE_MIN_CHASE_DAYS
       ) {
         setVisitedLocation(null);
         setCurrentLocation(null);
         startRogueBattle(rogueBearerId);
-      } else if (rogueSinceDay !== null && daysSinceFled >= ROGUE_CHASE_DAYS) {
+      } else if (rogueSinceDay !== null && daysSinceFled >= G.ROGUE_CHASE_DAYS) {
         // Ran out of time elsewhere: the rogue reaches Mount Doom and crowns himself.
         setEnding((prev) => prev ?? "rogueLord");
       } else if (rogueEncounter && rogueBearerId) {
@@ -4820,9 +4358,9 @@ export default function MiddleEarthMap() {
       const position = playerRef.current ?? hobbiton.point;
       // A spared Saruman (with Gríma, if still alive) waylays the party in the NW
       // — for the two months before he reaches the Shire.
-      if (sarumanRoams && regionAt(position) === "NW" && Math.random() < SARUMAN_ENCOUNTER_CHANCE) {
-        const pack = [SARUMAN_ENEMY, ...(grimaSlain ? [] : [GRIMA_ENEMY])];
-        setEncounter({ monster: SARUMAN_ENEMY, dangerous: true, solo: pack.length === 1, pack });
+      if (sarumanRoams && G.regionAt(position) === "NW" && Math.random() < G.SARUMAN_ENCOUNTER_CHANCE) {
+        const pack = [G.SARUMAN_ENEMY, ...(grimaSlain ? [] : [G.GRIMA_ENEMY])];
+        setEncounter({ monster: G.SARUMAN_ENEMY, dangerous: true, solo: pack.length === 1, pack });
         return;
       }
       // Gandalf the White: a month after the Grey fell in battle he may be met
@@ -4831,16 +4369,16 @@ export default function MiddleEarthMap() {
       const gandalfWhiteAvailable =
         deathCauseById.gandalf === "battle" &&
         gandalfFellDay !== null &&
-        journeyDay - gandalfFellDay >= GANDALF_WHITE_DELAY_DAYS &&
+        journeyDay - gandalfFellDay >= G.GANDALF_WHITE_DELAY_DAYS &&
         !party.includes("gandalf_white") &&
         !parkedMembers.includes("gandalf_white") &&
         !deathCauseById.gandalf_white;
-      if (gandalfWhiteAvailable && Math.random() < GANDALF_WHITE_ENCOUNTER_CHANCE) {
+      if (gandalfWhiteAvailable && Math.random() < G.GANDALF_WHITE_ENCOUNTER_CHANCE) {
         setPeacefulOffer(true);
         setRecruitOffer("gandalf_white");
         return;
       }
-      const rolled = rollEncounter(
+      const rolled = G.rollEncounter(
         position,
         party,
         parkedMembers.map((id) => ({ id })),
@@ -4857,7 +4395,7 @@ export default function MiddleEarthMap() {
         if (party.includes("saruman")) {
           // The company harbours Saruman — Treebeard falls on it (no joining).
           const hostile = { ...rolled, monster: { ...rolled.monster, recruitId: undefined } };
-          const enc = createEncounter(hostile, party.length, position);
+          const enc = G.createEncounter(hostile, party.length, position);
           setEncounter({ ...enc, dangerous: assessDanger(enc.monster, enc.pack) });
         } else {
           // Met in peace among the trees, he offers to come along.
@@ -4868,22 +4406,22 @@ export default function MiddleEarthMap() {
         // With his kin along, Éomer meets the party peacefully and offers to join.
         setPeacefulOffer(true);
         setRecruitOffer("eomer");
-      } else if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
+      } else if (deadSummoned && rolled.monster.name === G.WIGHT_NAME) {
         // The Dead are roused — barrow-wights no longer dare assail the party.
-      } else if (party.includes("saruman") && ORC_FOES.has(rolled.monster.name)) {
+      } else if (party.includes("saruman") && G.ORC_FOES.has(rolled.monster.name)) {
         // Saruman walks with the company — the orc-kin dare not attack.
       } else {
-        const enc = createEncounter(rolled, party.length, position);
-        const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
+        const enc = G.createEncounter(rolled, party.length, position);
+        const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== G.WIGHT_NAME) : enc.pack;
         setEncounter({ ...enc, pack, dangerous: assessDanger(enc.monster, pack) });
       }
     } else if (corsairEncounter && onWater) {
       // A corsair crew falls on the ship — they only ever sail with rats and
       // Haradrim alongside, and none of them are much of a threat.
-      const corsairCount = clamp(1 + Math.floor(Math.random() * party.length), 1, 4);
-      const pack: Monster[] = Array.from({ length: corsairCount }, () => CORSAIR_ENEMY);
-      const rat = MONSTERS.find((mm) => mm.icon === "/enemies/rat.png");
-      const haradrim = MONSTERS.find((mm) => mm.icon === "/enemies/kharadrim.png");
+      const corsairCount = G.clamp(1 + Math.floor(Math.random() * party.length), 1, 4);
+      const pack: Monster[] = Array.from({ length: corsairCount }, () => G.CORSAIR_ENEMY);
+      const rat = G.MONSTERS.find((mm) => mm.icon === "/enemies/rat.png");
+      const haradrim = G.MONSTERS.find((mm) => mm.icon === "/enemies/kharadrim.png");
       if (rat && Math.random() < 0.5) {
         pack.push(rat);
       }
@@ -4891,8 +4429,8 @@ export default function MiddleEarthMap() {
         pack.push(haradrim);
       }
       setEncounter({
-        monster: CORSAIR_ENEMY,
-        dangerous: assessDanger(CORSAIR_ENEMY, pack),
+        monster: G.CORSAIR_ENEMY,
+        dangerous: assessDanger(G.CORSAIR_ENEMY, pack),
         solo: pack.length === 1,
         pack,
       });
@@ -4945,7 +4483,7 @@ export default function MiddleEarthMap() {
     const others = [...partyRef.current, ...parkedMembers].filter(
       (id) => !squad.members.includes(id),
     );
-    const rolled = rollEncounter(
+    const rolled = G.rollEncounter(
       squad.point,
       squad.members,
       others.map((id) => ({ id })),
@@ -4955,11 +4493,11 @@ export default function MiddleEarthMap() {
       // Treebeard only seeks the main company, never a splinter group.
       true,
     );
-    if (deadSummoned && rolled.monster.name === WIGHT_NAME) {
+    if (deadSummoned && rolled.monster.name === G.WIGHT_NAME) {
       return; // the roused Dead deter barrow-wights — no fight
     }
-    const enc = createEncounter(rolled, squad.members.length, squad.point);
-    const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== WIGHT_NAME) : enc.pack;
+    const enc = G.createEncounter(rolled, squad.members.length, squad.point);
+    const pack = deadSummoned ? enc.pack.filter((mm) => mm.name !== G.WIGHT_NAME) : enc.pack;
     if (pack.length === 0) {
       return;
     }
@@ -5009,7 +4547,7 @@ export default function MiddleEarthMap() {
           ref={mapImgRef}
           alt="Middle-earth map"
           draggable="false"
-          src={MAP_VARIANTS[mapIndex] ?? mapImage}
+          src={G.MAP_VARIANTS[mapIndex] ?? G.mapImage}
           className="absolute left-0 top-0 max-w-none select-none"
           style={{
             width: mapSize.width,
@@ -5026,12 +4564,12 @@ export default function MiddleEarthMap() {
             ref={terrainImgRef}
             alt="Terrain overlay"
             draggable="false"
-            src={terrainImage}
+            src={G.terrainImage}
             className="pointer-events-none absolute left-0 top-0 max-w-none select-none [image-rendering:pixelated] mix-blend-multiply"
             style={{
               width: mapSize.width,
               height: mapSize.height,
-              opacity: TERRAIN_OVERLAY_OPACITY,
+              opacity: G.TERRAIN_OVERLAY_OPACITY,
               transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
             }}
@@ -5049,7 +4587,7 @@ export default function MiddleEarthMap() {
           {locationMarkers}
 
           {squads.map((squad) => {
-            const lead = CHARACTERS.find((c) => c.id === squad.members[0]);
+            const lead = G.CHARACTERS.find((c) => c.id === squad.members[0]);
             if (!lead) {
               return null;
             }
@@ -5132,7 +4670,7 @@ export default function MiddleEarthMap() {
             }}
           >
             <img
-              src={figureCharacter?.icon ?? PLAYER_ICON}
+              src={figureCharacter?.icon ?? G.PLAYER_ICON}
               alt=""
               draggable="false"
               // Thin gold silhouette outline marks the active group's figure (8
@@ -5157,19 +4695,7 @@ export default function MiddleEarthMap() {
         <MapSettingsMenu
           open={settingsOpen}
           onToggle={() => setSettingsOpen((prev) => !prev)}
-          showTerrain={showTerrain}
-          onToggleTerrain={() => setShowTerrain((prev) => !prev)}
-          showHeroPath={showHeroPath}
-          onToggleHeroPath={() => setShowHeroPath((prev) => !prev)}
-          reactionMode={reactionMode}
-          onCycleReactions={() =>
-            setReactionMode((prev) => (prev === "often" ? "rare" : prev === "rare" ? "never" : "often"))
-          }
-          mapIndex={mapIndex}
-          mapCount={MAP_VARIANTS.length}
-          onCycleMap={cycleMap}
-          theme={theme}
-          onToggleTheme={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
+          {...settingsMenuProps}
           speed={animationSpeed}
           onCycleSpeed={cycleSpeed}
           lang={lang}
@@ -5350,9 +4876,9 @@ export default function MiddleEarthMap() {
               className="grid grid-flow-col grid-rows-[repeat(9,auto)] gap-1"
             >
                 {partyCharacters.map((character) => {
-                  const es = effectiveStats(character, totalBonusFor(character));
-                  const maxHp = maxHpFromStats(es.strength, es.defense);
-                  const hp = currentHp(maxHp, hpById[character.id]);
+                  const es = G.effectiveStats(character, totalBonusFor(character));
+                  const maxHp = G.maxHpFromStats(es.strength, es.defense);
+                  const hp = G.currentHp(maxHp, hpById[character.id]);
                   return (
                   <button
                     key={character.id}
@@ -5392,7 +4918,7 @@ export default function MiddleEarthMap() {
                         title={t("character.bearer")}
                       >
                         <img
-                          src={ringImage}
+                          src={G.ringImage}
                           alt=""
                           draggable="false"
                           className="size-3.5 select-none object-contain"
@@ -5418,7 +4944,7 @@ export default function MiddleEarthMap() {
             // Ring, so the location card is suppressed there.
             visitedLocation &&
             !ending &&
-            !(visitedLocation.id === ORODRUIN_ID && hasRing)
+            !(visitedLocation.id === G.ORODRUIN_ID && hasRing)
               ? visitedLocation
               : null
           }
@@ -5426,7 +4952,7 @@ export default function MiddleEarthMap() {
           journeyDate={journeyDate}
           imageSrc={scouredArtSrc}
           imageInitiallyLoaded={
-            scouredArtSrc ? preloadedLocationImages.has(scouredArtSrc) : false
+            scouredArtSrc ? G.preloadedLocationImages.has(scouredArtSrc) : false
           }
           boss={locationBoss}
           sidekick={
@@ -5434,16 +4960,16 @@ export default function MiddleEarthMap() {
             // while still alive. (When Gríma is the Isengard boss himself, no
             // sidekick.)
             !grimaSlain &&
-            ((visitedLocation?.id === ISENGARD_ID &&
+            ((visitedLocation?.id === G.ISENGARD_ID &&
               grimaFled &&
-              locationBoss?.name === BOSSES_BY_LOCATION[ISENGARD_ID].name) ||
-              (visitedLocation?.id === HOBBITON_ID && sarumanScouring))
-              ? GRIMA_ENEMY
+              locationBoss?.name === G.BOSSES_BY_LOCATION[G.ISENGARD_ID].name) ||
+              (visitedLocation?.id === G.HOBBITON_ID && sarumanScouring))
+              ? G.GRIMA_ENEMY
               : null
           }
           parley={
-            visitedLocation?.id === CORSAIRS_CITY_ID && corsairCaptainFriendly
-              ? BOSSES_BY_LOCATION[CORSAIRS_CITY_ID]
+            visitedLocation?.id === G.CORSAIRS_CITY_ID && corsairCaptainFriendly
+              ? G.BOSSES_BY_LOCATION[G.CORSAIRS_CITY_ID]
               : null
           }
           onParley={() => {
@@ -5465,53 +4991,53 @@ export default function MiddleEarthMap() {
           refusalOpen={recruitRefusal !== null}
           canExplore={
             !!visitedLocation &&
-            (!!EXPLORE_ITEM_BY_LOCATION[visitedLocation.id] ||
-              visitedLocation.id === ERECH_ID ||
-              visitedLocation.id === WEATHERTOP_ID ||
-              visitedLocation.id === OSGILIATH_ID ||
-              visitedLocation.id === HELMS_DEEP_ID)
+            (!!G.EXPLORE_ITEM_BY_LOCATION[visitedLocation.id] ||
+              visitedLocation.id === G.ERECH_ID ||
+              visitedLocation.id === G.WEATHERTOP_ID ||
+              visitedLocation.id === G.OSGILIATH_ID ||
+              visitedLocation.id === G.HELMS_DEEP_ID)
           }
           exploreLocked={
             !!locationBoss ||
-            (visitedLocation?.id === ISENGARD_ID &&
+            (visitedLocation?.id === G.ISENGARD_ID &&
               !sarumanGone &&
               !party.includes("saruman")) ||
-            (visitedLocation?.id === WEATHERTOP_ID &&
-              !defeatedBosses.has(BOSSES_BY_LOCATION[WEATHERTOP_ID].name) &&
+            (visitedLocation?.id === G.WEATHERTOP_ID &&
+              !defeatedBosses.has(G.BOSSES_BY_LOCATION[G.WEATHERTOP_ID].name) &&
               !wraithsBroken)
           }
           onExplore={exploreLocation}
           onFightBoss={() => {
             // At Orodruin a fled bearer is run down with the dedicated rogue
             // battle (reclaims the Ring on victory), not a normal boss fight.
-            if (visitedLocation?.id === ORODRUIN_ID && rogueBearerId) {
+            if (visitedLocation?.id === G.ORODRUIN_ID && rogueBearerId) {
               startRogueBattle(rogueBearerId);
               return;
             }
             if (locationBoss) {
               const bossPack =
-                visitedLocation?.id === MINAS_MORGUL_ID
+                visitedLocation?.id === G.MINAS_MORGUL_ID
                   ? // Three of the Nine fall at Dol Guldur — leaving six here, not nine.
                     [
                       locationBoss,
-                      ...Array.from({ length: dolGuldurNazgulSlain ? 5 : 8 }, () => NAZGUL_ENEMY),
+                      ...Array.from({ length: dolGuldurNazgulSlain ? 5 : 8 }, () => G.NAZGUL_ENEMY),
                     ]
-                  : visitedLocation?.id === DOL_GULDUR_ID
+                  : visitedLocation?.id === G.DOL_GULDUR_ID
                     ? dolGuldurHasWraiths
                       ? // The lead wraith plus two more — three Nazgûl over the garrison.
-                        [locationBoss, NAZGUL_ENEMY, NAZGUL_ENEMY, ...DOL_GULDUR_GARRISON]
-                      : [locationBoss, ...DOL_GULDUR_GARRISON]
-                    : visitedLocation?.id === WEATHERTOP_ID
-                      ? [locationBoss, WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
-                      : visitedLocation?.id === HOBBITON_ID && sarumanScouring
+                        [locationBoss, G.NAZGUL_ENEMY, G.NAZGUL_ENEMY, ...G.DOL_GULDUR_GARRISON]
+                      : [locationBoss, ...G.DOL_GULDUR_GARRISON]
+                    : visitedLocation?.id === G.WEATHERTOP_ID
+                      ? [locationBoss, G.WEATHERTOP_WITCHKING, ...Array.from({ length: 3 }, () => locationBoss)]
+                      : visitedLocation?.id === G.HOBBITON_ID && sarumanScouring
                         ? // The Scouring: Saruman with Gríma at his side, if alive.
-                          [locationBoss, ...(grimaSlain ? [] : [GRIMA_ENEMY])]
-                        : visitedLocation?.id === ISENGARD_ID &&
+                          [locationBoss, ...(grimaSlain ? [] : [G.GRIMA_ENEMY])]
+                        : visitedLocation?.id === G.ISENGARD_ID &&
                             grimaFled &&
-                            locationBoss.name !== GRIMA_ENEMY.name
+                            locationBoss.name !== G.GRIMA_ENEMY.name
                           ? // Saruman fights with Gríma at his side; once Saruman is
                             // gone, Gríma (now the boss himself) skulks here alone.
-                            [locationBoss, GRIMA_ENEMY]
+                            [locationBoss, G.GRIMA_ENEMY]
                           : [locationBoss];
               // Already chose the fight at the location — go straight to battle,
               // skipping the "you met a foe" encounter prompt.
@@ -5523,13 +5049,13 @@ export default function MiddleEarthMap() {
                 // Wraiths stand and fight to the death in their lairs (Minas
                 // Morgul, and Dol Guldur while the Nine are still abroad).
                 wraithsStand:
-                  visitedLocation?.id === MINAS_MORGUL_ID ||
-                  (visitedLocation?.id === DOL_GULDUR_ID && dolGuldurHasWraiths),
+                  visitedLocation?.id === G.MINAS_MORGUL_ID ||
+                  (visitedLocation?.id === G.DOL_GULDUR_ID && dolGuldurHasWraiths),
                 // Saruman at Isengard, with a mercy advocate (Gandalf/Treebeard)
                 // along: the fight pauses at half to offer sparing him.
                 sarumanParley:
-                  visitedLocation?.id === ISENGARD_ID &&
-                  locationBoss.name === SARUMAN_NAME &&
+                  visitedLocation?.id === G.ISENGARD_ID &&
+                  locationBoss.name === G.SARUMAN_NAME &&
                   (party.includes("gandalf") || party.includes("treebeard")),
               });
             }
@@ -5560,7 +5086,7 @@ export default function MiddleEarthMap() {
           }}
           onWait={waitOneDay}
           note={
-            visitedLocation?.id === ORODRUIN_ID && !hasRing && !locationBoss
+            visitedLocation?.id === G.ORODRUIN_ID && !hasRing && !locationBoss
               ? t("orodruin.noRing")
               : null
           }
@@ -5571,7 +5097,7 @@ export default function MiddleEarthMap() {
             }
             // Leaving Hobbiton while Saruman holds it (still alive) — now he ruins
             // the Shire: it shows scoured on any return.
-            if (visitedLocation?.id === HOBBITON_ID && sarumanScouring && sarumanSpared) {
+            if (visitedLocation?.id === G.HOBBITON_ID && sarumanScouring && sarumanSpared) {
               setHobbitonScoured(true);
             }
             setVisitedLocation(null);
@@ -5610,17 +5136,17 @@ export default function MiddleEarthMap() {
             !openStats.dead &&
             rogueBearerId === null &&
             party.includes(openCharacter.id) &&
-            !NON_BEARERS.has(openCharacter.id)
+            !G.NON_BEARERS.has(openCharacter.id)
           }
           isLeftBehind={!!openCharacter && parkedMembers.includes(openCharacter.id)}
           equippedItem={
             openCharacter && equippedItems[openCharacter.id]
-              ? (ITEM_BY_ID[equippedItems[openCharacter.id]] ?? null)
+              ? (G.ITEM_BY_ID[equippedItems[openCharacter.id]] ?? null)
               : null
           }
           itemOptions={
             openCharacter
-              ? ITEMS.filter(
+              ? G.ITEMS.filter(
                   (it) =>
                     foundItems.includes(it.id) &&
                     !Object.entries(equippedItems).some(
@@ -5647,7 +5173,7 @@ export default function MiddleEarthMap() {
         />
 
         <OrodruinModal
-          open={visitedLocation?.id === ORODRUIN_ID && hasRing && !ending}
+          open={visitedLocation?.id === G.ORODRUIN_ID && hasRing && !ending}
           onDestroy={destroyRing}
           onClaim={() => wearRingAtDoom(false)}
         />
@@ -5663,7 +5189,7 @@ export default function MiddleEarthMap() {
           onTakeRing={takeOffRing}
           onFlee={fleeBattle}
           fleeChance={battleEscapePct}
-          onSkip={() => setBattle((b) => (b ? resolveBattleInstantly(b) : b))}
+          onSkip={() => setBattle((b) => (b ? G.resolveBattleInstantly(b) : b))}
           onContinue={() => setBattle(null)}
           onSelectAlly={selectGuardAlly}
           onSelectEnemy={selectFocusEnemy}
@@ -5761,7 +5287,7 @@ export default function MiddleEarthMap() {
                 setTransport(null);
                 playerRef.current = landing.point;
                 setPlayer(landing.point);
-                setHeroPath((path) => appendPathPoint(path, landing.point, trailCapRef.current));
+                setHeroPath((path) => G.appendPathPoint(path, landing.point, trailCapRef.current));
                 if (landing.location) {
                   openVisitedLocationRef.current(landing.location);
                 }
@@ -5820,7 +5346,7 @@ export default function MiddleEarthMap() {
                   setEnding("valinorWest");
                   return;
                 }
-                const avgLuck = party.length ? partyLuck(party, statBonusById) / party.length : 0;
+                const avgLuck = party.length ? G.partyLuck(party, statBonusById) / party.length : 0;
                 if (avgLuck < 8) {
                   setEnding("valinorSink");
                 } else {
@@ -5858,7 +5384,7 @@ export default function MiddleEarthMap() {
         <RecruitOfferModal
           offered={
             recruitOffer && !battle && !levelUpCharacterId && levelUpQueue.length === 0
-              ? (CHARACTERS.find((c) => c.id === recruitOffer) ?? null)
+              ? (G.CHARACTERS.find((c) => c.id === recruitOffer) ?? null)
               : null
           }
           waiting={!!recruitOffer && parkedMembers.includes(recruitOffer)}
@@ -5959,7 +5485,7 @@ export default function MiddleEarthMap() {
 
         <SpeechModal
           open={tharbadSpeech !== null}
-          icon={tharbadSpeech ? (CHARACTERS.find((c) => c.id === tharbadSpeech)?.icon ?? "") : ""}
+          icon={tharbadSpeech ? (G.CHARACTERS.find((c) => c.id === tharbadSpeech)?.icon ?? "") : ""}
           name={tharbadSpeech ? charName(tharbadSpeech) : ""}
           text={tharbadSpeech ? t(`tharbad.${tharbadSpeech}`) : ""}
           buttonLabel={t(
@@ -5972,7 +5498,7 @@ export default function MiddleEarthMap() {
 
         <SamCatchUpModal
           open={samCatchUpOpen && !ending}
-          sam={CHARACTERS.find((character) => character.id === "sam") ?? null}
+          sam={G.CHARACTERS.find((character) => character.id === "sam") ?? null}
           onContinue={acceptSamCatchUp}
         />
 
@@ -6002,7 +5528,7 @@ export default function MiddleEarthMap() {
         <CreationModal
           open={!created}
           hero={creationHero}
-          heroName={charName(RING_BEARER_ID)}
+          heroName={charName(G.RING_BEARER_ID)}
           bonus={creationBonus}
           spent={creationSpent}
           onAdjust={adjustCreation}
@@ -6015,7 +5541,7 @@ export default function MiddleEarthMap() {
 
         <RogueFledModal
           fled={
-            rogueFledNotice && !ending ? (CHARACTERS.find((c) => c.id === rogueFledNotice) ?? null) : null
+            rogueFledNotice && !ending ? (G.CHARACTERS.find((c) => c.id === rogueFledNotice) ?? null) : null
           }
           charName={charName}
           onContinue={() => setRogueFledNotice(null)}
@@ -6038,7 +5564,7 @@ export default function MiddleEarthMap() {
           <EndingModal
             open
             ending={ending}
-            bearer={rogueBearerId ? CHARACTERS.find((c) => c.id === rogueBearerId) : ringBearer}
+            bearer={rogueBearerId ? G.CHARACTERS.find((c) => c.id === rogueBearerId) : ringBearer}
             bearerName={
               rogueBearerId
                 ? charName(rogueBearerId)
@@ -6049,7 +5575,7 @@ export default function MiddleEarthMap() {
             lordClaimed={lordClaimed}
             doomBetrayal={doomBetrayal}
             onReplay={() => {
-              clearSave();
+              G.clearSave();
               window.location.reload();
             }}
             onViewStats={() => setStatsOpen(true)}
