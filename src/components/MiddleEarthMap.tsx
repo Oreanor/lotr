@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { TransportIcon, Modal, PortalBubble } from "@/components/ui";
+import { PortalBubble } from "@/components/ui";
 import {
   BattleModal,
   CharacterModal,
   ChronicleModal,
   CreationModal,
+  DisembarkModal,
   EaglesLeftModal,
   EncounterModal,
   EndingModal,
@@ -23,11 +24,13 @@ import {
   RestartConfirmModal,
   RogueFledModal,
   SamCatchUpModal,
+  SarumanParleyModal,
   SpeechModal,
   SplitModal,
   StatsModal,
   TalkResultModal,
   TransportConfirmModal,
+  ValinorModal,
   type ExploreResult,
   type GameStats,
   type PartySummaryRow,
@@ -4896,32 +4899,11 @@ export default function MiddleEarthMap() {
           }
         />
 
-        {/* Saruman beaten to half with a mercy advocate along: living companions
-            plead/object one at a time as battle bubbles, then the spare/fight choice. */}
-        <Modal
+        <SarumanParleyModal
           open={!!battle?.pendingParley && parleyStep >= livingParleySpeakers.length}
-          z="z-[60]"
-          overlayClassName="bg-black/70"
-          className="w-full max-w-xs border-amber-800 p-6 text-center"
-        >
-          <p className="text-sm text-neutral-200">{t("sarumanParley.prompt")}</p>
-          <div className="mt-5 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={spareSaruman}
-              className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/70"
-            >
-              {t("sarumanParley.spare")}
-            </button>
-            <button
-              type="button"
-              onClick={fightSaruman}
-              className="rounded border border-red-800 bg-red-900/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-900/70"
-            >
-              {t("sarumanParley.fight")}
-            </button>
-          </div>
-        </Modal>
+          onSpare={spareSaruman}
+          onFight={fightSaruman}
+        />
 
         <EncounterModal
           encounter={autoPlay ? null : encounter}
@@ -4960,119 +4942,72 @@ export default function MiddleEarthMap() {
           onClose={() => setTalkResult(null)}
         />
 
-        <Modal
+        <DisembarkModal
           open={pendingDisembark !== null}
-          z="z-[60]"
-          className="w-full max-w-xs border-sky-800 p-6 text-center"
-        >
-          <TransportIcon transport="ship" className="mx-auto size-12 object-contain" />
-          <p className="mt-3 text-sm text-sky-100">{t("transport.disembarkAsk")}</p>
-          <div className="mt-5 flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const landing = pendingDisembark;
-                setPendingDisembark(null);
-                if (!landing) {
-                  return;
-                }
-                transportRef.current = null;
-                setTransport(null);
-                playerRef.current = landing.point;
-                setPlayer(landing.point);
-                setHeroPath((path) => G.appendPathPoint(path, landing.point, trailCapRef.current));
-                if (landing.location) {
-                  openVisitedLocationRef.current(landing.location);
-                }
-              }}
-              className="flex-1 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
-            >
-              {t("transport.disembarkYes")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPendingDisembark(null)}
-              className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
-            >
-              {t("transport.disembarkNo")}
-            </button>
-          </div>
-        </Modal>
+          onDisembark={() => {
+            const landing = pendingDisembark;
+            setPendingDisembark(null);
+            if (!landing) {
+              return;
+            }
+            transportRef.current = null;
+            setTransport(null);
+            playerRef.current = landing.point;
+            setPlayer(landing.point);
+            setHeroPath((path) => G.appendPathPoint(path, landing.point, trailCapRef.current));
+            if (landing.location) {
+              openVisitedLocationRef.current(landing.location);
+            }
+          }}
+          onStay={() => setPendingDisembark(null)}
+        />
 
-        <Modal
+        <ValinorModal
           open={valinorAttempt}
-          z="z-[60]"
-          overlayClassName="bg-black/80"
-          className="w-full max-w-xs border-sky-800 p-6 text-center"
-        >
-          <TransportIcon
-            transport={valinorByEagle ? "eagle" : "ship"}
-            className="mx-auto size-12 object-contain"
-          />
-          <p className="mt-3 text-sm text-sky-100">
-            {t(valinorByEagle ? "ending.valinorAskEagle" : "ending.valinorAsk")}
-          </p>
-          <div className="mt-5 flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setValinorAttempt(false);
-                // The Eagles of Manwë will not bear the Ring into the West — while
-                // it endures they wheel back to the map. Only once it's unmade do
-                // they carry the company over the Sea.
-                if (valinorByEagle) {
-                  if (ringDestroyed) {
-                    setEnding("valinorWest");
-                    return;
-                  }
-                  const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
-                  playerRef.current = back;
-                  setPlayer(back);
-                  setExploreResult({ found: true, message: "ending.valinorEagleRefuse" });
-                  return;
-                }
-                if (hasRing) {
-                  setEnding("valinorRing");
-                  return;
-                }
-                if (ringDestroyed) {
-                  setEnding("valinorWest");
-                  return;
-                }
-                const avgLuck = party.length ? G.partyLuck(party, statBonusById) / party.length : 0;
-                if (avgLuck < 8) {
-                  setEnding("valinorSink");
-                } else {
-                  // The Straight Road stays shut, but the seas spare them — they
-                  // come about and the ship slips back onto the map from the edge.
-                  const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
-                  playerRef.current = back;
-                  setPlayer(back);
-                  setExploreResult({ found: true, message: "ending.valinorReturn" });
-                }
-              }}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"
-            >
-              <TransportIcon
-                transport={valinorByEagle ? "eagle" : "ship"}
-                className="size-5 shrink-0 object-contain"
-              />
-              {t("ending.valinorYes")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setValinorAttempt(false);
-                const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
-                playerRef.current = back;
-                setPlayer(back);
-              }}
-              className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
-            >
-              {t("ending.valinorNo")}
-            </button>
-          </div>
-        </Modal>
+          byEagle={valinorByEagle}
+          onConfirm={() => {
+            setValinorAttempt(false);
+            // The Eagles of Manwë will not bear the Ring into the West — while it
+            // endures they wheel back to the map. Only once it's unmade do they
+            // carry the company over the Sea.
+            if (valinorByEagle) {
+              if (ringDestroyed) {
+                setEnding("valinorWest");
+                return;
+              }
+              const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
+              playerRef.current = back;
+              setPlayer(back);
+              setExploreResult({ found: true, message: "ending.valinorEagleRefuse" });
+              return;
+            }
+            if (hasRing) {
+              setEnding("valinorRing");
+              return;
+            }
+            if (ringDestroyed) {
+              setEnding("valinorWest");
+              return;
+            }
+            const avgLuck = party.length ? G.partyLuck(party, statBonusById) / party.length : 0;
+            if (avgLuck < 8) {
+              setEnding("valinorSink");
+            } else {
+              // The Straight Road stays shut, but the seas spare them — they come
+              // about and the ship slips back onto the map from the edge.
+              const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
+              playerRef.current = back;
+              setPlayer(back);
+              setExploreResult({ found: true, message: "ending.valinorReturn" });
+            }
+          }}
+          onCancel={() => {
+            setValinorAttempt(false);
+            const back = { x: 60, y: playerRef.current?.y ?? hobbiton.point.y };
+            playerRef.current = back;
+            setPlayer(back);
+          }}
+        />
 
         <RecruitOfferModal
           offered={

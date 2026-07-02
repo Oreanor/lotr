@@ -51,6 +51,93 @@ export function TransportConfirmModal({
   );
 }
 
+// Reaching a coast under sail: step ashore here, or stay aboard and sail on.
+export function DisembarkModal({
+  open,
+  onDisembark,
+  onStay,
+}: {
+  open: boolean;
+  onDisembark: () => void;
+  onStay: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal open={open} z="z-[60]" className="w-full max-w-xs border-sky-800 p-6 text-center">
+      <TransportIcon transport="ship" className="mx-auto size-12 object-contain" />
+      <p className="mt-3 text-sm text-sky-100">{t("transport.disembarkAsk")}</p>
+      <div className="mt-5 flex gap-2">
+        <button
+          type="button"
+          onClick={onDisembark}
+          className="flex-1 rounded border border-amber-700 bg-amber-900/40 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/70"
+        >
+          {t("transport.disembarkYes")}
+        </button>
+        <button
+          type="button"
+          onClick={onStay}
+          className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+        >
+          {t("transport.disembarkNo")}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// At the edge of the world: attempt the passage into the West (by ship or borne
+// by Eagles), or turn back. The page owns what each choice does.
+export function ValinorModal({
+  open,
+  byEagle,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  byEagle: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      open={open}
+      z="z-[60]"
+      overlayClassName="bg-black/80"
+      className="w-full max-w-xs border-sky-800 p-6 text-center"
+    >
+      <TransportIcon
+        transport={byEagle ? "eagle" : "ship"}
+        className="mx-auto size-12 object-contain"
+      />
+      <p className="mt-3 text-sm text-sky-100">
+        {t(byEagle ? "ending.valinorAskEagle" : "ending.valinorAsk")}
+      </p>
+      <div className="mt-5 flex gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/70"
+        >
+          <TransportIcon
+            transport={byEagle ? "eagle" : "ship"}
+            className="size-5 shrink-0 object-contain"
+          />
+          {t("ending.valinorYes")}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:bg-neutral-700"
+        >
+          {t("ending.valinorNo")}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // The eagles of Manwë grew tired and flew off.
 export function EaglesLeftModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();

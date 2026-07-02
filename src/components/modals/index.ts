@@ -17,6 +17,7 @@ export * from "./Preloader";
 export * from "./RecruitOfferModal";
 export * from "./RestartConfirmModal";
 export * from "./RogueModals";
+export * from "./SarumanParleyModal";
 export * from "./SpeechModal";
 export * from "./SplitModal";
 export * from "./StatsModal";
